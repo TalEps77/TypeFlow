@@ -24,6 +24,7 @@ enum LogCategory: String {
     case history = "History"
     case profiles = "Profiles"
     case dictionary = "Dictionary"
+    case snippets = "Snippets"
     case general = "General"
 }
 

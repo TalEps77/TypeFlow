@@ -50,6 +50,20 @@ final class SnippetStore: ObservableObject {
         persist()
     }
 
+    /// Whether `cue` collides with an existing Snippet's Cue (Story 5.5 AC:
+    /// "Cues must be unambiguous"), compared the same normalization-tolerant,
+    /// case-insensitive way `SnippetService` matches — a Cue differing only
+    /// by niqqud or spelling variance is just as ambiguous as an identical
+    /// one. `excluding` lets the editor check a Cue being renamed against
+    /// every *other* Snippet without rejecting it against itself.
+    func hasCollision(withCue cue: String, excluding excludedID: UUID? = nil) -> Bool {
+        let normalizedCue = HebrewNormalizer.normalize(cue).lowercased()
+        guard !normalizedCue.isEmpty else { return false }
+        return snippets.contains {
+            $0.id != excludedID && HebrewNormalizer.normalize($0.cue).lowercased() == normalizedCue
+        }
+    }
+
     private func persist() {
         store.save(snippets)
     }
