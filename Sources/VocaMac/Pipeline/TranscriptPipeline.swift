@@ -18,9 +18,13 @@ final class TranscriptPipeline: TranscriptPipelining {
         self.stages = stages
     }
 
-    /// The pipeline as the shipping app assembles it.
+    /// The pipeline as the shipping app assembles it. Every stage in here is
+    /// inert until its own setting is turned on, so this is still an identity
+    /// pipeline for a user who has changed nothing.
     static func production() -> TranscriptPipeline {
-        TranscriptPipeline(stages: [])
+        TranscriptPipeline(stages: [
+            PostProcessStage()
+        ])
     }
 
     func run(_ context: TranscriptContext) async -> TranscriptContext {
