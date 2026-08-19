@@ -222,6 +222,17 @@ final class HistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.records.map(\.rawTranscript), ["third", "second"])
     }
 
+    func testRetentionLimitExactlyAtBoundaryDoesNotPrune() {
+        let (store, _) = makeStore()
+        store.retentionLimit = 3
+
+        store.record(record("first", at: Date(timeIntervalSince1970: 1)))
+        store.record(record("second", at: Date(timeIntervalSince1970: 2)))
+        store.record(record("third", at: Date(timeIntervalSince1970: 3)))
+
+        XCTAssertEqual(store.records.count, 3, "Exactly at the limit must not prune")
+    }
+
     func testZeroRetentionLimitMeansUnlimited() {
         let (store, _) = makeStore()
         store.retentionLimit = 0

@@ -56,6 +56,50 @@ final class SettingsWindowManager: ObservableObject {
     }
 }
 
+/// Manages the history window
+final class HistoryWindowManager: ObservableObject {
+    private var historyWindow: NSWindow?
+
+    func open(appState: AppState) {
+        if let window = historyWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let historyView = HistoryView()
+            .environmentObject(appState)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 680, height: 440),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "VocaMac History"
+        window.contentView = NSHostingView(rootView: historyView)
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+
+        self.historyWindow = window
+
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            self?.historyWindow = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
+    }
+}
+
 /// Manages the onboarding window
 @MainActor
 final class OnboardingWindowManager: ObservableObject {
@@ -137,12 +181,13 @@ final class OnboardingWindowManager: ObservableObject {
 struct VocaMacApp: App {
     @StateObject private var appState = AppState.production()
     @StateObject private var settingsManager = SettingsWindowManager()
+    @StateObject private var historyManager = HistoryWindowManager()
     @StateObject private var onboardingManager = OnboardingWindowManager()
 
     var body: some Scene {
         // Menu bar presence — the primary UI for VocaMac
         MenuBarExtra {
-            MenuBarView(settingsManager: settingsManager)
+            MenuBarView(settingsManager: settingsManager, historyManager: historyManager)
                 .environmentObject(appState)
         } label: {
             MenuBarIcon(appStatus: appState.appStatus, audioLevel: appState.audioLevel)

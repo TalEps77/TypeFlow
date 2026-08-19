@@ -78,6 +78,7 @@ final class ProcessMonitor: ObservableObject {
 struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject var settingsManager: SettingsWindowManager
+    @ObservedObject var historyManager: HistoryWindowManager
     @StateObject private var processMonitor = ProcessMonitor()
 
     var body: some View {
@@ -372,6 +373,26 @@ struct MenuBarView: View {
                     Spacer()
                     Text("⌘,")
                         .foregroundStyle(.secondary)
+                }
+                .font(.body)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(0.0001))
+                )
+            }
+            .buttonStyle(MenuRowButtonStyle())
+
+            Button {
+                historyManager.open(appState: appState)
+            } label: {
+                HStack {
+                    Image(systemName: "clock.arrow.circlepath")
+                    Text("History")
+                    Spacer()
                 }
                 .font(.body)
                 .padding(.vertical, 6)
