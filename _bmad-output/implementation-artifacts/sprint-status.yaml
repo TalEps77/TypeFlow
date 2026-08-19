@@ -37,7 +37,7 @@ story_location: _bmad-output/implementation-artifacts/stories
 development_status:
   epic-1: in-progress
   1-1-register-the-side-loaded-ivrit-ai-hebrew-model: done
-  1-2-handle-an-absent-side-loaded-model-and-restore-hebrew-to-the: backlog
+  1-2-handle-an-absent-side-loaded-model-and-restore-hebrew-to-the: done
   1-3-record-per-stage-latency-on-the-history-record: backlog
   epic-1-retrospective: optional
 

@@ -102,6 +102,7 @@ protocol ModelManaging: AnyObject {
     func isModelDownloaded(_ size: ModelSize) -> Bool
     func isModelSupported(_ size: ModelSize) -> Bool
     func whisperKitModelName(for size: ModelSize) -> String
+    func expectedModelDirectory(for size: ModelSize) -> URL
     func modelSize(from whisperKitName: String) -> ModelSize?
     func downloadModel(size: ModelSize, onProgress: @escaping (Double) -> Void) async throws
     func diskUsageDescription() -> String

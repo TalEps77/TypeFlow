@@ -112,6 +112,7 @@ struct GeneralSettingsTab: View {
                     Divider()
                     Group {
                         Text("English").tag("en")
+                        Text("Hebrew").tag("he")
                         Text("Spanish").tag("es")
                         Text("French").tag("fr")
                         Text("German").tag("de")
@@ -458,28 +459,40 @@ struct ModelRow: View {
                         .font(.callout)
                         .fontWeight(model.isActive ? .semibold : .regular)
 
-                    if model.isSupported,
-                       let recommended = appState.deviceRecommendedModel {
-                        if appState.modelManager.modelSize(from: recommended) == model.size {
-                            Text("Recommended")
+                    if model.size.isSideloadOnly {
+                        if !model.isDownloaded {
+                            Text("Not Installed")
                                 .font(.caption2)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 1)
-                                .background(.blue.opacity(0.2))
-                                .foregroundStyle(.blue)
+                                .background(.secondary.opacity(0.2))
+                                .foregroundStyle(.secondary)
                                 .cornerRadius(4)
                         }
-                    }
+                    } else {
+                        if model.isSupported,
+                           let recommended = appState.deviceRecommendedModel {
+                            if appState.modelManager.modelSize(from: recommended) == model.size {
+                                Text("Recommended")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 1)
+                                    .background(.blue.opacity(0.2))
+                                    .foregroundStyle(.blue)
+                                    .cornerRadius(4)
+                            }
+                        }
 
-                    if !model.isSupported {
-                        Text("Experimental")
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
-                            .background(.orange.opacity(0.2))
-                            .foregroundStyle(.orange)
-                            .cornerRadius(4)
-                            .help("WhisperKit hasn't verified this model on your chip family. It may fail to load, or it may run slower than tuned models.")
+                        if !model.isSupported {
+                            Text("Experimental")
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(.orange.opacity(0.2))
+                                .foregroundStyle(.orange)
+                                .cornerRadius(4)
+                                .help("WhisperKit hasn't verified this model on your chip family. It may fail to load, or it may run slower than tuned models.")
+                        }
                     }
                 }
 
@@ -494,6 +507,15 @@ struct ModelRow: View {
                 }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+
+                if model.size.isSideloadOnly && !model.isDownloaded {
+                    Text("Place model files at: \(appState.modelManager.expectedModelDirectory(for: model.size).path)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                }
             }
 
             Spacer()
@@ -524,6 +546,9 @@ struct ModelRow: View {
                 Label("Active", systemImage: "checkmark")
                     .font(.caption)
                     .foregroundStyle(.green)
+            } else if model.size.isSideloadOnly && !model.isDownloaded {
+                // Side-loaded model with no files on disk: no download to offer.
+                EmptyView()
             } else if !model.isSupported {
                 if model.isLoading || model.downloadProgress != nil {
                     EmptyView()

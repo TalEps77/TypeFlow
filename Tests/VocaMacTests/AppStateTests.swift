@@ -370,4 +370,63 @@ final class AppStateModelLoadingTests: XCTestCase {
         XCTAssertEqual(appState.selectedModelSize, ModelSize.small.rawValue)
         XCTAssertEqual(appState.currentModel?.size, .small)
     }
+
+    // MARK: - Story 1.2: ivrit.ai absent-model fallback (AD-11)
+
+    @MainActor
+    func testStartupFallsBackWhenPreferredIvritModelFilesAreAbsent() async {
+        UserDefaults.standard.set(ModelSize.ivritAiWhisperLargeV3Turbo.rawValue, forKey: "vocamac.selectedModelSize")
+
+        let modelManager = MockModelManager()
+        modelManager.defaultModel = "openai_whisper-large-v3-v20240930"
+        modelManager.supportedModelNames = [
+            "openai_whisper-tiny",
+            "openai_whisper-small",
+            "openai_whisper-large-v3-v20240930",
+        ]
+        // The ivrit.ai entry's files are NOT present — isModelSupported must
+        // therefore report false (on-disk bypass) and startup must not select it.
+        modelManager.downloadedModels = [.small]
+
+        let whisperService = MockWhisperService()
+        whisperService.loadedModelName = nil
+        whisperService.isModelLoaded = false
+
+        let (appState, mocks) = AppState.makeTestState(
+            modelManager: modelManager,
+            whisperService: whisperService
+        )
+
+        await appState.performStartup()
+
+        XCTAssertNotEqual(mocks.whisperService.loadRequests.first?.name, "ivrit-ai_whisper-large-v3-turbo")
+        XCTAssertNotEqual(appState.selectedModelSize, ModelSize.ivritAiWhisperLargeV3Turbo.rawValue)
+        XCTAssertEqual(appState.selectedModelSize, ModelSize.small.rawValue)
+    }
+
+    @MainActor
+    func testStartupKeepsIvritModelWhenFilesArePresent() async {
+        UserDefaults.standard.set(ModelSize.ivritAiWhisperLargeV3Turbo.rawValue, forKey: "vocamac.selectedModelSize")
+
+        let modelManager = MockModelManager()
+        modelManager.defaultModel = "openai_whisper-tiny"
+        modelManager.supportedModelNames = ["openai_whisper-tiny"]
+        // Files ARE present for the sideloaded entry — the bypass should
+        // report it supported and startup should keep the user's preference.
+        modelManager.downloadedModels = [.ivritAiWhisperLargeV3Turbo]
+
+        let whisperService = MockWhisperService()
+        whisperService.loadedModelName = nil
+        whisperService.isModelLoaded = false
+
+        let (appState, mocks) = AppState.makeTestState(
+            modelManager: modelManager,
+            whisperService: whisperService
+        )
+
+        await appState.performStartup()
+
+        XCTAssertEqual(mocks.whisperService.loadRequests.first?.name, "ivrit-ai_whisper-large-v3-turbo")
+        XCTAssertEqual(appState.selectedModelSize, ModelSize.ivritAiWhisperLargeV3Turbo.rawValue)
+    }
 }
