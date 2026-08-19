@@ -770,30 +770,46 @@ extension AppState {
         /// behavior. `mocks.transcriptPipeline` is still created either way,
         /// for tests that don't need this and read/configure it directly.
         transcriptPipelineOverride: TranscriptPipelining? = nil,
-        contextReader: MockContextReader = MockContextReader(),
-        profileManager: MockProfileManager = MockProfileManager(),
-        profileStore: ProfileStore = ProfileStore(store: JSONFileStore(
+        /// The collaborators below are all `@MainActor`-isolated, so their
+        /// construction cannot sit in a default-argument expression: default
+        /// arguments are evaluated in the *caller's* (nonisolated) context,
+        /// which Swift 6 rejects with `#ActorIsolatedCall`. They default to
+        /// `nil` and are materialized inside this `@MainActor` body instead;
+        /// call sites that pass a value are unaffected.
+        contextReader: MockContextReader? = nil,
+        profileManager: MockProfileManager? = nil,
+        profileStore: ProfileStore? = nil,
+        dictionaryStore: DictionaryStore? = nil,
+        snippetStore: SnippetStore? = nil,
+        correctionLearner: MockCorrectionLearner? = nil,
+        dismissedCorrectionsStore: DismissedCorrectionsStore? = nil
+    ) -> (appState: AppState, mocks: TestMocks) {
+        let contextReader = contextReader ?? MockContextReader()
+        let profileManager = profileManager ?? MockProfileManager()
+        let profileStore = profileStore ?? ProfileStore(store: JSONFileStore(
             fileName: "profiles.json",
             defaultValue: [],
             directoryURL: makeTestStorageDirectory("profiles")
-        )),
-        dictionaryStore: DictionaryStore = DictionaryStore(store: JSONFileStore(
+        ))
+        let dictionaryStore = dictionaryStore ?? DictionaryStore(store: JSONFileStore(
             fileName: "dictionary.json",
             defaultValue: [],
             directoryURL: makeTestStorageDirectory("dictionary")
-        )),
-        snippetStore: SnippetStore = SnippetStore(store: JSONFileStore(
+        ))
+        let snippetStore = snippetStore ?? SnippetStore(store: JSONFileStore(
             fileName: "snippets.json",
             defaultValue: [],
             directoryURL: makeTestStorageDirectory("snippets")
-        )),
-        correctionLearner: MockCorrectionLearner = MockCorrectionLearner(),
-        dismissedCorrectionsStore: DismissedCorrectionsStore = DismissedCorrectionsStore(store: JSONFileStore(
-            fileName: "dismissed-corrections.json",
-            defaultValue: [],
-            directoryURL: makeTestStorageDirectory("dismissed_corrections")
         ))
-    ) -> (appState: AppState, mocks: TestMocks) {
+        let correctionLearner = correctionLearner ?? MockCorrectionLearner()
+        let dismissedCorrectionsStore = dismissedCorrectionsStore ?? DismissedCorrectionsStore(
+            store: JSONFileStore(
+                fileName: "dismissed-corrections.json",
+                defaultValue: [],
+                directoryURL: makeTestStorageDirectory("dismissed_corrections")
+            )
+        )
+
         // AppState.hasPerformedStartupGlobally is a process-level static that
         // performStartup() only ever flips true. Reset it here (rather than
         // per-test-class setUp) so every test built through makeTestState —

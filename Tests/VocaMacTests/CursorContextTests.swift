@@ -12,6 +12,7 @@ import XCTest
 
 // MARK: - Budget truncation (AXContextReader.slice — pure, no AX call)
 
+@MainActor
 final class AXContextReaderSliceTests: XCTestCase {
 
     func testSlicesUpToTheBudgetOnEachSide() {
