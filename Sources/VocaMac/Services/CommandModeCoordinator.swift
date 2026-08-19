@@ -45,6 +45,11 @@ enum CommandModeError: Error, Equatable {
     /// abandoned rather than completed, because "recover" has to mean the
     /// operation really is over.
     case abandoned
+    /// The model handed back the selection unchanged. Writing it would dirty
+    /// the undo stack and invite the app's own normalization for no gain, and
+    /// silently reporting success would tell the user an instruction was
+    /// applied when it was not (MEDIUM 5).
+    case unchanged
 
     /// One short sentence, safe to show and safe to log: it names the failure,
     /// never the selection, the instruction, or the rewrite.
@@ -63,10 +68,19 @@ enum CommandModeError: Error, Equatable {
             return "Command Mode heard no instruction — nothing was changed."
         case .llm(let error):
             return "Command Mode could not rewrite the selection (\(error.reason)) — nothing was changed."
+        case .write(.writeUnverified):
+            // The one message in this type that must not promise the document
+            // is untouched: the app accepted the edit and would not say what
+            // it did with it. Telling the user "nothing was changed" here
+            // invites a retry that rewrites an already-rewritten paragraph
+            // (MAJOR 2).
+            return "Command Mode could not confirm the edit — the selection may have been changed. Check it before trying again."
         case .write(let error):
             return "Command Mode could not replace the selection (\(error.reason)) — nothing was changed."
         case .abandoned:
             return "Command Mode was cancelled — nothing was changed."
+        case .unchanged:
+            return "Command Mode could not apply that instruction — nothing was changed."
         }
     }
 }
@@ -80,6 +94,19 @@ final class CommandModeCoordinator {
     /// The selection captured when the gesture began. Held for exactly one
     /// operation and dropped on every path out (AD-5).
     private var snapshot: SelectionSnapshot?
+
+    /// Which operation owns `snapshot` right now.
+    ///
+    /// "Is there a selection?" is not the question a resuming operation needs
+    /// answered — it needs to know whether the selection is *its own*
+    /// (BLOCKER 2). A force recovery followed by the user re-selecting the same
+    /// paragraph and pressing the key again produces a snapshot that is
+    /// non-nil, in the same element, holding the same string: every identity
+    /// check the write makes passes, and the first operation's stale rewrite
+    /// lands on the second one's selection. The token is what tells them apart,
+    /// and it is also what stops the abandoned operation's `defer` from
+    /// discarding the newer operation's snapshot.
+    private var operationID = 0
 
     init(textInjector: TextInjecting, postProcessService: PostProcessing) {
         self.textInjector = textInjector
@@ -108,10 +135,11 @@ final class CommandModeCoordinator {
         switch textInjector.readSelectionResult() {
         case .success(let captured):
             snapshot = captured
+            operationID &+= 1
             VocaLogger.info(.commandMode, "Captured a \(captured.text.count)-character selection in \(captured.bundleIdentifier ?? "an unknown app")")
             return .success(())
         case .failure(let error):
-            snapshot = nil
+            discardSelection()
             return .failure(.noSelection(error))
         }
     }
@@ -122,6 +150,11 @@ final class CommandModeCoordinator {
     func discardSelection() {
         guard snapshot != nil else { return }
         snapshot = nil
+        // Releasing the selection ends the operation that owned it, whether or
+        // not that operation has finished running. Bumping the token here is
+        // what makes a suspended `rewrite` recognise that it no longer owns
+        // anything, even if a newer gesture has not started yet.
+        operationID &+= 1
         VocaLogger.debug(.commandMode, "Discarded the captured selection")
     }
 
@@ -138,9 +171,15 @@ final class CommandModeCoordinator {
         guard let snapshot else {
             return .failure(.noSelection(.noSelection))
         }
-        // Whatever happens below, this operation owns the selection and no
-        // later one may inherit it.
-        defer { discardSelection() }
+        // Which operation this is. Everything below belongs to it and to
+        // nothing else (BLOCKER 2).
+        let myOperationID = operationID
+        // Whatever happens below, this operation releases *its own* selection —
+        // and only its own. An abandoned operation resuming after a newer
+        // gesture has captured must not take the newer selection down with it.
+        defer {
+            if operationID == myOperationID { discardSelection() }
+        }
 
         let trimmedInstruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedInstruction.isEmpty else {
@@ -168,14 +207,28 @@ final class CommandModeCoordinator {
         // The local `snapshot` captured before the await survives that, so
         // without this check an abandoned operation would still write into the
         // user's document seconds after they told the app to give up.
-        guard self.snapshot != nil else {
+        //
+        // The token, not just "is a selection held": by the time this resumes,
+        // a newer gesture may have captured one, and re-selecting the same
+        // paragraph makes every downstream identity check pass (BLOCKER 2).
+        guard operationID == myOperationID, self.snapshot != nil else {
             VocaLogger.warning(.commandMode, "The selection was released while the LLM was working — abandoning the rewrite")
             return .failure(.abandoned)
         }
 
-        // The write proves for itself that focus and the selected text are
-        // still what was captured; if they are not, it refuses and we abort
-        // rather than writing into whatever the user moved to.
+        // A model that repeats the selection verbatim has not applied the
+        // instruction — prompt rule 6 tells it to do exactly that when the
+        // instruction does not apply. Writing it anyway would dirty the undo
+        // stack and hand the user a success message for a no-op (MEDIUM 5).
+        guard rewritten != snapshot.text else {
+            VocaLogger.warning(.commandMode, "The rewrite is identical to the selection — the instruction was not applied")
+            return .failure(.unchanged)
+        }
+
+        // The write proves for itself that focus, the selected range and the
+        // selected text are still what was captured; if they are not, it
+        // refuses and we abort rather than writing into whatever the user
+        // moved to.
         if case .failure(let error) = textInjector.replaceSelection(rewritten, replacing: snapshot) {
             return .failure(.write(error))
         }

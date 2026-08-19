@@ -282,7 +282,16 @@ final class AppState: ObservableObject {
     /// without this both pass the `isRecording` guard, both suspend, and both
     /// race to consume `capturedContext` — the loser writing a History Record
     /// with a `nil` target app (MINOR 10).
-    private var isStopping = false
+    ///
+    /// One latch per route, not one shared latch (MEDIUM 1). The two flows have
+    /// independent lifetimes: a command stop holds its latch across ASR *and*
+    /// an LLM round trip, and a force recovery in the middle of that clears it
+    /// — after which the command's own `defer` would clear a latch a dictation
+    /// stop had since taken, re-opening the double-consume window it exists to
+    /// close. Each route now clears only its own latch, and only while it still
+    /// owns it (see the generation checks at both `defer` sites).
+    private var isStoppingDictation = false
+    private var isStoppingCommand = false
 
     /// Which of the two routes the in-flight recording belongs to (Story 6.3).
     /// Both share one microphone, one `isRecording`, and one `appStatus`, so
@@ -673,7 +682,8 @@ final class AppState: ObservableObject {
                 // it captured. A Bluetooth headset dropping mid-sentence must
                 // not leave the surrounding document text resident (BLOCKER 1).
                 self.discardCapturedContext()
-                self.isStopping = false
+                self.isStoppingDictation = false
+                self.isStoppingCommand = false
                 self.isRecording = false
                 self.audioLevel = 0.0
                 self.cursorOverlay.hide()
@@ -840,6 +850,14 @@ final class AppState: ObservableObject {
             isEnabled: isCommandModeUsable
         )
         VocaLogger.debug(.appState, "Command hotkey configuration synced (keyCode=\(commandHotKeyCode), mode=\(commandActivationMode.rawValue), enabled=\(isCommandModeUsable))")
+        // The toggle says on and the binding is going out disabled — the only
+        // way that happens is the key colliding with dictation's. Settings
+        // shows this inline; the log is for the case where it was reached by a
+        // migrated or hand-edited preference and nobody has opened Settings
+        // (MAJOR 5).
+        if commandModeEnabled && !isCommandModeUsable {
+            VocaLogger.warning(.appState, "Command Mode is enabled but its key (\(commandHotKeyCode)) is the dictation key — the binding was pushed disabled")
+        }
     }
 
     // MARK: - Force Recovery
@@ -859,7 +877,8 @@ final class AppState: ObservableObject {
         dictationGeneration += 1
         commandGeneration += 1
         discardCapturedContext()
-        isStopping = false
+        isStoppingDictation = false
+        isStoppingCommand = false
 
         // Reset audio engine unconditionally
         audioEngine.forceReset()
@@ -1035,6 +1054,14 @@ final class AppState: ObservableObject {
         // inert for anyone who never enables Command Mode.
         guard activeRecordingMode == .dictation else {
             VocaLogger.info(.appState, "stopRecordingAndTranscribe ignored — a Command Mode recording is in flight")
+            // Correct, but silent: the dictation key simply does nothing while
+            // Command Mode holds the microphone, and a key that does nothing
+            // reads as a broken app (MINOR 4). Says so without touching the
+            // recording or the status.
+            showTransientCommandMessage(
+                "The dictation key is inactive while Command Mode is recording — release the Command Mode key to finish.",
+                clearsErrorStatus: false
+            )
             return
         }
 
@@ -1049,12 +1076,18 @@ final class AppState: ObservableObject {
         // and both would come back to consume the same captured context — the
         // second one finding it already `nil` and writing a History Record
         // with no target app. Latched synchronously, before the first await.
-        guard !isStopping else {
+        guard !isStoppingDictation else {
             VocaLogger.info(.appState, "stopRecordingAndTranscribe re-entered while already stopping — ignoring")
             return
         }
-        isStopping = true
-        defer { isStopping = false }
+        let stoppingGeneration = dictationGeneration
+        isStoppingDictation = true
+        // Only while this stop still owns the latch: a force recovery (or a new
+        // recording) mid-flight bumps the generation and has already cleared it
+        // for whoever comes next (MEDIUM 1).
+        defer {
+            if dictationGeneration == stoppingGeneration { isStoppingDictation = false }
+        }
 
         let audioData = await stopAudioEngine()
         isRecording = false
@@ -1215,12 +1248,26 @@ final class AppState: ObservableObject {
             return
         }
 
-        // No recovery dance here, deliberately. `startRecording`'s
+        // A failure three seconds ago is not a reason to refuse the retry it
+        // was practically an invitation for (MAJOR 6). Every Command Mode
+        // failure ends in `.error` for three seconds, and a user who reads
+        // "nothing was changed" naturally presses the key again immediately —
+        // straight into a refusal that told them a recording was in progress,
+        // which was not true. Nothing is capturing in `.error`, so this clears
+        // it and continues.
+        if appStatus == .error, !isRecording {
+            VocaLogger.info(.commandMode, "Retrying Command Mode after a failure — clearing the error state")
+            appStatus = .idle
+            errorMessage = nil
+        }
+
+        // No recovery dance beyond that, deliberately. `startRecording`'s
         // press-again-to-recover behaviour is right for dictation, where the
         // worst case is an extra transcript; for a destructive operation,
-        // "busy" means "do nothing and say so" (R-9's reasoning).
+        // "busy" means "do nothing and say so" (R-9's reasoning) — but say the
+        // *true* thing about why.
         guard appStatus == .idle, !isRecording else {
-            refuseCommandMode("Command Mode is unavailable while a recording is in progress — nothing was changed.")
+            refuseCommandMode(unavailableMessage())
             return
         }
         guard micPermission == .granted else {
@@ -1251,15 +1298,22 @@ final class AppState: ObservableObject {
         guard activeRecordingMode == .command else { return }
         guard isRecording || appStatus == .recording else { return }
 
-        // Shared with dictation on purpose: a Command Mode stop and a
+        // This route's own latch (MEDIUM 1): a Command Mode stop and a
         // max-duration auto-stop can both arrive before either suspends, and
         // only one of them may consume the selection (MINOR 10's reasoning).
-        guard !isStopping else {
+        // Both of those are command-route stops — the dictation route cannot
+        // reach here at all (the `activeRecordingMode` guard above) — so one
+        // latch per route covers the race without the two flows' very different
+        // lifetimes trampling each other's.
+        guard !isStoppingCommand else {
             VocaLogger.info(.commandMode, "stopCommandRecordingAndRewrite re-entered while already stopping — ignoring")
             return
         }
-        isStopping = true
-        defer { isStopping = false }
+        let stoppingGeneration = commandGeneration
+        isStoppingCommand = true
+        defer {
+            if commandGeneration == stoppingGeneration { isStoppingCommand = false }
+        }
 
         let audioData = await stopAudioEngine()
         isRecording = false
@@ -1335,6 +1389,20 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Why Command Mode is refusing right now, in the user's terms. Branching
+    /// on the actual state rather than asserting one of them (MAJOR 6): the
+    /// state that most often blocks a Command Mode gesture is the tail of the
+    /// *previous* one, not a recording.
+    private func unavailableMessage() -> String {
+        if isRecording || appStatus == .recording {
+            return "Command Mode is unavailable while a recording is in progress — nothing was changed."
+        }
+        if appStatus == .processing {
+            return "Command Mode is still finishing the last one — nothing was changed."
+        }
+        return "Command Mode is unavailable right now — nothing was changed."
+    }
+
     /// How a Command Mode operation that already opened the microphone ends
     /// badly: release the selection, put everything back, play the error cue,
     /// and show one short message.
@@ -1357,7 +1425,7 @@ final class AppState: ObservableObject {
         }
 
         appStatus = .error
-        showTransientCommandMessage(message)
+        showTransientCommandMessage(message, clearsErrorStatus: true)
     }
 
     /// How a Command Mode gesture that never got as far as opening the
@@ -1377,21 +1445,30 @@ final class AppState: ObservableObject {
             soundManager.playErrorSound()
         }
 
-        if appStatus == .idle {
+        // Only this refusal's own status may be undone three seconds from now
+        // (MINOR 5) — hence the flag rather than a blanket `.error` reset.
+        let claimedStatus = appStatus == .idle
+        if claimedStatus {
             appStatus = .error
         }
-        showTransientCommandMessage(message)
+        showTransientCommandMessage(message, clearsErrorStatus: claimedStatus)
     }
 
     /// Shows one message and clears it after three seconds, matching the
     /// dictation failure path. Guarded on the message still being ours so a
     /// later, more important error is not wiped by this one's timer.
-    private func showTransientCommandMessage(_ message: String) {
+    ///
+    /// `clearsErrorStatus` is false for callers that never set `.error`
+    /// themselves: an unrelated failure arriving in the meantime can leave the
+    /// app in `.error` while this message is still the current one, and
+    /// flipping *that* to `.idle` would hide a real failure behind a note about
+    /// a keypress (MINOR 5).
+    private func showTransientCommandMessage(_ message: String, clearsErrorStatus: Bool) {
         errorMessage = message
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
             guard let self, self.errorMessage == message else { return }
             self.errorMessage = nil
-            if self.appStatus == .error {
+            if clearsErrorStatus, self.appStatus == .error {
                 self.appStatus = .idle
             }
         }
@@ -1961,6 +2038,13 @@ final class AppState: ObservableObject {
             doubleTapThreshold: doubleTapThreshold,
             safetyTimeout: hotKeySafetyTimeout
         )
+        // `startListening` configures the dictation binding only. Without this
+        // the command binding keeps its constructor defaults — disabled — for
+        // the whole session, so Command Mode is dead after every relaunch while
+        // its toggle still reads ON (BLOCKER 1). Mirrors
+        // `onAllPermissionsGranted`, which is the *other* way the listener
+        // starts and the only one that used to do this.
+        syncCommandHotKeyConfiguration()
         if hotKeyManager.isListening {
             VocaLogger.info(.appState, "Hotkey listener active (keyCode=\(hotKeyCode), mode=\(activationMode.rawValue))")
         } else {

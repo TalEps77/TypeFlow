@@ -59,6 +59,116 @@ final class PostProcessCommandValidatorTests: XCTestCase {
         }
     }
 
+    /// MAJOR 4: the shape a small model actually fails in — it rewrites, and
+    /// then repeats the instruction it was given. Whole-string similarity scores
+    /// these around 0.3, nowhere near the 0.9 bar, so every one of them used to
+    /// be written into the user's document.
+    func testRejectsOutputThatMerelyCONTAINSTheInstruction() {
+        let rewritten = "הפגישה נדחתה למחר בעשר."
+        let cases: [(String, String)] = [
+            ("appended after the rewrite", "\(rewritten)\n\n\(instruction)"),
+            ("appended on one line", "\(rewritten) \(instruction)"),
+            ("prefixed before the rewrite", "\(instruction): \(rewritten)"),
+            ("appended with different spacing", "\(rewritten)\n\n  \(instruction)  "),
+            ("appended in a quoted tail", "\(rewritten) (\(instruction))")
+        ]
+        for (name, output) in cases {
+            guard case .failure(let error) = validate(output) else {
+                return XCTFail("\(name): an output carrying the instruction must never be written back")
+            }
+            XCTAssertEqual(error, .commandEchoedInstruction, "\(name)")
+        }
+    }
+
+    func testAShortInstructionIsNotHuntedForInsideEveryRewrite() {
+        // The containment check has a length bar for a reason: a one-word
+        // instruction appears in honest rewrites all the time.
+        XCTAssertFalse(
+            PostProcessCommandValidator.echoesInstruction(
+                output: "The report is formal now and reads much better.",
+                instruction: "formal"
+            ),
+            "A one-word instruction must not reject every rewrite that uses the word"
+        )
+    }
+
+    /// MEDIUM 2: `"<think>"` is not contained in `"<thinking>"` — the closing
+    /// bracket breaks the match — so every variant but the exact tag leaked.
+    func testRejectsEveryReasoningBlockVariant() {
+        let leaks = [
+            "<think>they want it shorter</think> הפגישה נדחתה למחר.",
+            "<thinking>the user wants this shortened</thinking> הפגישה נדחתה למחר.",
+            "<reasoning>shorten it</reasoning> הפגישה נדחתה למחר.",
+            "<|channel|>analysis<|message|>shorten this הפגישה נדחתה למחר.",
+            "הפגישה נדחתה למחר. </think>"
+        ]
+        for leak in leaks {
+            guard case .failure(let error) = validate(leak) else {
+                return XCTFail("A leaked reasoning block is not a rewrite: \(leak)")
+            }
+            XCTAssertEqual(error, .commandLeakedReasoning, "\(leak)")
+        }
+    }
+
+    func testAnHonestRewriteIsNotMistakenForAReasoningBlock() {
+        guard case .success = validate("צריך לחשוב על זה שוב לפני הפגישה.") else {
+            return XCTFail("Ordinary text must not trip the reasoning-marker check")
+        }
+    }
+
+    /// MEDIUM 3: a two-character acknowledgement passed every guard — it is
+    /// short, unrelated to the instruction, and carries no reasoning block.
+    func testRejectsAnAcknowledgementInsteadOfARewrite() {
+        for answer in ["OK", "בוצע", "Done.", "כן"] {
+            guard case .failure(let error) = validate(answer) else {
+                return XCTFail("'\(answer)' is an acknowledgement, not a rewrite of a 56-character selection")
+            }
+            guard case .commandOutputTooShort = error else {
+                return XCTFail("Expected a floor rejection for '\(answer)', got \(error)")
+            }
+        }
+    }
+
+    func testTheFloorNeverRejectsAGenuineShortening() {
+        // The flagship instruction: a long paragraph down to one sentence. The
+        // floor is an absolute one precisely so this cannot be rejected.
+        let long = String(repeating: "מילה ", count: 400)
+        XCTAssertTrue(PostProcessCommandValidator.isAboveLengthFloor(
+            selection: long,
+            output: "הפגישה נדחתה למחר."
+        ), "A one-sentence summary of a 2000-character selection is the point of the feature")
+
+        // And a short selection has no floor at all: "extract the date" is a
+        // real instruction with a three-character answer.
+        XCTAssertTrue(PostProcessCommandValidator.isAboveLengthFloor(
+            selection: "נפגשים ב-10/5 במשרד",
+            output: "10/5"
+        ))
+        XCTAssertFalse(PostProcessCommandValidator.isAboveLengthFloor(
+            selection: long,
+            output: "OK"
+        ))
+    }
+
+    /// MEDIUM 4: an omitted `finish_reason` used to skip the truncation check
+    /// entirely. Cleanup can afford that — its fallback is the raw transcript;
+    /// here the fallback is overwriting the user's paragraph.
+    func testRejectsAResponseWithNoFinishReasonAtAll() {
+        let payload: [String: Any] = ["choices": [["message": ["content": "הפגישה נדחתה למחר בעשר."]]]]
+        let result = PostProcessCommandValidator.validate(
+            data: try! JSONSerialization.data(withJSONObject: payload),
+            statusCode: 200,
+            selection: selection,
+            instruction: instruction
+        )
+        guard case .failure(let error) = result else {
+            return XCTFail("An answer whose completeness the server never stated must be refused")
+        }
+        guard case .malformedResponse = error else {
+            return XCTFail("Expected a malformed-response rejection, got \(error)")
+        }
+    }
+
     func testRejectsALeakedReasoningBlock() {
         guard case .failure(let error) = validate("<think>they want it shorter</think> הפגישה נדחתה למחר.") else {
             return XCTFail("A leaked reasoning block is not a rewrite")
@@ -313,13 +423,93 @@ final class CommandModeCoordinatorTests: XCTestCase {
             .noSelection(.noAccessibleElement),
             .emptyInstruction,
             .llm(.timedOut(20)),
+            .write(.writeRejected(-25200)),
             .write(.writeNotApplied),
-            .abandoned
+            .write(.focusChanged),
+            .write(.selectionChanged),
+            .abandoned,
+            .unchanged
         ]
         for error in errors {
             XCTAssertTrue(error.userMessage.contains("nothing was changed"),
                           "\(error) must tell the user their text is untouched")
         }
+    }
+
+    /// MAJOR 2: the one failure that must NOT claim the document is untouched.
+    /// An unverifiable write may well have landed, and "nothing was changed"
+    /// invites the retry that rewrites an already-rewritten paragraph.
+    func testAnUnverifiableWriteDoesNotClaimNothingWasChanged() {
+        let message = CommandModeError.write(.writeUnverified).userMessage
+        XCTAssertFalse(message.contains("nothing was changed"),
+                       "An unverifiable write must not promise the selection is untouched")
+        XCTAssertTrue(message.contains("may have been changed"),
+                      "It must say what is actually known: got '\(message)'")
+    }
+
+    /// BLOCKER 2. The window: a force recovery releases the selection, the user
+    /// re-selects the *same* paragraph and presses the key again, and only then
+    /// does the first LLM answer arrive. Element identity and string equality
+    /// both hold — they are the same text in the same place — so nothing but an
+    /// operation token can stop the stale rewrite from landing on the new
+    /// selection, and nothing but the token can stop the stale operation's
+    /// `defer` from discarding the new one.
+    func testAStaleOperationDoesNotWriteOverAReCapturedIdenticalSelection() async {
+        let (coordinator, injector, service) = makeCoordinator()
+        let paragraph = "הפגישה נדחתה למחר בעשר ואני לא בטוח שכולם יודעים על זה"
+        injector.stubSelection(paragraph)
+        service.commandResult = .success("הפגישה נדחתה למחר בעשר.")
+        service.commandDelay = 0.3
+
+        coordinator.captureSelection()
+        let inFlight = Task {
+            await coordinator.rewrite(
+                instruction: "תקצר את זה",
+                systemPrompt: "",
+                configuration: PostProcessConfiguration()
+            )
+        }
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        // Force recovery, then the user re-selects exactly the same text.
+        coordinator.discardSelection()
+        injector.stubSelection(paragraph)
+        coordinator.captureSelection()
+
+        let result = await inFlight.value
+
+        guard case .failure(.abandoned) = result else {
+            return XCTFail("The abandoned operation must not report success, got \(result)")
+        }
+        XCTAssertEqual(injector.replaceSelectionCallCount, 0,
+                       "A rewrite of the abandoned operation's selection must never be written")
+        XCTAssertTrue(coordinator.hasSelection,
+                      "…and it must not take the newer gesture's selection down with it")
+        XCTAssertEqual(coordinator.selectionCharacterCount, paragraph.count)
+    }
+
+    /// MEDIUM 5: prompt rule 6 tells the model to repeat the text verbatim when
+    /// the instruction does not apply to it. Writing that back dirties the undo
+    /// stack, invites the app's own normalization, and reports success for an
+    /// operation that did nothing.
+    func testARewriteIdenticalToTheSelectionIsNotWritten() async {
+        let (coordinator, injector, service) = makeCoordinator()
+        injector.stubSelection("הפגישה נדחתה למחר בעשר")
+        service.commandResult = .success("הפגישה נדחתה למחר בעשר")
+        coordinator.captureSelection()
+
+        let result = await coordinator.rewrite(
+            instruction: "תרגם לאנגלית",
+            systemPrompt: "",
+            configuration: PostProcessConfiguration()
+        )
+
+        guard case .failure(.unchanged) = result else {
+            return XCTFail("A verbatim repetition is not a rewrite, got \(result)")
+        }
+        XCTAssertEqual(injector.replaceSelectionCallCount, 0, "Nothing may be written for a no-op")
+        XCTAssertFalse(coordinator.hasSelection, "The selection is still released (AD-5)")
     }
 }
 
@@ -402,6 +592,11 @@ final class AppStateCommandModeTests: XCTestCase {
 
     func testTheErrorCuePlaysOnAbortWhenSoundIsOn() async {
         let (appState, mocks) = makeCommandState()
+        // The defaults suite is shared scratch space for the whole run, so a
+        // toggle flipped here and left on decides what a later test observes
+        // (MEDIUM 7 — `testNoSelectionAbortsWithoutEverRecording` asserts the
+        // cue does *not* play, and only alphabetical ordering saved it).
+        defer { appState.soundEffectsEnabled = false }
         appState.soundEffectsEnabled = true
         mocks.textInjector.selectionResult = .failure(.noSelection)
 
@@ -514,6 +709,68 @@ final class AppStateCommandModeTests: XCTestCase {
                        "Syncing the command binding must not touch the dictation binding")
     }
 
+    /// BLOCKER 1. `testSyncPushesTheCommandBindingConfiguration` calls the sync
+    /// by hand, so it cannot see that nothing on the startup path ever did.
+    /// This drives the real startup, which is what every launch runs.
+    func testStartupConfiguresTheCommandBinding() async {
+        let (appState, mocks) = AppState.makeTestState()
+        appState.hotKeyCode = 61
+        appState.commandModeEnabled = true
+        appState.commandHotKeyCode = 54
+        appState.commandActivationMode = .doubleTapToggle
+
+        await appState.performStartup()
+
+        XCTAssertEqual(mocks.hotKeyManager.startListeningCallCount, 1,
+                       "The dictation binding still starts exactly as it did")
+        XCTAssertEqual(mocks.hotKeyManager.lastCommandKeyCode, 54,
+                       "Command Mode was enabled before launch and must be listening after it")
+        XCTAssertEqual(mocks.hotKeyManager.lastCommandMode, .doubleTapToggle)
+        XCTAssertEqual(mocks.hotKeyManager.lastCommandIsEnabled, true,
+                       "Without this the toggle reads ON while the binding stays at its disabled default")
+    }
+
+    func testStartupLeavesTheCommandBindingDisabledWhenTheFeatureIsOff() async {
+        let (appState, mocks) = AppState.makeTestState()
+        appState.commandModeEnabled = false
+
+        await appState.performStartup()
+
+        XCTAssertEqual(mocks.hotKeyManager.lastCommandIsEnabled, false,
+                       "Startup must not switch the second binding on for someone who never enabled it")
+    }
+
+    /// MAJOR 6: every Command Mode failure parks the app in `.error` for three
+    /// seconds, and the natural response to "nothing was changed" is to press
+    /// the key again — which used to be refused with a message about a
+    /// recording that was not happening.
+    func testARetryImmediatelyAfterAFailureIsAllowed() async {
+        let (appState, mocks) = makeCommandState()
+        mocks.postProcessService.commandResult = .failure(.transport("Could not connect to the server."))
+
+        await runCommand(appState)
+        XCTAssertEqual(appState.appStatus, .error)
+
+        mocks.postProcessService.commandResult = .success("הפגישה נדחתה למחר בעשר.")
+        await runCommand(appState)
+
+        XCTAssertEqual(mocks.textInjector.replaceSelectionCallCount, 1,
+                       "The retry must actually run rather than be refused for three seconds")
+        XCTAssertEqual(appState.appStatus, .idle)
+        XCTAssertEqual(mocks.historyStore.records.count, 1)
+    }
+
+    func testARefusalDuringADictationStillNamesTheRecording() async {
+        let (appState, _) = makeCommandState()
+
+        await appState.startRecording()
+        await appState.startCommandRecording()
+
+        XCTAssertEqual(appState.errorMessage,
+                       "Command Mode is unavailable while a recording is in progress — nothing was changed.",
+                       "The refusal must describe the state it is actually in")
+    }
+
     // MARK: The two routes must not interfere
 
     func testTheDictationStopCannotHijackACommandRecording() async {
@@ -596,6 +853,33 @@ final class AppStateCommandModeTests: XCTestCase {
         XCTAssertEqual(mocks.textInjector.injectCallCount, 0)
         XCTAssertEqual(mocks.historyStore.records.count, 0,
                        "A recovered-from operation must not write a record")
+    }
+
+    /// Epic 7 landed the VAD detector between this epic and its fixes: the
+    /// silence callback is now driven by `VoiceActivityDetector` rather than an
+    /// RMS threshold, and it still has to route by `activeRecordingMode`. A
+    /// command recording that auto-stops must finish as a *rewrite*, never as a
+    /// dictation that injects the spoken instruction.
+    func testTheSilenceAutoStopStillFinishesACommandRecordingAsARewrite() async {
+        let (appState, mocks) = makeCommandState()
+        appState.commandActivationMode = .doubleTapToggle
+
+        await appState.startCommandRecording()
+        XCTAssertTrue(appState.isRecording)
+        XCTAssertNotNil(mocks.audioEngine.lastDetectorKind,
+                        "A command recording goes through the same VAD-configured capture as dictation")
+
+        mocks.audioEngine.onSilenceDetected?()
+        for _ in 0..<50 where mocks.textInjector.replaceSelectionCallCount == 0 {
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        XCTAssertEqual(mocks.textInjector.replaceSelectionCallCount, 1,
+                       "The auto-stop must complete the rewrite")
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 0,
+                       "…and must never inject the spoken instruction")
+        XCTAssertEqual(mocks.historyStore.records.first?.mode, .command)
+        XCTAssertEqual(appState.appStatus, .idle)
     }
 
     func testStartRecordingIsUnaffectedWhenCommandModeIsOff() async {

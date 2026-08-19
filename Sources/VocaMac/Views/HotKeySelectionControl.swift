@@ -84,6 +84,13 @@ struct HotKeySelectionControl: View {
                     .foregroundStyle(.secondary)
             }
         }
+        // A rejection is about one specific clash, so it dies with it (MINOR 2).
+        // Without this, refusing a key here and then moving the *other* binding
+        // off it leaves the warning on screen — and suppressing `footerText` —
+        // until the next successful pick.
+        .onChange(of: reservedKeyCode) { _ in
+            rejectionMessage = nil
+        }
         .onDisappear {
             guard isRecording else { return }
             isRecording = false
@@ -107,6 +114,13 @@ struct HotKeySelectionControl: View {
 
     /// Accepts and commits `newKeyCode`, or refuses it with a message and
     /// changes nothing.
+    ///
+    /// This is the only place either key code is written — the Picker and the
+    /// recorder both route through it, and nothing outside this control writes
+    /// `hotKeyCode` or `commandHotKeyCode`. That is why Story 6.1 could drop
+    /// the old `.onChange(of: appState.hotKeyCode)` listener sync (MINOR 1):
+    /// every write already ends in the call site's own `onCommit`, and re-adding
+    /// the observer would only push the same configuration a second time.
     private func apply(_ newKeyCode: Int) {
         guard newKeyCode != reservedKeyCode else {
             rejectionMessage = "\(KeyCodeReference.displayName(for: newKeyCode)) is already assigned to \(reservedKeyOwner). Pick a different key."

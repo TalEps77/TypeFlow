@@ -499,9 +499,20 @@ final class TextInjectorSelectionTests: XCTestCase {
         let injector = TextInjector()
 
         // Whether or not the runner holds Accessibility permission, there is
-        // no other application with a selected range for it to read.
-        XCTAssertNil(injector.readSelection(),
-                     "A read with nothing selected must produce no snapshot at all")
+        // normally no other application with a selected range for it to read —
+        // but "normally" is the developer's machine, where the frontmost app
+        // during `swift test` may well be an editor with a live selection. Made
+        // graceful like its sibling below (MINOR 9): a snapshot here is a valid
+        // environment, and what must hold is that the two shapes agree.
+        switch injector.readSelectionResult() {
+        case .success(let snapshot):
+            XCTAssertNotNil(injector.readSelection(),
+                            "The nil-returning shape must agree with the Result-returning one")
+            XCTAssertFalse(snapshot.text.isEmpty, "A successful read never reports an empty selection")
+        case .failure:
+            XCTAssertNil(injector.readSelection(),
+                         "A failed read must produce no snapshot at all")
+        }
     }
 
     func testReadSelectionResultReportsWhyItFailed() {
@@ -566,11 +577,24 @@ final class TextInjectorSelectionTests: XCTestCase {
         // Story 6.2 AC: the existing injection path is unchanged. The AX
         // strategy's allow-list is single-line only and must not have widened
         // to the selection allow-list.
-        XCTAssertFalse(
-            TextInjector.selectableRoles == ["AXTextField", "AXSearchField", "AXComboBox"],
-            "Selection reading covers AXTextArea; injection deliberately does not"
+        //
+        // Pinned against the gate `injectViaAccessibility` actually consults
+        // (MINOR 7). The previous version compared `selectableRoles` to a
+        // literal and never referenced the injection allow-list at all, so it
+        // would have passed with AXTextArea added to injection.
+        XCTAssertEqual(
+            TextInjector.injectableRoles,
+            ["AXTextField", "AXSearchField", "AXComboBox"],
+            "AX injection is single-line only — terminals and editors take the clipboard path"
         )
-        XCTAssertTrue(TextInjector.selectableRoles.contains(kAXTextAreaRole as String))
+        XCTAssertFalse(
+            TextInjector.injectableRoles.contains(kAXTextAreaRole as String),
+            "An AXTextArea accepts the AX write and discards it; injection must not widen to it"
+        )
+        XCTAssertTrue(TextInjector.selectableRoles.contains(kAXTextAreaRole as String),
+                      "Selection reading, unlike injection, does cover AXTextArea")
+        XCTAssertTrue(TextInjector.injectableRoles.isSubset(of: TextInjector.selectableRoles),
+                      "Anything injectable is readable; the reverse is what differs")
     }
 }
 

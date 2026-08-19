@@ -36,6 +36,11 @@ enum PostProcessError: Error, Equatable {
     /// is a legitimate instruction — just a ceiling no honest rewrite reaches.
     case commandOutputTooLong(selectionCharacters: Int, outputCharacters: Int)
 
+    /// The answer is too short to be a rewrite of what was sent — the shape a
+    /// model takes when it acknowledges the instruction ("OK", "בוצע") instead
+    /// of carrying it out (MEDIUM 3).
+    case commandOutputTooShort(selectionCharacters: Int, outputCharacters: Int)
+
     /// The model handed back the spoken instruction instead of applying it.
     /// This is the one failure Command Mode exists to prevent: pasting "make
     /// this shorter" over the user's paragraph (AD-4).
@@ -71,6 +76,8 @@ enum PostProcessError: Error, Equatable {
             return "output repeated \(sharedCharacters) characters of the surrounding document"
         case .commandOutputTooLong(let selection, let output):
             return "rewrite length \(output) is disproportionate to the \(selection)-character selection"
+        case .commandOutputTooShort(let selection, let output):
+            return "rewrite length \(output) is too short to be a rewrite of the \(selection)-character selection"
         case .commandEchoedInstruction:
             // Reports only that it happened. The instruction is the user's
             // speech and the output is derived from their document; neither
@@ -385,7 +392,11 @@ enum PostProcessResponseValidator {
     /// Nothing else is stripped: punctuation is exactly the kind of detail a
     /// copied clause carries, and removing it would only make the comparison
     /// looser than it needs to be.
-    private static func normalizedForEchoComparison(_ text: String) -> String {
+    ///
+    /// Internal rather than private so `PostProcessCommandValidator` can reuse
+    /// the same normalization for its own containment check (MAJOR 4) instead
+    /// of carrying a second copy of it.
+    static func normalizedForEchoComparison(_ text: String) -> String {
         text.lowercased()
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
@@ -480,6 +491,24 @@ enum PostProcessCommandValidator {
     /// proper sentence is not rejected for arithmetic reasons.
     static let minimumLengthCeiling = 400
 
+    /// Selections shorter than this get no floor at all. "extract the date",
+    /// "just the number", "one word for this" are real instructions, and on a
+    /// short selection a three-character answer is the correct one.
+    static let lengthFloorSelectionThreshold = 40
+
+    /// The floor never rises above this, however long the selection. A
+    /// proportional floor would reject the feature's flagship instruction —
+    /// "תקצר את זה למשפט אחד" on a 2000-character paragraph legitimately comes
+    /// back as one short sentence. What this catches is the other shape: a
+    /// model that answered "OK" instead of rewriting (MEDIUM 3).
+    static let maximumLengthFloor = 12
+
+    /// The shortest answer that can still be a rewrite of `selection`.
+    static func isAboveLengthFloor(selection: String, output: String) -> Bool {
+        guard selection.count >= lengthFloorSelectionThreshold else { return true }
+        return output.count >= min(maximumLengthFloor, max(1, selection.count / 8))
+    }
+
     /// Above this bigram similarity to the *instruction*, the output is the
     /// instruction rather than a rewrite. Deliberately high: an instruction
     /// and a rewrite of the same short Hebrew sentence share real vocabulary,
@@ -487,10 +516,20 @@ enum PostProcessCommandValidator {
     /// costs them their paragraph.
     static let instructionEchoSimilarity = 0.9
 
+    /// Shortest normalized instruction that may be looked for *inside* the
+    /// output. Below this an instruction is a single common word and finding it
+    /// in a rewrite means nothing.
+    static let minimumEchoContainmentLength = 8
+
     /// Markers of a leaked reasoning block. Qwen-family models emit these when
     /// a thinking variant is loaded by mistake, and the text after them is not
     /// a rewrite at all.
-    static let reasoningMarkers = ["<think>", "</think>"]
+    ///
+    /// Prefixes, not whole tags (MEDIUM 2): `"<think>"` is not contained in
+    /// `"<thinking>"` — the closing angle bracket breaks the match — and
+    /// `<thinking>`, `<reasoning>` and harmony's `<|channel|>` are all shapes
+    /// the same family of models emits.
+    static let reasoningMarkers = ["<think", "</think", "<reasoning", "</reasoning", "<|channel|>"]
 
     static func isWithinLengthCeiling(selection: String, output: String) -> Bool {
         let ceiling = max(minimumLengthCeiling, Int(Double(selection.count) * maximumLengthRatio))
@@ -505,6 +544,22 @@ enum PostProcessCommandValidator {
         let normalizedInstruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedInstruction.isEmpty else { return false }
         if normalizedOutput.caseInsensitiveCompare(normalizedInstruction) == .orderedSame { return true }
+
+        // Containment, before similarity (MAJOR 4). The most common small-model
+        // failure is not answering *with* the instruction but answering and
+        // then repeating it — "…rewritten sentence.\n\ntranslate to English" —
+        // and a whole-string similarity measure scores that around 0.3, which
+        // sails past a 0.9 bar. If the instruction is in there verbatim, the
+        // instruction is going into the user's document.
+        //
+        // The length bar keeps a one- or two-word instruction ("shorter",
+        // "formal") from rejecting every rewrite that happens to use the word.
+        let containmentNeedle = PostProcessResponseValidator.normalizedForEchoComparison(normalizedInstruction)
+        if containmentNeedle.count >= minimumEchoContainmentLength,
+           PostProcessResponseValidator.normalizedForEchoComparison(normalizedOutput).contains(containmentNeedle) {
+            return true
+        }
+
         return PostProcessResponseValidator.bigramSimilarity(normalizedOutput, normalizedInstruction) >= instructionEchoSimilarity
     }
 
@@ -540,7 +595,16 @@ enum PostProcessCommandValidator {
         }
         // A rewrite cut off at the token cap would replace the selection with
         // half a sentence — worse than not running at all.
-        if let finishReason = choices[0].finishReason, finishReason != "stop" {
+        //
+        // An *absent* finish_reason rejects too (MEDIUM 4). Cleanup can treat
+        // the field as optional because its fallback is the raw transcript —
+        // safe by construction. Command Mode's fallback is overwriting the
+        // user's paragraph, so "the server did not say whether this answer is
+        // complete" has to mean no (AD-4).
+        guard let finishReason = choices[0].finishReason else {
+            return .failure(.malformedResponse("no finish_reason — cannot tell a complete rewrite from a truncated one"))
+        }
+        guard finishReason == "stop" else {
             return .failure(.malformedResponse("model stopped early: \(finishReason)"))
         }
 
@@ -556,6 +620,9 @@ enum PostProcessCommandValidator {
         }
         guard isWithinLengthCeiling(selection: selection, output: rewritten) else {
             return .failure(.commandOutputTooLong(selectionCharacters: selection.count, outputCharacters: rewritten.count))
+        }
+        guard isAboveLengthFloor(selection: selection, output: rewritten) else {
+            return .failure(.commandOutputTooShort(selectionCharacters: selection.count, outputCharacters: rewritten.count))
         }
 
         return .success(rewritten)

@@ -136,10 +136,25 @@ struct GeneralSettingsTab: View {
                     .foregroundStyle(.secondary)
 
                 if appState.commandModeEnabled {
+                    // The toggle is on and the binding is not usable — the key
+                    // collides with dictation's, which can only be reached by a
+                    // migrated or hand-edited preference now that both pickers
+                    // refuse it. Said here rather than left to a log, because
+                    // the toggle reading ON while the feature is inert is
+                    // exactly what MAJOR 5 is about.
+                    if !appState.isCommandModeUsable {
+                        Label(
+                            "Command Mode is off: this key is the same as the dictation hotkey. Pick a different key to turn it back on.",
+                            systemImage: "exclamationmark.triangle"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    }
+
                     HotKeySelectionControl(
                         keyCode: $appState.commandHotKeyCode,
                         pickerLabel: "Command Key",
-                        footerText: "Must be a different key from the dictation hotkey.",
+                        footerText: "Must be a different key from the dictation hotkey. VocaMac reserves it while Command Mode is on — other apps will not see this key.",
                         reservedKeyCode: appState.hotKeyCode,
                         reservedKeyOwner: "dictation",
                         onCommit: { appState.syncCommandHotKeyConfiguration() }

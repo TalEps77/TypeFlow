@@ -656,6 +656,14 @@ struct HotkeyConfigStep: View {
                         keyCode: $appState.hotKeyCode,
                         pickerLabel: "Key",
                         footerText: "VocaMac reserves this key while running.",
+                        // The collision check runs in both directions or it is
+                        // not a check (MAJOR 5). Onboarding can be reopened
+                        // after Command Mode is enabled, and without this the
+                        // dictation key could be moved onto the command key
+                        // here — silently disabling Command Mode with its
+                        // toggle still on.
+                        reservedKeyCode: appState.commandModeEnabled ? appState.commandHotKeyCode : nil,
+                        reservedKeyOwner: "Command Mode",
                         onCommit: { appState.syncHotKeyConfiguration() }
                     )
                 }

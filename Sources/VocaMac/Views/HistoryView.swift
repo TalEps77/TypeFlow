@@ -184,7 +184,13 @@ struct HistoryDetailView: View {
                     .padding(6)
                 }
 
-                if record.finalText != record.rawTranscript {
+                // A Command Mode record holds the spoken *instruction* in both
+                // text fields — the selection and the rewrite are document
+                // content and are never persisted (AD-5) — so "injected" and
+                // "transcript" would both be lies about it (MINOR 3).
+                if record.mode == .command {
+                    textSection(title: "Instruction (spoken)", text: record.finalText)
+                } else if record.finalText != record.rawTranscript {
                     textSection(title: "Final Text (injected)", text: record.finalText)
                     textSection(title: "Raw Transcript", text: record.rawTranscript)
                 } else {

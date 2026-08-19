@@ -53,11 +53,17 @@ enum SelectionError: Error, Equatable {
     case selectionChanged
     /// The Accessibility write itself was refused by the target.
     case writeRejected(Int32)
-    /// The write was accepted and did nothing. Some multi-line text views —
-    /// terminals and code editors especially — return `.success` for a
-    /// `kAXSelectedTextAttribute` write and silently discard it, which is
+    /// The write was accepted and did nothing — *proved*, by reading the text
+    /// back and finding the original selection still in place. Some multi-line
+    /// text views — terminals and code editors especially — return `.success`
+    /// for a `kAXSelectedTextAttribute` write and silently discard it, which is
     /// exactly the failure that must not be reported as a rewrite.
     case writeNotApplied
+    /// The write was accepted and the result could not be read back, so
+    /// whether it landed is genuinely unknown (MAJOR 2). This is *not*
+    /// `writeNotApplied`: telling the user "nothing was changed" when the app
+    /// may well have applied the edit invites a retry that rewrites it twice.
+    case writeUnverified
 
     var reason: String {
         switch self {
@@ -68,6 +74,7 @@ enum SelectionError: Error, Equatable {
         case .selectionChanged:    return "the selection changed"
         case .writeRejected(let code): return "the app refused the edit (AX error \(code))"
         case .writeNotApplied:     return "the app accepted the edit but did not apply it"
+        case .writeUnverified:     return "the app accepted the edit but would not confirm it"
         }
     }
 }
@@ -498,6 +505,12 @@ final class TextInjector {
 
     // MARK: - Strategy 1: Accessibility API
 
+    /// Roles the injection path is willing to write into: single-line inputs
+    /// only. Hoisted out of `injectViaAccessibility` so a test can pin the
+    /// actual gate rather than a constant that merely resembles it (MINOR 7) —
+    /// the values and the guard below are unchanged.
+    static let injectableRoles: Set<String> = ["AXTextField", "AXSearchField", "AXComboBox"]
+
     /// Attempt to insert `text` at the cursor position by writing directly to
     /// the `kAXSelectedTextAttribute` of the currently focused UI element.
     ///
@@ -551,8 +564,7 @@ final class TextInjector {
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
         let role = roleRef as? String ?? ""
 
-        let supportedRoles: Set<String> = ["AXTextField", "AXSearchField", "AXComboBox"]
-        guard supportedRoles.contains(role) else {
+        guard Self.injectableRoles.contains(role) else {
             VocaLogger.debug(.textInjector, "AX: skipping role '\(role)' — not a single-line input field")
             return nil
         }
@@ -657,10 +669,11 @@ final class TextInjector {
     /// Replace the snapshot's selection with `text`.
     ///
     /// Refuses — changing nothing — unless focus is still on the very element
-    /// the snapshot came from and the selection still reads back as exactly
-    /// the text that was read. That is the same proof `undoViaAccessibility`
-    /// demands before it deletes anything, and here it is what stops a rewrite
-    /// landing in a field the user moved to while the LLM was thinking.
+    /// the snapshot came from, the selection still occupies the very range it
+    /// was read from, and it still reads back as exactly the text that was
+    /// read. That is the same proof `undoViaAccessibility` demands before it
+    /// deletes anything, and here it is what stops a rewrite landing in a field
+    /// the user moved to while the LLM was thinking.
     ///
     /// Failure is returned, never swallowed (Story 6.2 AC).
     @discardableResult
@@ -670,6 +683,24 @@ final class TextInjector {
         guard let focused = focusedElement(processIdentifier: snapshot.processIdentifier),
               CFEqual(focused, snapshot.element) else {
             return .failure(.focusChanged)
+        }
+
+        // The range, not just the text (MAJOR 3). Element identity plus string
+        // equality is satisfied by a *different* occurrence of the same phrase:
+        // the user selects "the meeting" on line 2 while the LLM is rewriting
+        // the "the meeting" they selected on line 9, and both guards pass while
+        // the write lands on the wrong one. The snapshot only exists because a
+        // read and a write are separated by seconds; the location it was read
+        // from is part of what it recorded.
+        //
+        // An unreadable range refuses too. `computeSelectionResult` could not
+        // have produced this snapshot without reading one from this same
+        // element, so "unreadable now" is an anomaly, and the safe way to
+        // resolve an anomaly here is to change nothing.
+        guard let currentRange = selectedTextRange(of: focused),
+              currentRange.location == snapshot.range.location,
+              currentRange.length == snapshot.range.length else {
+            return .failure(.selectionChanged)
         }
 
         // AD-5: read back, compare, drop. The comparison happens on this stack
@@ -689,22 +720,89 @@ final class TextInjector {
             return .failure(.writeRejected(result.rawValue))
         }
 
-        // A `.success` that changed nothing is the failure mode that matters:
-        // multi-line text views in terminals and editors accept this write and
-        // discard it (the same behaviour that keeps them off
-        // `injectViaAccessibility`'s allow-list). Character count is the one
-        // cheap, app-agnostic way to tell "applied" from "accepted".
-        if let countBefore,
-           let countAfter = intAttribute(kAXNumberOfCharactersAttribute, of: focused) {
-            let expected = countBefore - snapshot.text.utf16.count + text.utf16.count
-            guard countAfter == expected else {
-                VocaLogger.warning(.commandMode, "Selection replace was accepted but the document length did not change as expected (\(countAfter) vs \(expected))")
+        return verifyWrite(of: text, into: focused, replacing: snapshot, countBefore: countBefore)
+    }
+
+    /// Decide whether the accepted write actually landed.
+    ///
+    /// A `.success` that changed nothing is the failure mode that matters:
+    /// multi-line text views in terminals and editors accept this write and
+    /// discard it (the same behaviour that keeps them off
+    /// `injectViaAccessibility`'s allow-list).
+    ///
+    /// Content, not length (MAJOR 1). The character count cannot see an
+    /// equal-length rewrite — "make this uppercase", "swap these two words" —
+    /// being dropped, because a dropped write and a perfect one produce exactly
+    /// the same count. Reading the text back at the range the rewrite should
+    /// now occupy answers the question directly, and it also removes MAJOR 2's
+    /// false alarms: an app that normalizes what it stores (smart quotes,
+    /// autocorrect, RTL marks) changes the count without dropping anything.
+    private func verifyWrite(
+        of text: String,
+        into element: AXUIElement,
+        replacing snapshot: SelectionSnapshot,
+        countBefore: Int?
+    ) -> Result<Void, SelectionError> {
+        let writtenRange = CFRange(location: snapshot.range.location, length: text.utf16.count)
+
+        if let written = string(in: writtenRange, of: element) {
+            if written == text {
+                VocaLogger.info(.commandMode, "Replaced a \(snapshot.text.utf16.count)-unit selection with \(text.utf16.count) units")
+                return .success(())
+            }
+            // Not what we wrote. If the original selection is still sitting
+            // there, the write was discarded and nothing was changed — the one
+            // case that may say so.
+            if let original = string(in: snapshot.range, of: element), original == snapshot.text {
+                VocaLogger.warning(.commandMode, "Selection replace was accepted but the original text is still in place — the app discarded it")
                 return .failure(.writeNotApplied)
             }
+            VocaLogger.warning(.commandMode, "Selection replace was accepted but read back as neither the rewrite nor the original")
+            return .failure(.writeUnverified)
         }
 
-        VocaLogger.info(.commandMode, "Replaced a \(snapshot.text.utf16.count)-unit selection with \(text.utf16.count) units")
-        return .success(())
+        // The target does not answer AXStringForRange. Fall back to the count,
+        // which can prove a *length-changing* rewrite was dropped and can prove
+        // nothing at all about an equal-length one.
+        guard let countBefore,
+              let countAfter = intAttribute(kAXNumberOfCharactersAttribute, of: element) else {
+            VocaLogger.debug(.commandMode, "Selection replace could not be verified — the target reports neither text ranges nor a character count")
+            return .success(())
+        }
+
+        let expected = countBefore - snapshot.text.utf16.count + text.utf16.count
+        if countAfter == expected {
+            VocaLogger.info(.commandMode, "Replaced a \(snapshot.text.utf16.count)-unit selection with \(text.utf16.count) units")
+            return .success(())
+        }
+        if countAfter == countBefore, text.utf16.count != snapshot.text.utf16.count {
+            VocaLogger.warning(.commandMode, "Selection replace was accepted but the document length did not move at all (\(countAfter))")
+            return .failure(.writeNotApplied)
+        }
+        VocaLogger.warning(.commandMode, "Selection replace was accepted but the document length is unexpected (\(countAfter) vs \(expected)) and cannot be read back")
+        return .failure(.writeUnverified)
+    }
+
+    /// The text occupying `range`, or `nil` if the element does not support
+    /// parameterized range reads (or the range is out of bounds).
+    ///
+    /// AD-5: the string is returned to the comparison on the caller's stack
+    /// frame and never logged.
+    private func string(in range: CFRange, of element: AXUIElement) -> String? {
+        guard range.location >= 0, range.length >= 0 else { return nil }
+        var mutableRange = range
+        guard let rangeValue = AXValueCreate(.cfRange, &mutableRange) else { return nil }
+
+        var result: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(
+            element,
+            kAXStringForRangeParameterizedAttribute as CFString,
+            rangeValue,
+            &result
+        ) == .success else {
+            return nil
+        }
+        return result as? String
     }
 
     /// The focused element of `processIdentifier`'s application, pid-verified,

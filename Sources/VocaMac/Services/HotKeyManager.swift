@@ -212,8 +212,19 @@ final class HotKeyManager {
         isEnabled: Bool? = nil
     ) {
         if let keyCode, keyCode == dictationBinding.targetKeyCode {
-            VocaLogger.warning(.hotKeyManager, "Command binding requested the dictation key code (\(keyCode)) — refusing and disabling Command Mode")
-            commandBinding.updateConfiguration(isEnabled: false)
+            VocaLogger.warning(.hotKeyManager, "Command binding requested the dictation key code (\(keyCode)) — refusing the key and disabling Command Mode")
+            // Only the key is refused (MINOR 6). The activation mode, the
+            // double-tap threshold and the safety timeout arrive in this same
+            // call — the timeout is derived from `maxRecordingDuration`, which
+            // has nothing to do with the collision — and dropping them left the
+            // binding on stale values that would come back the moment the key
+            // was fixed.
+            commandBinding.updateConfiguration(
+                mode: mode,
+                doubleTapThreshold: doubleTapThreshold,
+                safetyTimeout: safetyTimeout,
+                isEnabled: false
+            )
             commandBinding.resetState()
             return
         }
