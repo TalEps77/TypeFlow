@@ -266,6 +266,205 @@ final class HotKeyManagerConfigurationTests: XCTestCase {
     }
 }
 
+// MARK: - Second Binding (Story 6.1)
+//
+// The dictation binding's behaviour is pinned by the tests above and must not
+// change; everything here is about the *second* binding existing alongside it
+// on the same tap, with its own callbacks and its own state (R-5).
+
+final class HotKeyManagerCommandBindingTests: XCTestCase {
+
+    /// Dictation on key 0, Command Mode on key 1, both push-to-talk, both
+    /// with a safety timeout long enough not to fire during a test.
+    private func makeManager() -> HotKeyManager {
+        let manager = HotKeyManager()
+        manager.updateConfiguration(keyCode: 0, mode: .pushToTalk, safetyTimeout: 5.0)
+        manager.updateCommandConfiguration(keyCode: 1, mode: .pushToTalk, safetyTimeout: 5.0, isEnabled: true)
+        return manager
+    }
+
+    private func makeEvent(keyCode: Int, keyDown: Bool) throws -> CGEvent {
+        guard let event = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(keyCode), keyDown: keyDown) else {
+            throw XCTSkip("Could not create keyboard event")
+        }
+        event.setIntegerValueField(.eventSourceUnixProcessID, value: 0)
+        return event
+    }
+
+    func testCommandBindingIsDisabledUntilConfigured() throws {
+        let manager = HotKeyManager()
+        manager.updateConfiguration(keyCode: 0, mode: .pushToTalk, safetyTimeout: 5.0)
+
+        let commandStart = expectation(description: "A disabled command binding fires nothing")
+        commandStart.isInverted = true
+        manager.onCommandStart = { commandStart.fulfill() }
+
+        // Key 54 is the shipped Command Mode default — with the binding off it
+        // must be an ordinary key that passes straight through to the app.
+        let event = try makeEvent(keyCode: 54, keyDown: true)
+        XCTAssertFalse(manager._handleTestEvent(type: .keyDown, event: event))
+        wait(for: [commandStart], timeout: 0.15)
+    }
+
+    func testEachBindingFiresOnlyItsOwnCallbacks() throws {
+        let manager = makeManager()
+
+        let dictationStart = expectation(description: "Dictation starts")
+        let commandStart = expectation(description: "Command starts")
+        let dictationStartedByCommandKey = expectation(description: "The command key must not start dictation")
+        dictationStartedByCommandKey.isInverted = true
+        let commandStartedByDictationKey = expectation(description: "The dictation key must not start a command")
+        commandStartedByDictationKey.isInverted = true
+
+        var sawDictationKey = false
+        manager.onRecordingStart = {
+            if sawDictationKey {
+                dictationStart.fulfill()
+            } else {
+                dictationStartedByCommandKey.fulfill()
+            }
+        }
+        var sawCommandKey = false
+        manager.onCommandStart = {
+            if sawCommandKey {
+                commandStart.fulfill()
+            } else {
+                commandStartedByDictationKey.fulfill()
+            }
+        }
+
+        sawDictationKey = true
+        XCTAssertTrue(manager._handleTestEvent(type: .keyDown, event: try makeEvent(keyCode: 0, keyDown: true)))
+        wait(for: [dictationStart], timeout: 1.0)
+        XCTAssertTrue(manager._handleTestEvent(type: .keyUp, event: try makeEvent(keyCode: 0, keyDown: false)))
+        sawDictationKey = false
+
+        sawCommandKey = true
+        XCTAssertTrue(manager._handleTestEvent(type: .keyDown, event: try makeEvent(keyCode: 1, keyDown: true)))
+        wait(for: [commandStart], timeout: 1.0)
+        XCTAssertTrue(manager._handleTestEvent(type: .keyUp, event: try makeEvent(keyCode: 1, keyDown: false)))
+
+        wait(for: [dictationStartedByCommandKey, commandStartedByDictationKey], timeout: 0.15)
+        manager.resetKeyState()
+    }
+
+    /// Interleaved: the command key goes down while dictation is still held,
+    /// and each release must stop its own binding, not the other.
+    func testInterleavedPressesKeepSeparateState() throws {
+        let manager = makeManager()
+
+        let dictationStart = expectation(description: "Dictation starts")
+        let dictationStop = expectation(description: "Dictation stops")
+        let commandStart = expectation(description: "Command starts")
+        let commandStop = expectation(description: "Command stops")
+
+        manager.onRecordingStart = { dictationStart.fulfill() }
+        manager.onRecordingStop = { dictationStop.fulfill() }
+        manager.onCommandStart = { commandStart.fulfill() }
+        manager.onCommandStop = { commandStop.fulfill() }
+
+        XCTAssertTrue(manager._handleTestEvent(type: .keyDown, event: try makeEvent(keyCode: 0, keyDown: true)))
+        XCTAssertTrue(manager._handleTestEvent(type: .keyDown, event: try makeEvent(keyCode: 1, keyDown: true)))
+        wait(for: [dictationStart, commandStart], timeout: 1.0)
+
+        XCTAssertTrue(manager._handleTestEvent(type: .keyUp, event: try makeEvent(keyCode: 1, keyDown: false)))
+        wait(for: [commandStop], timeout: 1.0)
+
+        XCTAssertTrue(manager._handleTestEvent(type: .keyUp, event: try makeEvent(keyCode: 0, keyDown: false)))
+        wait(for: [dictationStop], timeout: 1.0)
+        manager.resetKeyState()
+    }
+
+    /// The recovery key-down (a key-up that macOS dropped) has to work on the
+    /// command binding exactly as it does on dictation, and must not disturb
+    /// the other binding's held state.
+    func testStuckKeyRecoveryIsPerBinding() throws {
+        let manager = makeManager()
+
+        let commandStart = expectation(description: "Command starts")
+        let commandStop = expectation(description: "Second command key-down forces a stop")
+        let dictationStop = expectation(description: "Dictation must not be stopped by the command key")
+        dictationStop.isInverted = true
+
+        manager.onCommandStart = { commandStart.fulfill() }
+        manager.onCommandStop = { commandStop.fulfill() }
+        manager.onRecordingStop = { dictationStop.fulfill() }
+
+        // Dictation held down throughout.
+        XCTAssertTrue(manager._handleTestEvent(type: .keyDown, event: try makeEvent(keyCode: 0, keyDown: true)))
+
+        XCTAssertTrue(manager._handleTestEvent(type: .keyDown, event: try makeEvent(keyCode: 1, keyDown: true)))
+        wait(for: [commandStart], timeout: 1.0)
+
+        // No key-up in between: this is the dropped-event recovery path.
+        XCTAssertTrue(manager._handleTestEvent(type: .keyDown, event: try makeEvent(keyCode: 1, keyDown: true)))
+        wait(for: [commandStop], timeout: 1.0)
+        wait(for: [dictationStop], timeout: 0.15)
+        manager.resetKeyState()
+    }
+
+    func testCommandBindingRefusesTheDictationKeyCode() throws {
+        let manager = makeManager()
+
+        let commandStart = expectation(description: "A colliding command binding fires nothing")
+        commandStart.isInverted = true
+        let dictationStart = expectation(description: "Dictation still owns its key")
+        manager.onCommandStart = { commandStart.fulfill() }
+        manager.onRecordingStart = { dictationStart.fulfill() }
+
+        manager.updateCommandConfiguration(keyCode: 0, isEnabled: true)
+
+        XCTAssertTrue(manager._handleTestEvent(type: .keyDown, event: try makeEvent(keyCode: 0, keyDown: true)))
+        wait(for: [dictationStart], timeout: 1.0)
+        wait(for: [commandStart], timeout: 0.15)
+        manager.resetKeyState()
+    }
+
+    func testDisablingTheCommandBindingStopsItFiring() throws {
+        let manager = makeManager()
+
+        let commandStart = expectation(description: "A disabled binding fires nothing")
+        commandStart.isInverted = true
+        manager.onCommandStart = { commandStart.fulfill() }
+
+        manager.updateCommandConfiguration(isEnabled: false)
+
+        XCTAssertFalse(manager._handleTestEvent(type: .keyDown, event: try makeEvent(keyCode: 1, keyDown: true)))
+        wait(for: [commandStart], timeout: 0.15)
+    }
+
+    /// Modifier bindings are the realistic configuration (Right Option for
+    /// dictation, Right Command for Command Mode) and take a different path
+    /// through the state machine than regular keys.
+    func testModifierKeysDriveTheTwoBindingsIndependently() throws {
+        let manager = HotKeyManager()
+        manager.updateConfiguration(keyCode: 61, mode: .pushToTalk, safetyTimeout: 5.0)  // Right Option
+        manager.updateCommandConfiguration(keyCode: 54, mode: .pushToTalk, safetyTimeout: 5.0, isEnabled: true)  // Right Command
+
+        let commandStart = expectation(description: "Command starts on Right Command")
+        let commandStop = expectation(description: "Command stops on Right Command release")
+        let dictationStart = expectation(description: "Right Command must not start dictation")
+        dictationStart.isInverted = true
+
+        manager.onCommandStart = { commandStart.fulfill() }
+        manager.onCommandStop = { commandStop.fulfill() }
+        manager.onRecordingStart = { dictationStart.fulfill() }
+
+        let down = try makeEvent(keyCode: 54, keyDown: true)
+        down.flags = .maskCommand
+        let up = try makeEvent(keyCode: 54, keyDown: false)
+        up.flags = .maskCommand
+
+        XCTAssertTrue(manager._handleTestEvent(type: .flagsChanged, event: down))
+        wait(for: [commandStart], timeout: 1.0)
+
+        XCTAssertTrue(manager._handleTestEvent(type: .flagsChanged, event: up))
+        wait(for: [commandStop], timeout: 1.0)
+        wait(for: [dictationStart], timeout: 0.15)
+        manager.resetKeyState()
+    }
+}
+
 // MARK: - HotKeyManager Reset State Tests
 
 final class HotKeyManagerResetStateTests: XCTestCase {

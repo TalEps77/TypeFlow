@@ -653,8 +653,10 @@ struct HotkeyConfigStep: View {
                         .foregroundStyle(.secondary)
 
                     HotKeySelectionControl(
+                        keyCode: $appState.hotKeyCode,
                         pickerLabel: "Key",
-                        footerText: "VocaMac reserves this key while running."
+                        footerText: "VocaMac reserves this key while running.",
+                        onCommit: { appState.syncHotKeyConfiguration() }
                     )
                 }
 

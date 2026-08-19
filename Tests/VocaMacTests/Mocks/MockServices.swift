@@ -104,6 +104,8 @@ final class MockHotKeyManager: HotKeyMonitoring {
     var eventTap: CFMachPort? = nil
     var onRecordingStart: (() -> Void)?
     var onRecordingStop: (() -> Void)?
+    var onCommandStart: (() -> Void)?
+    var onCommandStop: (() -> Void)?
 
     var startListeningCallCount = 0
     var lastKeyCode: Int?
@@ -112,6 +114,13 @@ final class MockHotKeyManager: HotKeyMonitoring {
     var lastSafetyTimeout: Double?
     var resetKeyStateCallCount = 0
     var updateConfigurationCallCount = 0
+
+    var updateCommandConfigurationCallCount = 0
+    var lastCommandKeyCode: Int?
+    var lastCommandMode: ActivationMode?
+    var lastCommandDoubleTapThreshold: Double?
+    var lastCommandSafetyTimeout: Double?
+    var lastCommandIsEnabled: Bool?
 
     private var accessibilityPermission = false
 
@@ -154,6 +163,15 @@ final class MockHotKeyManager: HotKeyMonitoring {
         if let safetyTimeout = safetyTimeout {
             lastSafetyTimeout = safetyTimeout
         }
+    }
+
+    func _updateCommandConfiguration(keyCode: Int?, mode: ActivationMode?, doubleTapThreshold: Double?, safetyTimeout: Double?, isEnabled: Bool?) {
+        updateCommandConfigurationCallCount += 1
+        if let keyCode { lastCommandKeyCode = keyCode }
+        if let mode { lastCommandMode = mode }
+        if let doubleTapThreshold { lastCommandDoubleTapThreshold = doubleTapThreshold }
+        if let safetyTimeout { lastCommandSafetyTimeout = safetyTimeout }
+        if let isEnabled { lastCommandIsEnabled = isEnabled }
     }
 }
 

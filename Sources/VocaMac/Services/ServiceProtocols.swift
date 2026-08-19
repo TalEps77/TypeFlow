@@ -47,16 +47,27 @@ protocol HotKeyMonitoring: AnyObject {
     var onRecordingStart: (() -> Void)? { get set }
     var onRecordingStop: (() -> Void)? { get set }
 
+    /// Story 6.1: the second binding's callbacks. Dedicated rather than a
+    /// generalization of the pair above — the two gestures mean different
+    /// things and one of them must never be able to fire the other (R-5).
+    var onCommandStart: (() -> Void)? { get set }
+    var onCommandStop: (() -> Void)? { get set }
+
     func checkAccessibilityPermission(prompt: Bool) -> Bool
     func startListening(keyCode: Int, mode: ActivationMode, doubleTapThreshold: Double, safetyTimeout: Double)
     func stopListening()
     func resetKeyState()
     func _updateConfiguration(keyCode: Int?, mode: ActivationMode?, doubleTapThreshold: Double?, safetyTimeout: Double?)
+    func _updateCommandConfiguration(keyCode: Int?, mode: ActivationMode?, doubleTapThreshold: Double?, safetyTimeout: Double?, isEnabled: Bool?)
 }
 
 extension HotKeyMonitoring {
     func updateConfiguration(keyCode: Int? = nil, mode: ActivationMode? = nil, doubleTapThreshold: Double? = nil, safetyTimeout: Double? = nil) {
         _updateConfiguration(keyCode: keyCode, mode: mode, doubleTapThreshold: doubleTapThreshold, safetyTimeout: safetyTimeout)
+    }
+
+    func updateCommandConfiguration(keyCode: Int? = nil, mode: ActivationMode? = nil, doubleTapThreshold: Double? = nil, safetyTimeout: Double? = nil, isEnabled: Bool? = nil) {
+        _updateCommandConfiguration(keyCode: keyCode, mode: mode, doubleTapThreshold: doubleTapThreshold, safetyTimeout: safetyTimeout, isEnabled: isEnabled)
     }
 }
 

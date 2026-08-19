@@ -147,8 +147,23 @@ final class AppState: ObservableObject {
     /// stream of bad suggestions would make dictation worse, not better.
     @AppStorage(CorrectionLearningSettings.Key.enabled, store: VocaDefaults.store) var correctionLearningEnabled: Bool = CorrectionLearningSettings.Default.enabled
 
+    /// Command Mode's second hotkey binding (Story 6.1, AD-9). Ships **off** —
+    /// see `CommandModeSettings.Default.enabled` for why this one is not like
+    /// Dictionary and Snippets.
+    @AppStorage(CommandModeSettings.Key.enabled, store: VocaDefaults.store) var commandModeEnabled: Bool = CommandModeSettings.Default.enabled
+    @AppStorage(CommandModeSettings.Key.hotKeyCode, store: VocaDefaults.store) var commandHotKeyCode: Int = CommandModeSettings.Default.hotKeyCode
+    @AppStorage(CommandModeSettings.Key.activationMode, store: VocaDefaults.store) var commandActivationMode: ActivationMode = CommandModeSettings.Default.activationMode
+
     private var hotKeySafetyTimeout: Double {
         Double(maxRecordingDuration) + 5.0
+    }
+
+    /// True when the Command Mode binding is both enabled and bound to a key
+    /// that is not already the dictation key. The settings UI refuses to
+    /// create the collision (Story 6.1 AC); this is what makes a preference
+    /// that arrived some other way inert rather than ambiguous.
+    var isCommandModeUsable: Bool {
+        commandModeEnabled && commandHotKeyCode != hotKeyCode
     }
 
     // MARK: - Services
@@ -627,6 +642,9 @@ final class AppState: ObservableObject {
                 doubleTapThreshold: self.doubleTapThreshold,
                 safetyTimeout: self.hotKeySafetyTimeout
             )
+            // `startListening` configures the dictation binding only; the
+            // command binding is configured separately by design (Story 6.1).
+            self.syncCommandHotKeyConfiguration()
             VocaLogger.info(.appState, "Hotkey listener started after permission grant")
         }
 
@@ -724,6 +742,26 @@ final class AppState: ObservableObject {
             safetyTimeout: hotKeySafetyTimeout
         )
         VocaLogger.debug(.appState, "Hotkey configuration synced (keyCode=\(hotKeyCode), mode=\(activationMode.rawValue))")
+
+        // The command binding shares the dictation binding's safety timeout,
+        // which is derived from `maxRecordingDuration` — so a change to either
+        // hotkey's settings has to re-push both (Story 6.1).
+        syncCommandHotKeyConfiguration()
+    }
+
+    /// Apply persisted Command Mode hotkey settings to the second binding
+    /// (Story 6.1). Pushes `isEnabled: false` whenever the binding would
+    /// collide with the dictation key, so the collision can never produce two
+    /// gestures on one key.
+    func syncCommandHotKeyConfiguration() {
+        hotKeyManager.updateCommandConfiguration(
+            keyCode: commandHotKeyCode,
+            mode: commandActivationMode,
+            doubleTapThreshold: doubleTapThreshold,
+            safetyTimeout: hotKeySafetyTimeout,
+            isEnabled: isCommandModeUsable
+        )
+        VocaLogger.debug(.appState, "Command hotkey configuration synced (keyCode=\(commandHotKeyCode), mode=\(commandActivationMode.rawValue), enabled=\(isCommandModeUsable))")
     }
 
     // MARK: - Force Recovery

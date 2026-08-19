@@ -10,34 +10,57 @@ struct HotKeySelectionControl: View {
     @EnvironmentObject private var appState: AppState
     @State private var isRecording = false
     @State private var wasListeningBeforeRecording = false
+    @State private var rejectionMessage: String?
+
+    /// The key code this control edits. Story 6.1 made this a binding so the
+    /// same control can drive either hotkey; it defaults to nothing and every
+    /// call site passes one explicitly.
+    @Binding private var keyCode: Int
 
     let pickerLabel: String
     let footerText: String?
 
-    init(pickerLabel: String = "Preset", footerText: String? = nil) {
+    /// A key code this control must refuse, because the *other* binding
+    /// already owns it, and what to call it in the rejection message
+    /// (Story 6.1 AC). `nil` disables the check.
+    let reservedKeyCode: Int?
+    let reservedKeyOwner: String
+
+    /// Applied after a value is accepted — each call site pushes its own
+    /// binding's configuration to the listener.
+    let onCommit: () -> Void
+
+    init(
+        keyCode: Binding<Int>,
+        pickerLabel: String = "Preset",
+        footerText: String? = nil,
+        reservedKeyCode: Int? = nil,
+        reservedKeyOwner: String = "the other hotkey",
+        onCommit: @escaping () -> Void
+    ) {
+        self._keyCode = keyCode
         self.pickerLabel = pickerLabel
         self.footerText = footerText
+        self.reservedKeyCode = reservedKeyCode
+        self.reservedKeyOwner = reservedKeyOwner
+        self.onCommit = onCommit
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Picker(pickerLabel, selection: $appState.hotKeyCode) {
+                Picker(pickerLabel, selection: pickerSelection) {
                     ForEach(KeyCodeReference.commonHotKeys, id: \.keyCode) { hotKey in
                         Text(hotKey.name).tag(hotKey.keyCode)
                     }
 
-                    if !KeyCodeReference.isCommonHotKey(appState.hotKeyCode) {
+                    if !KeyCodeReference.isCommonHotKey(keyCode) {
                         Divider()
-                        Text("Custom: \(KeyCodeReference.displayName(for: appState.hotKeyCode))")
-                            .tag(appState.hotKeyCode)
+                        Text("Custom: \(KeyCodeReference.displayName(for: keyCode))")
+                            .tag(keyCode)
                     }
                 }
                 .disabled(isRecording)
-                .onChange(of: appState.hotKeyCode) { _ in
-                    guard !isRecording else { return }
-                    appState.syncHotKeyConfiguration()
-                }
 
                 HotKeyRecorderButton(
                     isRecording: $isRecording,
@@ -51,6 +74,10 @@ struct HotKeySelectionControl: View {
                 Label("Press a key, or press Escape to cancel", systemImage: "keyboard")
                     .font(.caption)
                     .foregroundStyle(Color.accentColor)
+            } else if let rejectionMessage {
+                Label(rejectionMessage, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             } else if let footerText {
                 Text(footerText)
                     .font(.caption)
@@ -62,6 +89,33 @@ struct HotKeySelectionControl: View {
             isRecording = false
             finishRecording()
         }
+    }
+
+    /// The Picker writes through this rather than straight to `keyCode`, so a
+    /// collision is refused before it is ever stored — a rejection that wrote
+    /// the value and then reverted it would briefly leave two bindings on one
+    /// key, and would flicker in the UI.
+    private var pickerSelection: Binding<Int> {
+        Binding(
+            get: { keyCode },
+            set: { newValue in
+                guard !isRecording else { return }
+                apply(newValue)
+            }
+        )
+    }
+
+    /// Accepts and commits `newKeyCode`, or refuses it with a message and
+    /// changes nothing.
+    private func apply(_ newKeyCode: Int) {
+        guard newKeyCode != reservedKeyCode else {
+            rejectionMessage = "\(KeyCodeReference.displayName(for: newKeyCode)) is already assigned to \(reservedKeyOwner). Pick a different key."
+            return
+        }
+        rejectionMessage = nil
+        guard newKeyCode != keyCode else { return }
+        keyCode = newKeyCode
+        onCommit()
     }
 
     private func beginRecording() {
@@ -78,9 +132,8 @@ struct HotKeySelectionControl: View {
         wasListeningBeforeRecording = false
     }
 
-    private func recordKey(_ keyCode: Int) {
-        appState.hotKeyCode = keyCode
-        appState.syncHotKeyConfiguration()
+    private func recordKey(_ recordedKeyCode: Int) {
+        apply(recordedKeyCode)
         finishRecording()
     }
 

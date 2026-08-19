@@ -92,8 +92,12 @@ struct GeneralSettingsTab: View {
             // Hotkey
             Section("Hotkey") {
                 HotKeySelectionControl(
+                    keyCode: $appState.hotKeyCode,
                     pickerLabel: "Activation Key",
-                    footerText: "Choose a preset or record a key. VocaMac reserves this key while running."
+                    footerText: "Choose a preset or record a key. VocaMac reserves this key while running.",
+                    reservedKeyCode: appState.commandModeEnabled ? appState.commandHotKeyCode : nil,
+                    reservedKeyOwner: "Command Mode",
+                    onCommit: { appState.syncHotKeyConfiguration() }
                 )
 
                 if appState.activationMode == .doubleTapToggle {
@@ -117,6 +121,38 @@ struct GeneralSettingsTab: View {
                     Text("Shorter = faster double-tap required. Longer = more forgiving.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            // Command Mode — the second hotkey binding (Story 6.1)
+            Section("Command Mode") {
+                Toggle("Enable Command Mode", isOn: $appState.commandModeEnabled)
+                    .onChange(of: appState.commandModeEnabled) { _ in
+                        appState.syncCommandHotKeyConfiguration()
+                    }
+
+                Text("Select text, hold the Command Mode key, and speak an instruction — the selection is rewritten in place. If anything fails, nothing is changed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if appState.commandModeEnabled {
+                    HotKeySelectionControl(
+                        keyCode: $appState.commandHotKeyCode,
+                        pickerLabel: "Command Key",
+                        footerText: "Must be a different key from the dictation hotkey.",
+                        reservedKeyCode: appState.hotKeyCode,
+                        reservedKeyOwner: "dictation",
+                        onCommit: { appState.syncCommandHotKeyConfiguration() }
+                    )
+
+                    Picker("Command Mode Activation", selection: $appState.commandActivationMode) {
+                        ForEach(ActivationMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .onChange(of: appState.commandActivationMode) { _ in
+                        appState.syncCommandHotKeyConfiguration()
+                    }
                 }
             }
 
