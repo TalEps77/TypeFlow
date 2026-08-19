@@ -406,10 +406,21 @@ final class MockTextInjector: TextInjecting {
     var lastInjectedText: String?
     var lastPreserveClipboard: Bool?
 
+    /// Test-controlled answer for `canUndoLastInjection` and the result
+    /// `undoLastInjection()` returns.
+    var canUndoLastInjection = false
+    var undoLastInjectionResult = false
+    var undoLastInjectionCallCount = 0
+
     func inject(text: String, preserveClipboard: Bool) {
         injectCallCount += 1
         lastInjectedText = text
         lastPreserveClipboard = preserveClipboard
+    }
+
+    func undoLastInjection() -> Bool {
+        undoLastInjectionCallCount += 1
+        return undoLastInjectionResult
     }
 }
 

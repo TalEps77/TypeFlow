@@ -706,6 +706,19 @@ final class AppState: ObservableObject {
         rePaste(mostRecent)
     }
 
+    // MARK: - Undo (FR-10)
+
+    /// True when the last injection can still be retracted safely (FR-10) —
+    /// see `TextInjector.canUndoLastInjection` for the exact conditions.
+    var canUndoLastInjection: Bool { textInjector.canUndoLastInjection }
+
+    /// Best-effort retraction of the last injection. Returns `false` —
+    /// changing nothing — when it cannot be performed safely.
+    @discardableResult
+    func undoLastInjection() -> Bool {
+        textInjector.undoLastInjection()
+    }
+
     /// Persist the completed dictation (FR-8). `context.rawTranscript` and
     /// `context.currentText` are exactly what was injected; per AD-5, nothing
     /// about Cursor Context is read or passed here — HistoryRecord has no

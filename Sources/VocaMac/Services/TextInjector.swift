@@ -27,6 +27,14 @@ final class TextInjector {
     /// Used as a fallback when the active layout cannot be inspected.
     private let kVK_ANSI_V_Fallback: CGKeyCode = 9
 
+    /// Default virtual key code for the Z key on a US-QWERTY layout.
+    /// Used as a fallback when the active layout cannot be inspected.
+    private let kVK_ANSI_Z_Fallback: CGKeyCode = 6
+
+    /// Undo (FR-10) is offered only within this short window after an
+    /// injection, and only while the same application is still frontmost.
+    private let undoWindow: TimeInterval = 10.0
+
     // MARK: - Types
 
     /// Deep copy of a single pasteboard item's data across all its types
@@ -39,6 +47,30 @@ final class TextInjector {
     private struct PasteboardSnapshot {
         let items: [PasteboardItemSnapshot]
     }
+
+    /// Which strategy actually performed the last injection, and what it
+    /// takes to retract it safely (FR-10).
+    ///
+    /// Internal rather than `private`: `TextInjectorTests` seeds this via
+    /// `@testable import` to exercise the safety-window and frontmost-app
+    /// guards without needing real Accessibility permission in CI.
+    enum InjectionStrategy {
+        case accessibility
+        case clipboard
+    }
+
+    struct InjectionRecord {
+        let text: String
+        let strategy: InjectionStrategy
+        let timestamp: Date
+        let frontmostBundleId: String?
+    }
+
+    /// What the last `inject(text:preserveClipboard:)` call actually did.
+    /// `nil` until the first injection, and also `nil` for the
+    /// no-accessibility-permission fallback (clipboard-only, no keystroke
+    /// dispatched — there is nothing in the target application to retract).
+    var lastInjection: InjectionRecord?
 
     // MARK: - Public API
 
@@ -77,12 +109,143 @@ final class TextInjector {
         // clipboard and does not require dispatching a keyboard shortcut.
         if injectViaAccessibility(text: text) {
             VocaLogger.info(.textInjector, "Text injected via Accessibility API")
+            recordInjection(text: text, strategy: .accessibility)
             return
         }
 
         // Strategy 2: Clipboard + Cmd+V (legacy fallback).
         VocaLogger.info(.textInjector, "AX injection unavailable — falling back to clipboard + Cmd+V")
+        recordInjection(text: text, strategy: .clipboard)
         injectViaClipboard(text: text, preserveClipboard: preserveClipboard)
+    }
+
+    private func recordInjection(text: String, strategy: InjectionStrategy) {
+        lastInjection = InjectionRecord(
+            text: text,
+            strategy: strategy,
+            timestamp: Date(),
+            frontmostBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        )
+    }
+
+    // MARK: - Undo (FR-10)
+
+    /// True when the last injection can still be retracted safely: within a
+    /// short window, and with the same application still frontmost. Undo is
+    /// **unavailable** rather than destructive whenever either condition
+    /// fails (R-9) — there is no attempt to guess or force it.
+    var canUndoLastInjection: Bool {
+        guard let last = lastInjection else { return false }
+        return isWithinUndoWindow(last) && isSameFrontmostApp(last)
+    }
+
+    /// Best-effort retraction of the last injection (FR-10). Returns `false`
+    /// — changing nothing — when it cannot be performed safely, or when the
+    /// retraction itself fails.
+    @discardableResult
+    func undoLastInjection() -> Bool {
+        guard let last = lastInjection, canUndoLastInjection else { return false }
+
+        let didUndo: Bool
+        switch last.strategy {
+        case .accessibility:
+            // Precise: select exactly the span we inserted and delete it.
+            didUndo = undoViaAccessibility(text: last.text)
+        case .clipboard:
+            // Best-effort: synthesize ⌘Z. Behavior is app-dependent and that
+            // is an accepted, documented limitation (AC, Story 3.4).
+            simulateUndo()
+            didUndo = true
+        }
+
+        if didUndo {
+            // A retracted injection cannot be retracted again.
+            lastInjection = nil
+        }
+        return didUndo
+    }
+
+    private func isWithinUndoWindow(_ record: InjectionRecord) -> Bool {
+        Date().timeIntervalSince(record.timestamp) <= undoWindow
+    }
+
+    private func isSameFrontmostApp(_ record: InjectionRecord) -> Bool {
+        NSWorkspace.shared.frontmostApplication?.bundleIdentifier == record.frontmostBundleId
+    }
+
+    /// Selects the exact span of characters we inserted via the Accessibility
+    /// API, immediately before the current caret, and deletes it.
+    private func undoViaAccessibility(text: String) -> Bool {
+        let systemWide = AXUIElementCreateSystemWide()
+        var focusedRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
+              let focusedRef,
+              CFGetTypeID(focusedRef) == AXUIElementGetTypeID() else {
+            VocaLogger.debug(.textInjector, "Undo: no focused element")
+            return false
+        }
+
+        // swiftlint:disable force_cast
+        let element = focusedRef as! AXUIElement
+        // swiftlint:enable force_cast
+
+        var rangeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeRef) == .success,
+              let rangeRef else {
+            VocaLogger.debug(.textInjector, "Undo: could not read current selection range")
+            return false
+        }
+
+        // swiftlint:disable force_cast
+        let rangeValue = rangeRef as! AXValue
+        // swiftlint:enable force_cast
+
+        var currentRange = CFRange()
+        guard AXValueGetValue(rangeValue, .cfRange, &currentRange) else {
+            return false
+        }
+
+        let injectedLength = text.utf16.count
+        let undoStart = currentRange.location - injectedLength
+        guard undoStart >= 0 else {
+            VocaLogger.debug(.textInjector, "Undo: caret has moved before the injected span — refusing")
+            return false
+        }
+
+        var undoRange = CFRange(location: undoStart, length: injectedLength)
+        guard let undoRangeValue = AXValueCreate(.cfRange, &undoRange) else { return false }
+
+        guard AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, undoRangeValue) == .success else {
+            VocaLogger.debug(.textInjector, "Undo: could not select the injected span")
+            return false
+        }
+
+        let deleteResult = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, "" as CFTypeRef)
+        guard deleteResult == .success else {
+            VocaLogger.debug(.textInjector, "Undo: could not delete the injected span (\(deleteResult.rawValue))")
+            return false
+        }
+
+        VocaLogger.info(.textInjector, "Undo: retracted \(injectedLength) UTF-16 units via Accessibility API")
+        return true
+    }
+
+    /// Simulate ⌘Z. Mirrors `simulatePaste()`'s layout-aware keycode
+    /// resolution — see its documentation for why this cannot just post the
+    /// US-QWERTY keycode for "z" directly.
+    private func simulateUndo() {
+        let keyCode = TextInjector.keyCode(forCharacter: "z") ?? kVK_ANSI_Z_Fallback
+        let source = CGEventSource(stateID: .combinedSessionState)
+
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) else { return }
+        keyDown.flags = [.maskCommand]
+        keyDown.post(tap: .cgAnnotatedSessionEventTap)
+
+        guard let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else { return }
+        keyUp.flags = [.maskCommand]
+        keyUp.post(tap: .cgAnnotatedSessionEventTap)
+
+        VocaLogger.info(.textInjector, "Cmd+Z posted (keycode \(keyCode))")
     }
 
     // MARK: - Strategy 1: Accessibility API

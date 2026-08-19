@@ -427,6 +427,29 @@ struct MenuBarView: View {
             .buttonStyle(MenuRowButtonStyle())
             .disabled(appState.historyStore.records.isEmpty)
 
+            if appState.canUndoLastInjection {
+                Button {
+                    appState.undoLastInjection()
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.uturn.backward.circle")
+                        Text("Undo Last Injection")
+                        Spacer()
+                    }
+                    .font(.body)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.primary.opacity(0.0001))
+                    )
+                }
+                .buttonStyle(MenuRowButtonStyle())
+                .help("Best-effort: only works for a few seconds after injecting, and only while you're still in the same app.")
+            }
+
             Button {
                 NotificationCenter.default.post(name: .showOnboarding, object: nil)
             } label: {

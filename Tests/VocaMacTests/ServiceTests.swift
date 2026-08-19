@@ -4,6 +4,7 @@
 // Tests for services: KeyCodeReference, TextInjector, SoundManager, AudioEngine.
 
 import XCTest
+import AppKit
 @testable import VocaMac
 
 // MARK: - KeyCodeReference Tests
@@ -109,6 +110,81 @@ final class TextInjectorTests: XCTestCase {
         XCTAssertEqual(mock.injectCallCount, 2)
         XCTAssertEqual(mock.lastInjectedText, "world")
         XCTAssertEqual(mock.lastPreserveClipboard, false)
+    }
+
+    // MARK: - Undo (Story 3.4, FR-10)
+    //
+    // The real AX retraction and ⌘Z dispatch can't be exercised headlessly
+    // (no Accessibility permission in CI), so these tests seed `lastInjection`
+    // directly via `@testable import` and assert on the safety-window and
+    // frontmost-app guards, which are the load-bearing, host-independent
+    // logic this story adds.
+
+    func testCanUndoIsFalseWithNoPriorInjection() {
+        let injector = TextInjector()
+        XCTAssertFalse(injector.canUndoLastInjection)
+    }
+
+    func testUndoWithNoPriorInjectionReturnsFalseAndChangesNothing() {
+        let injector = TextInjector()
+        XCTAssertFalse(injector.undoLastInjection())
+    }
+
+    func testCanUndoIsFalseOutsideTheSafetyWindow() {
+        let injector = TextInjector()
+        injector.lastInjection = TextInjector.InjectionRecord(
+            text: "hello",
+            strategy: .clipboard,
+            timestamp: Date().addingTimeInterval(-60),
+            frontmostBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        )
+
+        XCTAssertFalse(injector.canUndoLastInjection, "An injection older than the safety window must not be undoable")
+        XCTAssertFalse(injector.undoLastInjection())
+    }
+
+    func testCanUndoIsFalseWhenADifferentAppIsFrontmost() {
+        let injector = TextInjector()
+        injector.lastInjection = TextInjector.InjectionRecord(
+            text: "hello",
+            strategy: .clipboard,
+            timestamp: Date(),
+            frontmostBundleId: "com.example.definitely-not-the-real-frontmost-app"
+        )
+
+        XCTAssertFalse(injector.canUndoLastInjection, "Undo must be unavailable once a different app is frontmost")
+        XCTAssertFalse(injector.undoLastInjection())
+    }
+
+    func testCanUndoIsTrueWithinTheWindowAndSameFrontmostApp() throws {
+        guard let frontmostBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else {
+            throw XCTSkip("Could not determine the frontmost application in this environment")
+        }
+        let injector = TextInjector()
+        injector.lastInjection = TextInjector.InjectionRecord(
+            text: "hello",
+            strategy: .clipboard,
+            timestamp: Date(),
+            frontmostBundleId: frontmostBundleId
+        )
+
+        XCTAssertTrue(injector.canUndoLastInjection)
+    }
+
+    func testUndoClearsLastInjectionSoItCannotBeUndoneTwice() throws {
+        guard let frontmostBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else {
+            throw XCTSkip("Could not determine the frontmost application in this environment")
+        }
+        let injector = TextInjector()
+        injector.lastInjection = TextInjector.InjectionRecord(
+            text: "hello",
+            strategy: .clipboard,
+            timestamp: Date(),
+            frontmostBundleId: frontmostBundleId
+        )
+
+        XCTAssertTrue(injector.undoLastInjection())
+        XCTAssertFalse(injector.canUndoLastInjection, "A retracted injection cannot be retracted again")
     }
 
     // MARK: - Keyboard Layout Resolution (GitHub issue #123)

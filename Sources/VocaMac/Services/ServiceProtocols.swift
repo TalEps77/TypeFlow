@@ -144,6 +144,15 @@ extension SpeechTranscribing {
 
 protocol TextInjecting: AnyObject {
     func inject(text: String, preserveClipboard: Bool)
+
+    /// True when the last injection can still be retracted safely (FR-10):
+    /// within a short window, and with the same application still frontmost.
+    var canUndoLastInjection: Bool { get }
+
+    /// Best-effort retraction of the last injection. Returns `false` —
+    /// changing nothing — when it cannot be performed safely.
+    @discardableResult
+    func undoLastInjection() -> Bool
 }
 
 // MARK: - PostProcessing
