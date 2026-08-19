@@ -12,6 +12,20 @@ struct PostProcessSettingsTab: View {
     @State private var connectionState: ConnectionState = .idle
     @State private var showingRestorePromptConfirmation = false
 
+    /// Held for the tab's lifetime rather than built fresh per click, so
+    /// repeated "Test Connection" clicks reuse one URLSession's connection
+    /// pool instead of leaking a new one each time (MINOR 13).
+    private let postProcessService = PostProcessService()
+
+    /// NFR-1 expects only loopback traffic; the endpoint is user-configurable
+    /// per the AC, so this is a warning rather than a hard block (MINOR 12).
+    private var isEndpointLoopback: Bool {
+        guard let host = URL(string: appState.postProcessBaseURL)?.host?.lowercased() else {
+            return true
+        }
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
+
     enum ConnectionState: Equatable {
         case idle
         case testing
@@ -32,10 +46,19 @@ struct PostProcessSettingsTab: View {
             Section("Backend") {
                 // A TextField nested inside LabeledContent renders its own
                 // title as trailing text on macOS; the field carries the label.
-                TextField("Endpoint", text: $appState.postProcessBaseURL)
+                // The placeholder shown when empty is the value actually in
+                // effect, not a generic label — a cleared field falls back to
+                // it silently otherwise (MINOR 15).
+                TextField(PostProcessSettings.Default.baseURL, text: $appState.postProcessBaseURL)
                     .textFieldStyle(.roundedBorder)
 
-                TextField("Model", text: $appState.postProcessModel)
+                if !isEndpointLoopback {
+                    Label("This endpoint is not on localhost — VocaMac will send transcripts to it over the network.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                TextField(PostProcessSettings.Default.model, text: $appState.postProcessModel)
                     .textFieldStyle(.roundedBorder)
 
                 LabeledContent("Timeout") {
@@ -70,10 +93,25 @@ struct PostProcessSettingsTab: View {
             }
 
             Section("System Prompt") {
-                TextEditor(text: $appState.postProcessSystemPrompt)
-                    .font(.system(size: 11, design: .monospaced))
-                    .frame(minHeight: 140)
-                    .border(Color.secondary.opacity(0.3))
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: $appState.postProcessSystemPrompt)
+                        .font(.system(size: 11, design: .monospaced))
+                        .frame(minHeight: 140)
+                        .border(Color.secondary.opacity(0.3))
+
+                    // TextEditor has no built-in placeholder; an emptied
+                    // prompt silently falls back to the shipped default
+                    // (PostProcessSettings.current()), so say so rather than
+                    // showing nothing (MINOR 15).
+                    if appState.postProcessSystemPrompt.isEmpty {
+                        Text("Empty — the built-in default prompt is used.")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 8)
+                            .padding(.leading, 5)
+                            .allowsHitTesting(false)
+                    }
+                }
 
                 HStack {
                     Text("The examples at the bottom of the prompt do most of the work. Removing them degrades self-correction handling noticeably.")
@@ -137,7 +175,7 @@ struct PostProcessSettingsTab: View {
         )
 
         Task { @MainActor in
-            switch await PostProcessService().testConnection(configuration: configuration) {
+            switch await postProcessService.testConnection(configuration: configuration) {
             case .success(let model):
                 connectionState = .succeeded(model: model)
             case .failure(let error):

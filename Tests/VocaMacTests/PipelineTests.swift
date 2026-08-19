@@ -44,13 +44,24 @@ final class PipelineTests: XCTestCase {
         }
     }
 
-    func testProductionPipelineIsIdentityWithNoStagesEnabled() async {
-        let pipeline = TranscriptPipeline.production()
+    func testPipelineIsIdentityWithPostProcessDisabled() async {
+        // Was `TranscriptPipeline.production()`, which builds a real
+        // PostProcessStage reading UserDefaults.standard through
+        // PostProcessSettings.current(). If a crashed test run elsewhere
+        // leaves vocamac.postProcess.enabled=true persisted, that turned this
+        // identity test into a live network test against localhost:1234 for
+        // every entry in the corpus (MAJOR 5). Built explicitly here instead,
+        // so this test can never read process-global state or reach a
+        // socket.
+        let service = MockPostProcessService()
+        let stage = PostProcessStage(service: service, settingsProvider: { PostProcessSettings(isEnabled: false) })
+        let pipeline = TranscriptPipeline(stages: [stage])
 
         for input in identityCorpus {
             let result = await pipeline.run(TranscriptContext(rawTranscript: input))
             XCTAssertEqual(result.currentText, input)
         }
+        XCTAssertEqual(service.cleanCallCount, 0, "disabled post-processing must never reach the service, real or mock")
     }
 
     // MARK: - Failing and skipped stages pass through
@@ -104,6 +115,19 @@ final class PipelineTests: XCTestCase {
         XCTAssertEqual(result.currentText, "cleaned")
         XCTAssertEqual(result.rawTranscript, "raw", "The raw transcript must survive for the History Record")
         XCTAssertFalse(result.isUnchanged)
+    }
+
+    func testAppliedStageWithBlankTextCannotClobberTheContext() async {
+        // MINOR 7: a stage's own contract says `.applied` never carries blank
+        // text, but the runner is the sole AD-2 enforcer and must not trust
+        // that — a stage that violates its contract must still not blank out
+        // whatever the pipeline already had.
+        let stage = StubTranscriptStage(result: StageResult(text: "   ", outcome: .applied))
+        let pipeline = TranscriptPipeline(stages: [stage])
+
+        let result = await pipeline.run(TranscriptContext(rawTranscript: "raw text"))
+
+        XCTAssertEqual(result.currentText, "raw text")
     }
 
     func testStagesRunInOrderAndEachSeesThePreviousText() async {
@@ -208,6 +232,96 @@ final class AppStatePipelineSeamTests: XCTestCase {
 
         XCTAssertEqual(mocks.textInjector.injectCallCount, 0,
                        "An empty transcript must not be injected, exactly as before the pipeline existed")
+        XCTAssertEqual(appState.appStatus, .idle)
+    }
+
+    // MARK: - Re-entrancy at the seam (MAJOR 2)
+
+    /// Builds an AppState wired with a *real* `TranscriptPipeline` running a
+    /// *real* `PostProcessStage` against a slow `MockPostProcessService`, so
+    /// these tests exercise the actual production seam code path — not just
+    /// a generic pipeline stub — under a genuine multi-hundred-millisecond
+    /// suspension.
+    private func makeStateThatTranscribesSlowly(
+        _ text: String,
+        cleanDelay: TimeInterval
+    ) -> (AppState, TestMocks, MockPostProcessService) {
+        let postProcessService = MockPostProcessService()
+        postProcessService.cleanDelay = cleanDelay
+        postProcessService.cleanResult = .success("cleaned: \(text)")
+        let pipeline = TranscriptPipeline(stages: [
+            PostProcessStage(service: postProcessService, settingsProvider: { PostProcessSettings(isEnabled: true) })
+        ])
+
+        let (appState, mocks) = AppState.makeTestState(
+            postProcessService: postProcessService,
+            transcriptPipelineOverride: pipeline
+        )
+        appState.isRecording = true
+        appState.appStatus = .recording
+        mocks.audioEngine.stopRecordingResult = [0.1, 0.2, 0.3]
+        mocks.whisperService.mockTranscriptionResult = VocaTranscription(
+            text: text,
+            duration: 1.0,
+            detectedLanguage: "he",
+            audioLengthSeconds: 1.0,
+            modelUsed: .tiny
+        )
+        return (appState, mocks, postProcessService)
+    }
+
+    func testStaleDictationDoesNotInjectIntoANewRecording() async throws {
+        let (appState, mocks, _) = makeStateThatTranscribesSlowly("stale dictation", cleanDelay: 0.3)
+
+        // Release the hotkey: this suspends inside the slow post-process stage.
+        let staleDictation = Task {
+            await appState.stopRecordingAndTranscribe()
+        }
+        await Task.yield()
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(appState.appStatus, .processing, "must be suspended mid-pipeline before the race is simulated")
+
+        // A second hotkey press while stuck in .processing force-recovers...
+        appState.forceRecovery()
+        // ...and a third genuinely starts a new recording.
+        await appState.startRecording()
+        XCTAssertEqual(appState.appStatus, .recording, "the new recording must be live")
+        let hideCallCountBeforeStaleResult = mocks.cursorOverlay.hideCallCount
+
+        // The stale pipeline call now resolves into a world with a different
+        // recording live. It must change nothing.
+        await staleDictation.value
+
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 0, "the stale dictation must never be injected")
+        XCTAssertEqual(mocks.historyStore.recordCallCount, 0, "the stale dictation must never be recorded in history")
+        XCTAssertEqual(appState.appStatus, .recording, "the new recording's status must survive the stale one resuming")
+        XCTAssertTrue(appState.isRecording, "the new recording must still be marked as recording")
+        XCTAssertEqual(mocks.cursorOverlay.hideCallCount, hideCallCountBeforeStaleResult,
+                       "the stale dictation must not hide the new recording's overlay")
+    }
+
+    // MARK: - Main-actor liveness during post-processing (MINOR 10)
+
+    /// Mirrors `testStartRecordingDoesNotBlockMainActorDuringAudioStart`
+    /// (AppStateRecordingTests.swift): the post-process seam is the app's
+    /// longest main-actor suspension (up to the configured timeout), and had
+    /// no regression test proving it actually suspends rather than blocks.
+    func testStopRecordingDoesNotBlockMainActorDuringPostProcessing() async throws {
+        let (appState, _, _) = makeStateThatTranscribesSlowly("שלום עולם", cleanDelay: 0.3)
+
+        let start = Date()
+        let task = Task {
+            await appState.stopRecordingAndTranscribe()
+        }
+
+        await Task.yield()
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertLessThan(Date().timeIntervalSince(start), 0.3,
+                          "the main actor should stay free while post-processing is in flight")
+        XCTAssertEqual(appState.appStatus, .processing, "still suspended in the post-process stage")
+
+        await task.value
         XCTAssertEqual(appState.appStatus, .idle)
     }
 }

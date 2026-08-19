@@ -487,6 +487,47 @@ final class MockHistoryStore: HistoryRecording, ObservableObject {
     }
 }
 
+// MARK: - MockPostProcessService
+
+/// Moved here from PostProcessStageTests.swift (MINOR 9 / AD-7) so it can be
+/// threaded through `makeTestState` and used to build a real
+/// `TranscriptPipeline` for AppState-level seam tests, not just stage-level
+/// ones.
+final class MockPostProcessService: PostProcessing {
+    var cleanResult: Result<String, PostProcessError> = .success("cleaned")
+    var testConnectionResult: Result<String, PostProcessError> = .success("mock-model")
+
+    /// Simulates a slow backend: `clean` suspends for this long before
+    /// returning `cleanResult`. Used to reproduce the re-entrancy window at
+    /// the AppState seam (MAJOR 2) and to prove the seam doesn't block the
+    /// main actor while suspended (MINOR 10).
+    var cleanDelay: TimeInterval = 0
+
+    var cleanCallCount = 0
+    var lastText: String?
+    var lastSystemPrompt: String?
+    var lastConfiguration: PostProcessConfiguration?
+
+    func clean(
+        text: String,
+        systemPrompt: String,
+        configuration: PostProcessConfiguration
+    ) async -> Result<String, PostProcessError> {
+        cleanCallCount += 1
+        lastText = text
+        lastSystemPrompt = systemPrompt
+        lastConfiguration = configuration
+        if cleanDelay > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(cleanDelay * 1_000_000_000))
+        }
+        return cleanResult
+    }
+
+    func testConnection(configuration: PostProcessConfiguration) async -> Result<String, PostProcessError> {
+        testConnectionResult
+    }
+}
+
 // MARK: - MockTranscriptPipeline
 
 /// Identity by default (AD-2): unless a test sets `transform`, it returns its
@@ -544,7 +585,15 @@ extension AppState {
     @MainActor
     static func makeTestState(
         modelManager: MockModelManager = MockModelManager(),
-        whisperService: MockWhisperService = MockWhisperService()
+        whisperService: MockWhisperService = MockWhisperService(),
+        postProcessService: MockPostProcessService = MockPostProcessService(),
+        /// When supplied, wired into AppState as the real `transcriptPipeline`
+        /// instead of the `MockTranscriptPipeline` below — e.g. a real
+        /// `TranscriptPipeline(stages: [PostProcessStage(service:
+        /// postProcessService, ...)])` for a test that needs the actual seam
+        /// behavior. `mocks.transcriptPipeline` is still created either way,
+        /// for tests that don't need this and read/configure it directly.
+        transcriptPipelineOverride: TranscriptPipelining? = nil
     ) -> (appState: AppState, mocks: TestMocks) {
         // AppState.hasPerformedStartupGlobally is a process-level static that
         // performStartup() only ever flips true. Reset it here (rather than
@@ -575,7 +624,8 @@ extension AppState {
             textInjector: textInjector,
             statsManager: statsManager,
             historyStore: historyStore,
-            transcriptPipeline: transcriptPipeline
+            transcriptPipeline: transcriptPipeline,
+            postProcessService: postProcessService
         )
         let appState = AppState(
             audioEngine: audioEngine,
@@ -587,7 +637,7 @@ extension AppState {
             cursorOverlay: cursorOverlay,
             statsManager: statsManager,
             historyStore: historyStore,
-            transcriptPipeline: transcriptPipeline,
+            transcriptPipeline: transcriptPipelineOverride ?? transcriptPipeline,
             permissionManager: permissionManager,
             skipSystemIntegration: true
         )
@@ -607,4 +657,5 @@ struct TestMocks {
     let statsManager: MockStatsManager
     let historyStore: MockHistoryStore
     let transcriptPipeline: MockTranscriptPipeline
+    let postProcessService: MockPostProcessService
 }

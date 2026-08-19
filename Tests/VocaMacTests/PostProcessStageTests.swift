@@ -8,35 +8,10 @@
 import XCTest
 @testable import VocaMac
 
-// MARK: - Mock
-
-final class MockPostProcessService: PostProcessing {
-    var cleanResult: Result<String, PostProcessError> = .success("cleaned")
-    var testConnectionResult: Result<String, PostProcessError> = .success("mock-model")
-
-    var cleanCallCount = 0
-    var lastText: String?
-    var lastSystemPrompt: String?
-    var lastConfiguration: PostProcessConfiguration?
-
-    func clean(
-        text: String,
-        systemPrompt: String,
-        configuration: PostProcessConfiguration
-    ) async -> Result<String, PostProcessError> {
-        cleanCallCount += 1
-        lastText = text
-        lastSystemPrompt = systemPrompt
-        lastConfiguration = configuration
-        return cleanResult
-    }
-
-    func testConnection(configuration: PostProcessConfiguration) async -> Result<String, PostProcessError> {
-        testConnectionResult
-    }
-}
-
 // MARK: - Tests
+//
+// MockPostProcessService lives in Tests/VocaMacTests/Mocks/MockServices.swift
+// (MINOR 9), so it can also be threaded through AppState.makeTestState.
 
 @MainActor
 final class PostProcessStageTests: XCTestCase {
@@ -217,7 +192,19 @@ final class PostProcessStageTests: XCTestCase {
     func testProductionPipelineIsIdentityWithDefaultSettings() async {
         // The shipping pipeline carries the PostProcess stage, but the feature
         // ships off, so a user who has changed nothing sees no change (AD-13).
+        //
+        // This reads and writes UserDefaults.standard through the real
+        // PostProcessSettings.current() — restore whatever was there before,
+        // even if an assertion below fails (MINOR 8).
         let defaults = UserDefaults.standard
+        let previousValue = defaults.object(forKey: PostProcessSettings.Key.enabled)
+        defer {
+            if let previousValue {
+                defaults.set(previousValue, forKey: PostProcessSettings.Key.enabled)
+            } else {
+                defaults.removeObject(forKey: PostProcessSettings.Key.enabled)
+            }
+        }
         defaults.removeObject(forKey: PostProcessSettings.Key.enabled)
 
         let pipeline = TranscriptPipeline.production()

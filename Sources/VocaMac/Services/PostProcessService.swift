@@ -56,10 +56,17 @@ struct ChatCompletionRequest: Encodable, Equatable {
     let model: String
     let messages: [Message]
     let temperature: Double
+    /// Our own explicit ceiling (BLOCKER 1). Without this the server's own
+    /// default decides how many tokens a completion may run to, and a
+    /// response cut off there is byte-for-byte indistinguishable from a
+    /// complete one unless `finish_reason` is also checked.
+    let maxTokens: Int
     let stream: Bool
 
     enum CodingKeys: String, CodingKey {
-        case model, messages, temperature, stream
+        case model, messages, temperature
+        case maxTokens = "max_tokens"
+        case stream
     }
 }
 
@@ -70,6 +77,15 @@ struct ChatCompletionResponse: Decodable {
             let content: String?
         }
         let message: Message?
+        /// "stop" for a completion the model finished on its own; "length"
+        /// when it was cut off at the token cap. Any other value is treated
+        /// the same as "length" — the text cannot be trusted to be whole.
+        let finishReason: String?
+
+        enum CodingKeys: String, CodingKey {
+            case message
+            case finishReason = "finish_reason"
+        }
     }
 
     let model: String?
@@ -116,8 +132,17 @@ enum PostProcessRequestBuilder {
                 .init(role: "user", content: Prompts.cleanTranscriptUserMessage(for: text))
             ],
             temperature: configuration.temperature,
+            maxTokens: maxTokens(forInputCharacterCount: text.count),
             stream: false
         )
+    }
+
+    /// Sized generously above the input so a legitimate reformat (a spoken
+    /// list turned into bullets can run longer than the transcript) is never
+    /// clipped, but nowhere near "unbounded" — a runaway completion still
+    /// hits our own cap long before it could hit the server's.
+    static func maxTokens(forInputCharacterCount inputCharacterCount: Int) -> Int {
+        max(256, inputCharacterCount * 2)
     }
 
     static func urlRequest(url: URL, body: ChatCompletionRequest, timeout: TimeInterval) throws -> URLRequest {
@@ -139,8 +164,17 @@ enum PostProcessResponseValidator {
     /// transcript instead of cleaning it, and is rejected (AD-2).
     static let minimumLengthRatio = 0.5
     static let maximumLengthRatio = 2.0
-    /// Slack for very short inputs, where a single added word blows the ratio.
+    /// Slack on the LOWER bound only, for very short inputs where trimming a
+    /// single filler word blows the shortening ratio. Shortening is the only
+    /// direction that legitimately needs this — an upper-bound allowance
+    /// this large would let a short *answer* through at the exact input
+    /// lengths where the 4B model is most likely to answer instead of clean
+    /// (MAJOR 3), which is what the shorter, fixed upper-bound slack below
+    /// and the similarity check (MAJOR 4) are for instead.
     static let shortInputAllowance = 40
+    /// Small, fixed upper-bound slack for short inputs (e.g. one word added
+    /// for punctuation/context), independent of the ratio.
+    static let shortInputUpperBoundAllowance = 25
 
     static func isProportionate(input: String, output: String) -> Bool {
         let inputCount = input.count
@@ -148,8 +182,55 @@ enum PostProcessResponseValidator {
         guard inputCount > 0 else { return false }
 
         let lowerBound = Double(inputCount) * minimumLengthRatio - Double(shortInputAllowance)
-        let upperBound = Double(inputCount) * maximumLengthRatio + Double(shortInputAllowance)
+        let upperBound = max(
+            Double(inputCount) * maximumLengthRatio,
+            Double(inputCount) + Double(shortInputUpperBoundAllowance)
+        )
         return Double(outputCount) >= lowerBound && Double(outputCount) <= upperBound
+    }
+
+    /// Below this normalized character-bigram overlap between input and
+    /// output, the model answered the transcript instead of cleaning it —
+    /// a language flip, an unrelated few-shot echo, or a leftover reasoning
+    /// block all fail this even when they happen to land inside the length
+    /// band (MAJOR 4).
+    static let minimumSimilarity = 0.5
+
+    /// Sørensen–Dice coefficient over character bigrams, treated as a
+    /// multiset so a repeated bigram in one string can only match a repeated
+    /// bigram in the other once. 1.0 for identical text, ~0.0 for text
+    /// sharing no character pairs at all (e.g. different scripts).
+    static func bigramSimilarity(_ a: String, _ b: String) -> Double {
+        func bigrams(of text: String) -> [String] {
+            let characters = Array(text)
+            guard characters.count >= 2 else {
+                return characters.isEmpty ? [] : [String(characters)]
+            }
+            return (0..<(characters.count - 1)).map { String(characters[$0...$0 + 1]) }
+        }
+
+        let bigramsA = bigrams(of: a)
+        let bigramsB = bigrams(of: b)
+        guard !bigramsA.isEmpty, !bigramsB.isEmpty else {
+            return a == b ? 1.0 : 0.0
+        }
+
+        var remainingB = [String: Int]()
+        for bigram in bigramsB {
+            remainingB[bigram, default: 0] += 1
+        }
+        var matches = 0
+        for bigram in bigramsA {
+            if let count = remainingB[bigram], count > 0 {
+                matches += 1
+                remainingB[bigram] = count - 1
+            }
+        }
+        return (2.0 * Double(matches)) / Double(bigramsA.count + bigramsB.count)
+    }
+
+    static func isRelated(input: String, output: String) -> Bool {
+        bigramSimilarity(input, output) >= minimumSimilarity
     }
 
     /// Turns a raw HTTP answer into either cleaned text or the reason it was
@@ -172,6 +253,12 @@ enum PostProcessResponseValidator {
         guard let raw = choices[0].message?.content else {
             return .failure(.malformedResponse("no message content in first choice"))
         }
+        // BLOCKER 1: a response cut off at the server's token cap is
+        // otherwise indistinguishable from a complete one — the length guard
+        // below only catches a truncation severe enough to fall out of band.
+        if let finishReason = choices[0].finishReason, finishReason != "stop" {
+            return .failure(.malformedResponse("model stopped early: \(finishReason)"))
+        }
 
         let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else {
@@ -179,6 +266,9 @@ enum PostProcessResponseValidator {
         }
         guard isProportionate(input: input, output: cleaned) else {
             return .failure(.disproportionateLength(inputCharacters: input.count, outputCharacters: cleaned.count))
+        }
+        guard isRelated(input: input, output: cleaned) else {
+            return .failure(.malformedResponse("output unrelated to input"))
         }
 
         return .success(cleaned)
@@ -278,6 +368,7 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
             model: configuration.model,
             messages: [.init(role: "user", content: "ping")],
             temperature: 0,
+            maxTokens: 16,
             stream: false
         )
         let request: URLRequest
@@ -310,6 +401,12 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
     /// session, and an outer Task that cancels the transfer if URLSession has
     /// not honored its own (AD-6). Whichever fires first, the caller waits no
     /// meaningfully longer than the configured timeout.
+    ///
+    /// `URLRequest.timeoutInterval` is an idle timeout (time with no activity
+    /// at all), not a wall-clock one — a backend that dribbles out a byte
+    /// occasionally would keep resetting it indefinitely. The `watchdog` Task
+    /// below is the one deadline here that is genuinely wall-clock, and is
+    /// what actually bounds worst-case latency; treat it as authoritative.
     private func send(
         _ request: URLRequest,
         timeout: TimeInterval

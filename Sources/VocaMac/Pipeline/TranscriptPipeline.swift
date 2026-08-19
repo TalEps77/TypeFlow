@@ -37,8 +37,12 @@ final class TranscriptPipeline: TranscriptPipelining {
 
             // AD-2: only an `.applied` outcome may change the text. A skipped or
             // failed stage cannot alter the transcript even if it returns
-            // something in `result.text`.
-            if result.outcome.didChangeText {
+            // something in `result.text`. Nor can an `.applied` outcome that
+            // trims to blank — the runner is the sole enforcer of AD-2, so a
+            // stage claiming success with nothing in it must not clobber
+            // whatever the pipeline already had (MINOR 7).
+            if result.outcome.didChangeText,
+               !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 context.currentText = result.text
             }
 

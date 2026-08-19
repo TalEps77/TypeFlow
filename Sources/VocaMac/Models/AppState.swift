@@ -144,6 +144,15 @@ final class AppState: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var hasStarted = false
 
+    /// Bumped every time a new recording genuinely begins (`startRecording`)
+    /// or the pipeline is forcibly abandoned (`forceRecovery`). A dictation
+    /// in flight through `transcriptPipeline.run` can suspend for as long as
+    /// the post-process timeout; if the user starts a new recording while
+    /// the old one is still suspended there, the old call must not be
+    /// allowed to inject, hide the overlay, touch `appStatus`, or write
+    /// history once it finally resumes (MAJOR 2).
+    private var dictationGeneration = 0
+
     /// AudioEngine serializes its own lifecycle internally; this wrapper makes
     /// the intentional background handoff explicit for Dispatch's @Sendable API.
     private struct AudioEngineWorker: @unchecked Sendable {
@@ -534,6 +543,10 @@ final class AppState: ObservableObject {
     func forceRecovery() {
         VocaLogger.warning(.appState, "Force recovery: resetting all state to idle (was appStatus=\(appStatus.rawValue), isRecording=\(isRecording))")
 
+        // Invalidate any dictation still suspended in the pipeline (MAJOR 2)
+        // before touching anything else it might race with.
+        dictationGeneration += 1
+
         // Reset audio engine unconditionally
         audioEngine.forceReset()
 
@@ -577,6 +590,10 @@ final class AppState: ObservableObject {
             appStatus = .error
             return
         }
+
+        // A genuinely new recording starts here — invalidate any dictation
+        // still suspended in the pipeline from a previous one (MAJOR 2).
+        dictationGeneration += 1
 
         appStatus = .recording
         isRecording = true
@@ -639,6 +656,11 @@ final class AppState: ObservableObject {
         }
 
         appStatus = .processing
+        // Snapshot before the two await points below (ASR, then the
+        // post-process pipeline), either of which can suspend long enough
+        // for a new recording to start (MAJOR 2). Nothing this dictation
+        // produces may be applied once it resumes into a different one.
+        let generation = dictationGeneration
 
         do {
             let language = selectedLanguage == "auto" ? nil : selectedLanguage
@@ -649,9 +671,12 @@ final class AppState: ObservableObject {
                 vocabulary: customVocabulary
             )
 
+            // Stats are keyed off the raw ASR result, deliberately: they are
+            // a measure of what the user actually said (and how long
+            // WhisperKit took to hear it), not of what post-processing
+            // decided to keep. Toggling cleanup on/off must not change the
+            // word counts a past dictation is remembered by (MINOR 16).
             lastTranscription = result
-
-            // Update stats
             statsManager.recordTranscription(result)
 
             // Inject text at cursor position
@@ -660,6 +685,15 @@ final class AppState: ObservableObject {
             // AD-1: the single seam for every post-ASR text transformation.
             // With no stages enabled this returns trimmedText unchanged (AD-2).
             let pipelineContext = await transcriptPipeline.run(TranscriptContext(rawTranscript: trimmedText))
+
+            // A new recording started while this one was suspended above —
+            // discard the result. No injection, no history, no state change;
+            // the newer generation owns appStatus/cursorOverlay now (MAJOR 2).
+            guard generation == dictationGeneration else {
+                VocaLogger.warning(.appState, "Dictation generation changed during processing — discarding stale result")
+                return
+            }
+
             let finalText = pipelineContext.currentText
             if !finalText.isEmpty {
                 textInjector.inject(
@@ -679,6 +713,13 @@ final class AppState: ObservableObject {
             cursorOverlay.hide()
             appStatus = .idle
         } catch {
+            // Same guard as above: a transcription that fails after a new
+            // recording has already started must not clobber it either.
+            guard generation == dictationGeneration else {
+                VocaLogger.warning(.appState, "Dictation generation changed before failure could be reported — discarding")
+                return
+            }
+
             cursorOverlay.hide()
             errorMessage = "Transcription failed: \(error.localizedDescription)"
             appStatus = .error
