@@ -98,6 +98,17 @@ final class AppState: ObservableObject {
     @AppStorage("vocamac.doubleTapThreshold", store: VocaDefaults.store) var doubleTapThreshold: Double = 0.4
     @AppStorage("vocamac.silenceThreshold", store: VocaDefaults.store) var silenceThreshold: Double = 0.01
     @AppStorage("vocamac.silenceDuration", store: VocaDefaults.store) var silenceDuration: Double = 1.2
+    /// Which `VoiceActivityDetecting` implementation decides the recording
+    /// auto-stop (Story 7.1). Raw value of `VADDetectorKind`; the VAD-backed
+    /// detector is the default, with the legacy RMS detector selectable as a
+    /// fallback if VAD regresses on someone's real speech (R-1).
+    @AppStorage("vocamac.vadDetectorKind", store: VocaDefaults.store) var vadDetectorKind: String = VADDetectorKind.energyVAD.rawValue
+    /// Sensitivity used only by the VAD-backed detector — kept separate from
+    /// `silenceThreshold` (which the legacy RMS detector still uses at its
+    /// original default) because the two detectors evaluate energy
+    /// differently: this one is tuned lower so quiet/whispered speech, which
+    /// the flat RMS threshold used to cut off, is still classified as speech.
+    @AppStorage("vocamac.vadEnergyThreshold", store: VocaDefaults.store) var vadEnergyThreshold: Double = 0.006
     @AppStorage("vocamac.maxRecordingDuration", store: VocaDefaults.store) var maxRecordingDuration: Int = 180
     @AppStorage("vocamac.selectedAudioDeviceID", store: VocaDefaults.store) var selectedAudioDeviceID: String = ""
     @AppStorage("vocamac.selectedAudioDeviceName", store: VocaDefaults.store) var selectedAudioDeviceName: String = ""
@@ -299,13 +310,15 @@ final class AppState: ObservableObject {
             silenceThreshold: Float,
             silenceDuration: Double,
             maxDuration: TimeInterval,
-            preferredInputDeviceID: String?
+            preferredInputDeviceID: String?,
+            detectorKind: VADDetectorKind
         ) -> Bool {
             audioEngine.startRecording(
                 silenceThreshold: silenceThreshold,
                 silenceDuration: silenceDuration,
                 maxDuration: maxDuration,
-                preferredInputDeviceID: preferredInputDeviceID
+                preferredInputDeviceID: preferredInputDeviceID,
+                detectorKind: detectorKind
             )
         }
 
@@ -984,11 +997,16 @@ final class AppState: ObservableObject {
         // Start recording immediately for instant responsiveness.
         // The start sound is played concurrently — any brief bleed into the
         // mic buffer is negligible and handled well by WhisperKit's noise model.
+        let detectorKind = VADDetectorKind(rawValue: vadDetectorKind) ?? .energyVAD
         let didStartRecording = await startAudioEngine(
-            silenceThreshold: Float(silenceThreshold),
+            // The VAD-backed detector uses its own, lower-tuned sensitivity
+            // setting; the legacy RMS detector keeps using `silenceThreshold`
+            // at its original meaning (Story 7.1).
+            silenceThreshold: Float(detectorKind == .energyVAD ? vadEnergyThreshold : silenceThreshold),
             silenceDuration: silenceDuration,
             maxDuration: TimeInterval(maxRecordingDuration),
-            preferredInputDeviceID: selectedAudioDeviceID.isEmpty ? nil : selectedAudioDeviceID
+            preferredInputDeviceID: selectedAudioDeviceID.isEmpty ? nil : selectedAudioDeviceID,
+            detectorKind: detectorKind
         )
 
         guard didStartRecording else {
@@ -1583,7 +1601,8 @@ final class AppState: ObservableObject {
         silenceThreshold: Float,
         silenceDuration: Double,
         maxDuration: TimeInterval,
-        preferredInputDeviceID: String?
+        preferredInputDeviceID: String?,
+        detectorKind: VADDetectorKind
     ) async -> Bool {
         let worker = AudioEngineWorker(audioEngine: audioEngine)
         return await withCheckedContinuation { continuation in
@@ -1592,7 +1611,8 @@ final class AppState: ObservableObject {
                     silenceThreshold: silenceThreshold,
                     silenceDuration: silenceDuration,
                     maxDuration: maxDuration,
-                    preferredInputDeviceID: preferredInputDeviceID
+                    preferredInputDeviceID: preferredInputDeviceID,
+                    detectorKind: detectorKind
                 )
                 continuation.resume(returning: didStart)
             }

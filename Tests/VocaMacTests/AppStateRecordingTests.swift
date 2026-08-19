@@ -256,6 +256,31 @@ final class AppStateRecordingTests: XCTestCase {
         XCTAssertEqual(mocks.audioEngine.lastPreferredInputDeviceID, "coreaudio-device-uid",
                        "Selected audio device ID should be forwarded to AudioEngine")
     }
+
+    // MARK: - Story 7.1: VAD detector selection
+
+    func testStartRecordingDefaultsToEnergyVADWithItsOwnSensitivitySetting() async {
+        let (appState, mocks) = AppState.makeTestState()
+        appState.vadEnergyThreshold = 0.0055
+
+        await appState.startRecording()
+
+        XCTAssertEqual(mocks.audioEngine.lastDetectorKind, .energyVAD)
+        XCTAssertEqual(mocks.audioEngine.lastSilenceThreshold, 0.0055,
+                       "The VAD detector should be configured from vadEnergyThreshold, not silenceThreshold")
+    }
+
+    func testStartRecordingHonorsLegacyRMSDetectorSelection() async {
+        let (appState, mocks) = AppState.makeTestState()
+        appState.vadDetectorKind = VADDetectorKind.rmsThreshold.rawValue
+        appState.silenceThreshold = 0.02
+
+        await appState.startRecording()
+
+        XCTAssertEqual(mocks.audioEngine.lastDetectorKind, .rmsThreshold)
+        XCTAssertEqual(mocks.audioEngine.lastSilenceThreshold, 0.02,
+                       "The legacy detector should be configured from silenceThreshold, unchanged")
+    }
 }
 
 // MARK: - AppState Error Recovery Tests

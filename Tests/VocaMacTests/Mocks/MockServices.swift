@@ -22,6 +22,7 @@ final class MockAudioEngine: AudioRecording {
     var lastSilenceDuration: Double?
     var lastMaxDuration: TimeInterval?
     var lastPreferredInputDeviceID: String?
+    var lastDetectorKind: VADDetectorKind?
     var stopRecordingResult: [Float] = []
     var forceResetCallCount = 0
     var startRecordingResult = true
@@ -34,7 +35,8 @@ final class MockAudioEngine: AudioRecording {
         silenceThreshold: Float,
         silenceDuration: Double,
         maxDuration: TimeInterval,
-        preferredInputDeviceID: String?
+        preferredInputDeviceID: String?,
+        detectorKind: VADDetectorKind = .energyVAD
     ) -> Bool {
         if startRecordingDelay > 0 {
             Thread.sleep(forTimeInterval: startRecordingDelay)
@@ -44,6 +46,7 @@ final class MockAudioEngine: AudioRecording {
         lastSilenceDuration = silenceDuration
         lastMaxDuration = maxDuration
         lastPreferredInputDeviceID = preferredInputDeviceID
+        lastDetectorKind = detectorKind
         return startRecordingResult
     }
 

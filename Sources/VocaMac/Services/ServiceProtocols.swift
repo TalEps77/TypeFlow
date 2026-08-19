@@ -21,7 +21,8 @@ protocol AudioRecording: AnyObject {
         silenceThreshold: Float,
         silenceDuration: Double,
         maxDuration: TimeInterval,
-        preferredInputDeviceID: String?
+        preferredInputDeviceID: String?,
+        detectorKind: VADDetectorKind
     ) -> Bool
     @discardableResult func stopRecording() -> [Float]
     func forceReset()

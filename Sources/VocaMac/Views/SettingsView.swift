@@ -685,10 +685,16 @@ struct AudioSettingsTab: View {
             }
 
             Section("Silence Detection") {
+                Picker("Detection method", selection: $appState.vadDetectorKind) {
+                    ForEach(VADDetectorKind.allCases, id: \.rawValue) { kind in
+                        Text(kind.displayName).tag(kind.rawValue)
+                    }
+                }
+
                 HStack {
                     Text("Sensitivity")
                     Slider(
-                        value: $appState.silenceThreshold,
+                        value: isUsingLegacyDetector ? $appState.silenceThreshold : $appState.vadEnergyThreshold,
                         in: 0.001...0.05,
                         step: 0.001
                     )
@@ -710,7 +716,7 @@ struct AudioSettingsTab: View {
                         .frame(width: 35)
                 }
 
-                Text("In double-tap mode, recording auto-stops after this duration of silence. In push-to-talk mode, you control when to stop by releasing the key.")
+                Text("Voice Activity Detection (recommended) recognizes quiet or whispered speech that the legacy RMS threshold could cut off mid-sentence. Switch to Legacy if VAD ever misfires on your voice. In double-tap mode, recording auto-stops after the configured duration of silence; in push-to-talk mode, you control when to stop by releasing the key.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -819,9 +825,14 @@ struct AudioSettingsTab: View {
         }
     }
 
+    private var isUsingLegacyDetector: Bool {
+        appState.vadDetectorKind == VADDetectorKind.rmsThreshold.rawValue
+    }
+
     private var sensitivityLabel: String {
-        if appState.silenceThreshold < 0.01 { return "High" }
-        if appState.silenceThreshold < 0.03 { return "Medium" }
+        let value = isUsingLegacyDetector ? appState.silenceThreshold : appState.vadEnergyThreshold
+        if value < 0.01 { return "High" }
+        if value < 0.03 { return "Medium" }
         return "Low"
     }
 }

@@ -38,6 +38,11 @@ final class AudioEngine {
     private var maxDuration: TimeInterval = 60.0
     private var recordingStartTime: Date = Date()
 
+    /// The collaborator that decides whether a buffer contains speech (Story
+    /// 7.1, AD-12). Reconstructed at the start of every recording from the
+    /// `detectorKind`/`silenceThreshold` passed to `startRecording`.
+    private var vadDetector: VoiceActivityDetecting = RMSThresholdDetector(threshold: 0.01)
+
     // Audio level throttling
     private var lastLevelReportTime: Date = Date()
     private let levelReportInterval: TimeInterval = 1.0 / 15.0  // ~15 Hz
@@ -192,16 +197,20 @@ final class AudioEngine {
 
     /// Start recording audio from the microphone
     /// - Parameters:
-    ///   - silenceThreshold: RMS energy threshold below which audio is considered silence
+    ///   - silenceThreshold: energy threshold below which audio is considered silence
     ///   - silenceDuration: Seconds of silence before triggering silence detection callback
     ///   - maxDuration: Maximum recording duration in seconds
+    ///   - detectorKind: Which `VoiceActivityDetecting` implementation evaluates the
+    ///     stop condition this recording (Story 7.1). Defaults to the VAD-backed
+    ///     detector; `.rmsThreshold` reproduces the app's original behavior.
     /// - Returns: `true` when the engine is recording, otherwise `false`.
     @discardableResult
     func startRecording(
         silenceThreshold: Float = 0.01,
         silenceDuration: Double = 2.0,
         maxDuration: TimeInterval = 60.0,
-        preferredInputDeviceID: String? = nil
+        preferredInputDeviceID: String? = nil,
+        detectorKind: VADDetectorKind = .energyVAD
     ) -> Bool {
         lifecycleQueue.sync {
             guard !self._isCurrentlyRecording else { return true }
@@ -209,6 +218,7 @@ final class AudioEngine {
             self.silenceThreshold = silenceThreshold
             self.silenceDuration = silenceDuration
             self.maxDuration = maxDuration
+            self.vadDetector = Self.makeDetector(kind: detectorKind, threshold: silenceThreshold)
 
             resetRecordingState()
 
@@ -321,6 +331,18 @@ final class AudioEngine {
     }
 
     // MARK: - Lifecycle Helpers
+
+    /// Builds the `VoiceActivityDetecting` collaborator for a new recording
+    /// (Story 7.1). `threshold` is `silenceThreshold` unchanged — both
+    /// detectors are configured from the same Settings value the user sees.
+    private static func makeDetector(kind: VADDetectorKind, threshold: Float) -> VoiceActivityDetecting {
+        switch kind {
+        case .energyVAD:
+            return EnergyVADDetector(energyThreshold: threshold)
+        case .rmsThreshold:
+            return RMSThresholdDetector(threshold: threshold)
+        }
+    }
 
     /// Resets per-recording state before a new capture attempt.
     private func resetRecordingState() {
@@ -449,7 +471,8 @@ final class AudioEngine {
             return
         }
 
-        // Calculate audio energy for level reporting and silence detection
+        // Calculate audio energy for the level meter (AD-12: retained
+        // unchanged — the stop decision below no longer reads this value).
         let energy = calculateRMSEnergy(convertedBuffer)
 
         // Report audio level (throttled)
@@ -483,8 +506,11 @@ final class AudioEngine {
             return
         }
 
-        // Silence detection
-        if energy > silenceThreshold {
+        // Silence detection — the yes/no call is delegated to the configured
+        // `VoiceActivityDetecting` collaborator (Story 7.1, AD-12). Everything
+        // else about this loop (the level meter above, the timing below) is
+        // unchanged.
+        if vadDetector.isSpeech(Self.samples(from: convertedBuffer)) {
             lastSoundTime = now
             silenceCallbackFired = false  // Reset so silence can be detected again after speech resumes
         } else if now.timeIntervalSince(lastSoundTime) >= silenceDuration && !silenceCallbackFired {
@@ -493,6 +519,18 @@ final class AudioEngine {
                 self?.onSilenceDetected?()
             }
         }
+    }
+
+    /// Copies a converted tap buffer's samples into a plain array for the
+    /// `VoiceActivityDetecting` collaborator. One bounded allocation per tap
+    /// callback (~4096 samples / 16KB at the engine's install-time buffer
+    /// size) — the same order of magnitude as the format conversion this
+    /// method already performs above, not the unbounded growth AD-12 forbids.
+    private static func samples(from buffer: AVAudioPCMBuffer) -> [Float] {
+        guard let channelData = buffer.floatChannelData else { return [] }
+        let frameCount = Int(buffer.frameLength)
+        guard frameCount > 0 else { return [] }
+        return Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
     }
 
     /// Convert an audio buffer to whisper.cpp's required format (16kHz, mono, Float32)
