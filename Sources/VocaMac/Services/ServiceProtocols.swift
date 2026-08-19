@@ -172,6 +172,13 @@ protocol TextInjecting: AnyObject {
 // Declared in Services/ProfileManager.swift, alongside its one method.
 // Resolves a captured bundle identifier to a Profile (Story 4.2).
 
+// MARK: - DictionaryProviding
+//
+// Declared in Services/DictionaryService.swift, alongside its vocabulary.
+// Matches transcript tokens against Dictionary Entries and replaces them
+// (Story 5.2). Not @MainActor-bound: it is a pure, stateless struct with no
+// UI-observable state (AD-8).
+
 // MARK: - TranscriptPipelining
 
 /// The ordered post-ASR transform chain (AD-1). Runs on the main actor because

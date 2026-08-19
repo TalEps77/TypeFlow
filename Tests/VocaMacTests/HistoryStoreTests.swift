@@ -406,8 +406,14 @@ final class AppStateHistoryTests: XCTestCase {
         UserDefaults.standard.set(false, forKey: PostProcessSettings.Key.enabled)
         defer { UserDefaults.standard.removeObject(forKey: PostProcessSettings.Key.enabled) }
 
+        let dictionaryStore = DictionaryStore(store: JSONFileStore(
+            fileName: "dictionary.json",
+            defaultValue: [],
+            directoryURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("vocamac_test_dictionary_\(UUID().uuidString)", isDirectory: true)
+        ))
         let (appState, mocks) = AppState.makeTestState(
-            transcriptPipelineOverride: TranscriptPipeline.production()
+            transcriptPipelineOverride: TranscriptPipeline.production(dictionaryStore: dictionaryStore)
         )
         appState.isRecording = true
         appState.appStatus = .recording

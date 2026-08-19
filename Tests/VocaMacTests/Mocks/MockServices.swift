@@ -584,6 +584,25 @@ final class MockProfileManager: ProfileResolving {
     }
 }
 
+// MARK: - MockDictionaryService
+
+/// Identity by default (AD-2): a test that never sets `replaceResult`
+/// returns the input text unchanged, matching what an empty/disabled
+/// Dictionary does in production.
+final class MockDictionaryService: DictionaryProviding {
+    var replaceResult: DictionaryReplacementResult?
+    var replaceCallCount = 0
+    var lastText: String?
+    var lastEntries: [DictionaryEntry]?
+
+    func replace(in text: String, using entries: [DictionaryEntry]) -> DictionaryReplacementResult {
+        replaceCallCount += 1
+        lastText = text
+        lastEntries = entries
+        return replaceResult ?? DictionaryReplacementResult(text: text, replacementCount: 0)
+    }
+}
+
 // MARK: - MockTranscriptPipeline
 
 /// Identity by default (AD-2): unless a test sets `transform`, it returns its
@@ -663,6 +682,12 @@ extension AppState {
             defaultValue: [],
             directoryURL: FileManager.default.temporaryDirectory
                 .appendingPathComponent("vocamac_test_profiles_\(UUID().uuidString)", isDirectory: true)
+        )),
+        dictionaryStore: DictionaryStore = DictionaryStore(store: JSONFileStore(
+            fileName: "dictionary.json",
+            defaultValue: [],
+            directoryURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("vocamac_test_dictionary_\(UUID().uuidString)", isDirectory: true)
         ))
     ) -> (appState: AppState, mocks: TestMocks) {
         // AppState.hasPerformedStartupGlobally is a process-level static that
@@ -713,6 +738,7 @@ extension AppState {
             axContextReader: contextReader,
             profileManager: profileManager,
             profileStore: profileStore,
+            dictionaryStore: dictionaryStore,
             permissionManager: permissionManager,
             skipSystemIntegration: true
         )

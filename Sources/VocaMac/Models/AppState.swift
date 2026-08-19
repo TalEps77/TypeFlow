@@ -131,6 +131,11 @@ final class AppState: ObservableObject {
     /// resolved Profile's own toggle also allows it.
     @AppStorage("vocamac.contextCapture.enabled") var contextCaptureEnabled: Bool = false
 
+    /// Master switch for post-ASR Dictionary replacement (Story 5.2, AD-9).
+    /// Ships on: with no entries yet added the stage is already an identity
+    /// operation (AD-2), so there is nothing for a fresh install to notice.
+    @AppStorage(DictionarySettings.Key.enabled) var dictionaryEnabled: Bool = DictionarySettings.Default.enabled
+
     private var hotKeySafetyTimeout: Double {
         Double(maxRecordingDuration) + 5.0
     }
@@ -156,6 +161,12 @@ final class AppState: ObservableObject {
     /// AppState's own business logic calls its mutating methods, only the UI
     /// does, mirroring the existing `updateChecker` precedent.
     let profileStore: ProfileStore
+
+    /// The store behind the Dictionary stage's entries (Story 5.2) and the
+    /// Dictionary settings tab's CRUD (Story 5.3) — same shape as
+    /// `profileStore` above, and for the same reason: nothing in AppState's
+    /// own business logic mutates it, only the UI does.
+    let dictionaryStore: DictionaryStore
     let updateChecker = UpdateChecker()
     let permissionManager: any PermissionManaging
 
@@ -248,6 +259,7 @@ final class AppState: ObservableObject {
         axContextReader: ContextReading,
         profileManager: ProfileResolving,
         profileStore: ProfileStore,
+        dictionaryStore: DictionaryStore,
         permissionManager: (any PermissionManaging)? = nil,
         skipSystemIntegration: Bool = false
     ) {
@@ -260,7 +272,8 @@ final class AppState: ObservableObject {
         self.cursorOverlay = cursorOverlay
         self.statsManager = statsManager
         self.historyStore = historyStore
-        self.transcriptPipeline = transcriptPipeline ?? TranscriptPipeline.production()
+        self.dictionaryStore = dictionaryStore
+        self.transcriptPipeline = transcriptPipeline ?? TranscriptPipeline.production(dictionaryStore: dictionaryStore)
         self.axContextReader = axContextReader
         self.profileManager = profileManager
         self.profileStore = profileStore
@@ -298,6 +311,14 @@ final class AppState: ObservableObject {
 
         // Forward profileStore changes so the Profiles settings tab re-renders
         profileStore.objectWillChangePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
+        // Forward dictionaryStore changes so the Dictionary settings tab re-renders
+        dictionaryStore.objectWillChangePublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
@@ -342,7 +363,8 @@ final class AppState: ObservableObject {
             historyStore: HistoryStore(),
             axContextReader: AXContextReader(),
             profileManager: ProfileManager(store: profileStore),
-            profileStore: profileStore
+            profileStore: profileStore,
+            dictionaryStore: DictionaryStore()
         )
     }()
 

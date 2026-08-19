@@ -270,7 +270,13 @@ final class PostProcessStageTests: XCTestCase {
         }
         defaults.removeObject(forKey: PostProcessSettings.Key.enabled)
 
-        let pipeline = TranscriptPipeline.production()
+        let dictionaryStore = DictionaryStore(store: JSONFileStore(
+            fileName: "dictionary.json",
+            defaultValue: [],
+            directoryURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("vocamac_test_dictionary_\(UUID().uuidString)", isDirectory: true)
+        ))
+        let pipeline = TranscriptPipeline.production(dictionaryStore: dictionaryStore)
         for input in ["שָׁלוֹם עוֹלָם", "mixed עברית and English", "", "  "] {
             let result = await pipeline.run(TranscriptContext(rawTranscript: input))
             XCTAssertEqual(result.currentText, input)

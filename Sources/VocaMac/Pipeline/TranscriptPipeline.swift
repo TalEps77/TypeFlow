@@ -19,10 +19,15 @@ final class TranscriptPipeline: TranscriptPipelining {
     }
 
     /// The pipeline as the shipping app assembles it. Every stage in here is
-    /// inert until its own setting is turned on, so this is still an identity
-    /// pipeline for a user who has changed nothing.
-    static func production() -> TranscriptPipeline {
+    /// inert until its own setting is turned on (or, for Dictionary, until
+    /// entries exist), so this is still an identity pipeline for a user who
+    /// has changed nothing.
+    ///
+    /// Order is fixed by AD-3: Dictionary runs first so PostProcess's LLM
+    /// reasons over corrected terms rather than raw ASR errors.
+    static func production(dictionaryStore: DictionaryStore) -> TranscriptPipeline {
         TranscriptPipeline(stages: [
+            DictionaryStage(entriesProvider: { dictionaryStore.entries }),
             PostProcessStage()
         ])
     }
