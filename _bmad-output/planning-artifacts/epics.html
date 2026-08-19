@@ -1532,11 +1532,47 @@ construction). - Manual: time a 90-second Hebrew dictation before and
 after; record both numbers using Story 1.3’s instrumentation. - Manual:
 time ten short dictations before and after; confirm no regression. -
 Manual: monitor peak memory during a long parallel transcription.</p>
+<p><strong>Known limitations (as delivered — documented, not
+fixed):</strong> - <strong>Up to ~1 second can be dropped from the tail
+of a chunked recording.</strong> <code>VADAudioChunker</code> pads its
+windows by <code>windowPadding</code> = 16000 samples (1 s at 16 kHz),
+so the last chunk can lose up to a second of trailing audio. In
+push-to-talk, a user who releases the key immediately after the last
+word can lose the final syllable. Chunking only engages for recordings
+longer than 30 s, so short dictations are unaffected. There is no code
+fix in this story. - <strong>With auto-detect, language detection runs
+per chunk.</strong> When the transcription language is <code>nil</code>,
+WhisperKit detects the language separately for each chunk, so a long
+mixed-language dictation can switch script mid-transcript between
+chunks. Low impact in practice: <code>selectedLanguage</code> defaults
+to <code>"he"</code> (Hebrew), so the language is normally pinned and
+per-chunk detection never runs.</p>
 <h3 id="story-7.3-streaming-partial-results-spike-then-implement-or-cut">Story
 7.3: Streaming partial results — spike, then implement or cut</h3>
 <p>As a user, I want to see transcription progress while I speak, So
 that long dictations do not feel like dead air.</p>
 <p><strong>Depends on:</strong> Story 7.1.</p>
+<p><strong>Outcome: CUT after the spike.</strong>
+<code>AudioStreamTranscriber.startStreamTranscription()</code> calls
+<code>audioProcessor.startRecordingLive()</code>, which (WhisperKit
+<code>Core/Audio/AudioProcessor.swift:975-1019</code>,
+<code>setupEngine()</code>) constructs its own
+<code>AVAudioEngine</code>, acquires its own input node, installs its
+own tap, and calls <code>engine.start()</code> — entirely independent
+of, and in direct conflict with, <code>AudioEngine</code>’s own
+installed tap on the same physical input device (R-1; confirmed by
+reading WhisperKit 0.18.0 source, not by running the conflict live).
+There is no supported way to hand <code>AudioStreamTranscriber</code> an
+already-running engine and tap, so using it means either
+re-architecting <code>AudioEngine</code> to hand capture ownership to
+WhisperKit’s <code>AudioProcessor</code> — an AD-8-violating rewrite of
+the Bluetooth, device-selection, and exception-catching logic Epics 1-6
+depend on — or reimplementing <code>AudioStreamTranscriber</code>’s
+segment-confirmation, VAD-gating, and early-stop logic from scratch
+against <code>AudioEngine</code>’s own captured buffer. Both are the
+re-architecture the spike-phase criterion below says to cut on, so the
+feature was cut per that explicit branch and no streaming code was
+written.</p>
 <p><strong>Acceptance Criteria — spike phase (do this
 first):</strong></p>
 <p><strong>Given</strong> <code>AudioStreamTranscriber</code> may own
@@ -1547,8 +1583,17 @@ installed tap (R-1), <strong>When</strong> the spike is performed,
 <strong>the feature is cut</strong> and this story closes with the
 finding recorded — its value is perceptual and explicitly the lowest
 priority in the plan.</p>
-<p><strong>Acceptance Criteria — implementation phase (only if the spike
-clears):</strong></p>
+<p><strong>Acceptance Criteria — implementation phase — NOT DELIVERED,
+superseded by the cut:</strong></p>
+<p>The spike did not clear, so the implementation phase was never
+entered. The criteria below are retained for the record only; the story
+closes against the spike-phase branch above, not against them. In
+particular, the concurrency protection
+<code>WhisperService.transcriptionLock</code> was declared for was never
+implemented — deferred with the cut, not fixed. (The unused lock and its
+misleading comment were themselves removed by the Epic 7 review
+follow-up, so the file no longer claims a guarantee it does not provide;
+nothing about the cut changed.)</p>
 <p><strong>Given</strong> streaming is enabled — <strong>it is off by
 default</strong>, <strong>When</strong> I dictate, <strong>Then</strong>
 partial hypotheses appear in the cursor overlay or menu bar.</p>
@@ -1584,6 +1629,9 @@ path. - Manual: dictate a 60-second passage with streaming on; confirm
 partials appear and only the final text is injected. - Manual:
 transcribe identical audio with streaming on and off; compare final text
 and timings.</p>
+<p>Only the spike bullet was performed; the remaining bullets were not,
+because the implementation phase was cut (see <strong>Outcome</strong>
+above).</p>
 <footer class="doc-footer"><span>Epic Breakdown — local-whisper</span><span>BMAD planning artifact &middot; local-whisper</span><span>Companion to <code>epics.md</code> &mdash; the .md is the source of truth</span></footer>
 </div>
 </body>

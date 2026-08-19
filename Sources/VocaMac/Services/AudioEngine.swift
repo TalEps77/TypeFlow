@@ -33,15 +33,9 @@ final class AudioEngine {
 
     // Silence detection
     private var lastSoundTime: Date = Date()
-    private var silenceThreshold: Float = 0.01
     private var silenceDuration: Double = 2.0
     private var maxDuration: TimeInterval = 60.0
     private var recordingStartTime: Date = Date()
-
-    /// The collaborator that decides whether a buffer contains speech (Story
-    /// 7.1, AD-12). Reconstructed at the start of every recording from the
-    /// `detectorKind`/`silenceThreshold` passed to `startRecording`.
-    private var vadDetector: VoiceActivityDetecting = RMSThresholdDetector(threshold: 0.01)
 
     // Audio level throttling
     private var lastLevelReportTime: Date = Date()
@@ -215,10 +209,15 @@ final class AudioEngine {
         lifecycleQueue.sync {
             guard !self._isCurrentlyRecording else { return true }
 
-            self.silenceThreshold = silenceThreshold
             self.silenceDuration = silenceDuration
             self.maxDuration = maxDuration
-            self.vadDetector = Self.makeDetector(kind: detectorKind, threshold: silenceThreshold)
+
+            // One detector per recording, captured by that recording's tap
+            // closure below rather than stored on `self`. A tap callback still
+            // in flight from a previous recording therefore keeps using the
+            // detector it started with, instead of racing a fresh assignment
+            // made here off the audio thread.
+            let detector = Self.makeDetector(kind: detectorKind, threshold: silenceThreshold)
 
             resetRecordingState()
 
@@ -247,7 +246,7 @@ final class AudioEngine {
                     guard let self = self else { return }
 
                     inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
-                        self?.processAudioBuffer(buffer, inputFormat: inputFormat)
+                        self?.processAudioBuffer(buffer, inputFormat: inputFormat, detector: detector)
                     }
 
                     do {
@@ -463,7 +462,13 @@ final class AudioEngine {
     private var maxDurationCallbackFired = false
 
     /// Process an incoming audio buffer from AVAudioEngine
-    private func processAudioBuffer(_ buffer: AVAudioPCMBuffer, inputFormat: AVAudioFormat) {
+    /// - Parameter detector: this recording's own `VoiceActivityDetecting`
+    ///   instance, captured by the tap closure at install time (Story 7.1).
+    private func processAudioBuffer(
+        _ buffer: AVAudioPCMBuffer,
+        inputFormat: AVAudioFormat,
+        detector: VoiceActivityDetecting
+    ) {
         guard isCurrentlyRecording else { return }
 
         // Convert to whisper format (16kHz, mono, Float32)
@@ -473,7 +478,7 @@ final class AudioEngine {
 
         // Calculate audio energy for the level meter (AD-12: retained
         // unchanged — the stop decision below no longer reads this value).
-        let energy = calculateRMSEnergy(convertedBuffer)
+        let energy = Self.calculateRMSEnergy(convertedBuffer)
 
         // Report audio level (throttled)
         let now = Date()
@@ -510,7 +515,15 @@ final class AudioEngine {
         // `VoiceActivityDetecting` collaborator (Story 7.1, AD-12). Everything
         // else about this loop (the level meter above, the timing below) is
         // unchanged.
-        if vadDetector.isSpeech(Self.samples(from: convertedBuffer)) {
+        //
+        // The detector reads the converted buffer's samples in place — no
+        // copy is made on this thread (AD-12: nothing allocated per callback).
+        let isSpeech: Bool = {
+            guard let channelData = convertedBuffer.floatChannelData else { return false }
+            return detector.isSpeech(channelData[0], count: Int(convertedBuffer.frameLength))
+        }()
+
+        if isSpeech {
             lastSoundTime = now
             silenceCallbackFired = false  // Reset so silence can be detected again after speech resumes
         } else if now.timeIntervalSince(lastSoundTime) >= silenceDuration && !silenceCallbackFired {
@@ -519,18 +532,6 @@ final class AudioEngine {
                 self?.onSilenceDetected?()
             }
         }
-    }
-
-    /// Copies a converted tap buffer's samples into a plain array for the
-    /// `VoiceActivityDetecting` collaborator. One bounded allocation per tap
-    /// callback (~4096 samples / 16KB at the engine's install-time buffer
-    /// size) — the same order of magnitude as the format conversion this
-    /// method already performs above, not the unbounded growth AD-12 forbids.
-    private static func samples(from buffer: AVAudioPCMBuffer) -> [Float] {
-        guard let channelData = buffer.floatChannelData else { return [] }
-        let frameCount = Int(buffer.frameLength)
-        guard frameCount > 0 else { return [] }
-        return Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
     }
 
     /// Convert an audio buffer to whisper.cpp's required format (16kHz, mono, Float32)
@@ -580,8 +581,11 @@ final class AudioEngine {
         return outputBuffer
     }
 
-    /// Calculate the RMS (root mean square) energy of an audio buffer
-    private func calculateRMSEnergy(_ buffer: AVAudioPCMBuffer) -> Float {
+    /// Calculate the RMS (root mean square) energy of an audio buffer.
+    /// Internal and `static` so tests can assert `RMSThresholdDetector`
+    /// against the app's real legacy formula rather than a re-typed copy of
+    /// it (Story 7.1: the legacy detector's whole point is exact fidelity).
+    static func calculateRMSEnergy(_ buffer: AVAudioPCMBuffer) -> Float {
         guard let channelData = buffer.floatChannelData else { return 0.0 }
 
         let frameCount = Int(buffer.frameLength)

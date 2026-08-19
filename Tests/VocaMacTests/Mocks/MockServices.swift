@@ -881,7 +881,12 @@ extension AppState {
         dictionaryStore: DictionaryStore? = nil,
         snippetStore: SnippetStore? = nil,
         correctionLearner: MockCorrectionLearner? = nil,
-        dismissedCorrectionsStore: DismissedCorrectionsStore? = nil
+        dismissedCorrectionsStore: DismissedCorrectionsStore? = nil,
+        /// Keeps whatever silence-detection preferences the test seeded into
+        /// VocaDefaults instead of clearing them — for the tests that exercise
+        /// AppState's own init-time VAD migration. Such a test owns cleaning
+        /// those keys up again.
+        preserveSilenceDetectionDefaults: Bool = false
     ) -> (appState: AppState, mocks: TestMocks) {
         let contextReader = contextReader ?? MockContextReader()
         let profileManager = profileManager ?? MockProfileManager()
@@ -916,6 +921,18 @@ extension AppState {
         AppState.hasPerformedStartupGlobally = false
         VocaDefaults.store.removeObject(forKey: "vocamac.selectedAudioDeviceID")
         VocaDefaults.store.removeObject(forKey: "vocamac.selectedAudioDeviceName")
+        // Silence-detection preferences (Story 7.1). @AppStorage writes these
+        // into the one process-wide VocaDefaults suite, so a test that sets
+        // them would otherwise leak into every later test in the process —
+        // and into AppState's own first-launch VAD migration, which reads
+        // them during init below.
+        if !preserveSilenceDetectionDefaults {
+            VocaDefaults.store.removeObject(forKey: "vocamac.silenceThreshold")
+            VocaDefaults.store.removeObject(forKey: "vocamac.vadDetectorKind")
+            VocaDefaults.store.removeObject(forKey: "vocamac.vadEnergyThreshold")
+            VocaDefaults.store.removeObject(forKey: "vocamac.vadKeptLegacyForTunedThreshold")
+            VocaDefaults.store.removeObject(forKey: "vocamac.vadDetectorMigrationCompleted")
+        }
 
         let audioEngine = MockAudioEngine()
         let soundManager = MockSoundManager()

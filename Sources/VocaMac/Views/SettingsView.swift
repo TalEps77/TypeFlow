@@ -705,19 +705,45 @@ struct AudioSettingsTab: View {
                         Text(kind.displayName).tag(kind.rawValue)
                     }
                 }
+                .onChange(of: appState.vadDetectorKind) { _ in
+                    // The migration note below explains a choice made *for*
+                    // the user; once they make one themselves it is spent.
+                    appState.vadKeptLegacyForTunedThreshold = false
+                }
+
+                if appState.vadKeptLegacyForTunedThreshold {
+                    HStack(alignment: .top) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.blue)
+                        Text("You had tuned the sensitivity below, so VocaMac kept your Legacy (RMS threshold) setting and its value instead of switching you to Voice Activity Detection. Switching methods gives VAD its own separate sensitivity — your legacy value stays untouched and applies again if you switch back.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
                 HStack {
                     Text("Sensitivity")
                     Slider(
                         value: isUsingLegacyDetector ? $appState.silenceThreshold : $appState.vadEnergyThreshold,
-                        in: 0.001...0.05,
-                        step: 0.001
+                        in: sensitivityRange,
+                        step: isUsingLegacyDetector ? 0.001 : 0.0005
                     )
                     Text(sensitivityLabel)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .frame(width: 50, alignment: .trailing)
+                        .frame(width: 60, alignment: .trailing)
+                    Text(String(format: "%.4f", sensitivityValue))
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 48, alignment: .trailing)
                 }
+
+                Text(isUsingLegacyDetector
+                     ? "Sensitivity sets the legacy RMS threshold (this method only)."
+                     : "Sensitivity sets the Voice Activity Detection threshold — a separate value from the legacy one, on its own narrower useful range.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 HStack {
                     Text("Auto-stop after silence")
@@ -844,10 +870,23 @@ struct AudioSettingsTab: View {
         appState.vadDetectorKind == VADDetectorKind.rmsThreshold.rawValue
     }
 
+    private var sensitivityValue: Double {
+        isUsingLegacyDetector ? appState.silenceThreshold : appState.vadEnergyThreshold
+    }
+
+    /// The two detectors are not on the same scale. The legacy RMS threshold
+    /// is useful across 0.001–0.05; the VAD threshold's useful band is roughly
+    /// 0.001–0.015, so on the legacy range its 0.006 default sat at a tenth of
+    /// the travel and most of the slider read "Low".
+    private var sensitivityRange: ClosedRange<Double> {
+        isUsingLegacyDetector ? 0.001...0.05 : 0.001...0.015
+    }
+
     private var sensitivityLabel: String {
-        let value = isUsingLegacyDetector ? appState.silenceThreshold : appState.vadEnergyThreshold
-        if value < 0.01 { return "High" }
-        if value < 0.03 { return "Medium" }
+        let range = sensitivityRange
+        let travel = (sensitivityValue - range.lowerBound) / (range.upperBound - range.lowerBound)
+        if travel < 0.34 { return "High" }
+        if travel < 0.67 { return "Medium" }
         return "Low"
     }
 }

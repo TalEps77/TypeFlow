@@ -44,9 +44,6 @@ final class WhisperService: @unchecked Sendable {
     /// The name/variant of the currently loaded model
     private(set) var loadedModelName: String?
 
-    /// Lock to prevent concurrent transcription
-    private let transcriptionLock = NSLock()
-
     // MARK: - Lifecycle
 
     deinit {

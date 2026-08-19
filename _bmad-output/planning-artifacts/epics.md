@@ -1037,6 +1037,11 @@ So that a two-minute dictation does not feel like a two-minute wait.
 - Manual: time ten short dictations before and after; confirm no regression.
 - Manual: monitor peak memory during a long parallel transcription.
 
+**Known limitations (as delivered — documented, not fixed):**
+
+- **Up to ~1 second can be dropped from the tail of a chunked recording.** `VADAudioChunker` pads its windows by `windowPadding` = 16000 samples (1 s at 16 kHz), so the last chunk can lose up to a second of trailing audio. In push-to-talk, a user who releases the key immediately after the last word can lose the final syllable. Chunking only engages for recordings longer than 30 s, so short dictations are unaffected. There is no code fix in this story.
+- **With auto-detect, language detection runs per chunk.** When the transcription language is `nil`, WhisperKit detects the language separately for each chunk, so a long mixed-language dictation can switch script mid-transcript between chunks. Low impact in practice: `selectedLanguage` defaults to `"he"` (Hebrew), so the language is normally pinned and per-chunk detection never runs.
+
 ### Story 7.3: Streaming partial results — spike, then implement or cut
 
 As a user,
@@ -1045,6 +1050,8 @@ So that long dictations do not feel like dead air.
 
 **Depends on:** Story 7.1.
 
+**Outcome: CUT after the spike.** `AudioStreamTranscriber.startStreamTranscription()` calls `audioProcessor.startRecordingLive()`, which (WhisperKit `Core/Audio/AudioProcessor.swift:975-1019`, `setupEngine()`) constructs its own `AVAudioEngine`, acquires its own input node, installs its own tap, and calls `engine.start()` — entirely independent of, and in direct conflict with, `AudioEngine`'s own installed tap on the same physical input device (R-1; confirmed by reading WhisperKit 0.18.0 source, not by running the conflict live). There is no supported way to hand `AudioStreamTranscriber` an already-running engine and tap, so using it means either re-architecting `AudioEngine` to hand capture ownership to WhisperKit's `AudioProcessor` — an AD-8-violating rewrite of the Bluetooth, device-selection, and exception-catching logic Epics 1-6 depend on — or reimplementing `AudioStreamTranscriber`'s segment-confirmation, VAD-gating, and early-stop logic from scratch against `AudioEngine`'s own captured buffer. Both are the re-architecture the spike-phase criterion below says to cut on, so the feature was cut per that explicit branch and no streaming code was written.
+
 **Acceptance Criteria — spike phase (do this first):**
 
 **Given** `AudioStreamTranscriber` may own its own audio capture and conflict with `AudioEngine`'s installed tap (R-1),
@@ -1052,7 +1059,9 @@ So that long dictations do not feel like dead air.
 **Then** the conflict is definitively characterized,
 **And** if resolving it requires re-architecting capture, **the feature is cut** and this story closes with the finding recorded — its value is perceptual and explicitly the lowest priority in the plan.
 
-**Acceptance Criteria — implementation phase (only if the spike clears):**
+**Acceptance Criteria — implementation phase — NOT DELIVERED, superseded by the cut:**
+
+The spike did not clear, so the implementation phase was never entered. The criteria below are retained for the record only; the story closes against the spike-phase branch above, not against them. In particular, the concurrency protection `WhisperService.transcriptionLock` was declared for was never implemented — deferred with the cut, not fixed. (The unused lock and its misleading comment were themselves removed by the Epic 7 review follow-up, so the file no longer claims a guarantee it does not provide; nothing about the cut changed.)
 
 **Given** streaming is enabled — **it is off by default**,
 **When** I dictate,
@@ -1086,3 +1095,5 @@ So that long dictations do not feel like dead air.
 - Unit: no-partial-text-reaches-injector assertion; the streaming-off identity path.
 - Manual: dictate a 60-second passage with streaming on; confirm partials appear and only the final text is injected.
 - Manual: transcribe identical audio with streaming on and off; compare final text and timings.
+
+Only the spike bullet was performed; the remaining bullets were not, because the implementation phase was cut (see **Outcome** above).

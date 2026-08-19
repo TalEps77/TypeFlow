@@ -109,6 +109,11 @@ final class AppState: ObservableObject {
     /// differently: this one is tuned lower so quiet/whispered speech, which
     /// the flat RMS threshold used to cut off, is still classified as speech.
     @AppStorage("vocamac.vadEnergyThreshold", store: VocaDefaults.store) var vadEnergyThreshold: Double = 0.006
+    /// Set by `migrateVADDetectorPreference` when an upgrading user was kept
+    /// on the legacy detector because they had tuned `silenceThreshold` (see
+    /// that method). Drives the one-time note in Settings > Silence
+    /// Detection; cleared as soon as the user picks a detector themselves.
+    @AppStorage("vocamac.vadKeptLegacyForTunedThreshold", store: VocaDefaults.store) var vadKeptLegacyForTunedThreshold: Bool = false
     @AppStorage("vocamac.maxRecordingDuration", store: VocaDefaults.store) var maxRecordingDuration: Int = 180
     @AppStorage("vocamac.selectedAudioDeviceID", store: VocaDefaults.store) var selectedAudioDeviceID: String = ""
     @AppStorage("vocamac.selectedAudioDeviceName", store: VocaDefaults.store) var selectedAudioDeviceName: String = ""
@@ -175,6 +180,48 @@ final class AppState: ObservableObject {
     /// that arrived some other way inert rather than ambiguous.
     var isCommandModeUsable: Bool {
         commandModeEnabled && commandHotKeyCode != hotKeyCode
+    }
+
+    // MARK: - VAD Preference Migration (Story 7.1, NFR-5)
+
+    /// The shipped default for `silenceThreshold` — a stored value different
+    /// from this is a value the user deliberately tuned.
+    static let defaultSilenceThreshold: Double = 0.01
+
+    /// Preserves the auto-stop behavior of a user who had tuned
+    /// `silenceThreshold` before the VAD detector became the default.
+    ///
+    /// Switching them to `.energyVAD` would silently drop their tuning: the
+    /// VAD detector reads `vadEnergyThreshold` (0.006), so someone who raised
+    /// the threshold to 0.02 for a noisy room would go back to having room
+    /// noise count as speech — double-tap recordings would never auto-stop and
+    /// would run to `maxRecordingDuration` instead. So on the first launch
+    /// after the upgrade such a user keeps `.rmsThreshold`, with their number
+    /// intact and a one-time note in Settings explaining it; fresh installs
+    /// (no stored value) and users who left the slider alone get `.energyVAD`.
+    ///
+    /// Runs once — guarded by its own key, not by the presence of the
+    /// preferences it writes.
+    @discardableResult
+    static func migrateVADDetectorPreference(store: UserDefaults) -> Bool {
+        let migrationKey = "vocamac.vadDetectorMigrationCompleted"
+        guard !store.bool(forKey: migrationKey) else { return false }
+        store.set(true, forKey: migrationKey)
+
+        // Never override a detector the user has already chosen explicitly.
+        guard store.object(forKey: "vocamac.vadDetectorKind") == nil else { return false }
+
+        // No stored threshold at all = fresh install: nothing to preserve.
+        guard let storedThreshold = store.object(forKey: "vocamac.silenceThreshold") as? Double,
+              storedThreshold != defaultSilenceThreshold else { return false }
+
+        store.set(VADDetectorKind.rmsThreshold.rawValue, forKey: "vocamac.vadDetectorKind")
+        store.set(true, forKey: "vocamac.vadKeptLegacyForTunedThreshold")
+        VocaLogger.info(
+            .appState,
+            "Kept legacy RMS silence detection: silenceThreshold=\(storedThreshold) was tuned away from the default"
+        )
+        return true
     }
 
     // MARK: - Services
@@ -400,6 +447,10 @@ final class AppState: ObservableObject {
         self.profileStore = profileStore
         self.permissionManager = permissionManager ?? PermissionManager(audioEngine: audioEngine, hotKeyManager: hotKeyManager)
         self.skipSystemIntegration = skipSystemIntegration
+
+        // Runs before any setting below is read, so the first recording of the
+        // first launch after upgrading already uses the migrated preference.
+        Self.migrateVADDetectorPreference(store: VocaDefaults.store)
 
         VocaLogger.info(.appState, "Initializing... id=\(ObjectIdentifier(self))")
         if !skipSystemIntegration {

@@ -281,6 +281,91 @@ final class AppStateRecordingTests: XCTestCase {
         XCTAssertEqual(mocks.audioEngine.lastSilenceThreshold, 0.02,
                        "The legacy detector should be configured from silenceThreshold, unchanged")
     }
+
+    // MARK: - Story 7.1: VAD detector preference migration (NFR-5)
+
+    /// A scratch suite so these never touch the process-wide VocaDefaults the
+    /// rest of the suite shares.
+    private func makeScratchDefaults() throws -> UserDefaults {
+        let name = "vocamac.tests.vad-migration.\(UUID().uuidString)"
+        addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: name) }
+        return try XCTUnwrap(UserDefaults(suiteName: name))
+    }
+
+    func testMigrationLeavesFreshInstallsOnVAD() throws {
+        let store = try makeScratchDefaults()
+
+        XCTAssertFalse(AppState.migrateVADDetectorPreference(store: store),
+                       "No stored silenceThreshold means nothing to preserve")
+        XCTAssertNil(store.object(forKey: "vocamac.vadDetectorKind"),
+                     "A fresh install keeps the shipped default (.energyVAD) rather than being pinned")
+        XCTAssertFalse(store.bool(forKey: "vocamac.vadKeptLegacyForTunedThreshold"))
+    }
+
+    func testMigrationLeavesUntunedUpgradersOnVAD() throws {
+        let store = try makeScratchDefaults()
+        store.set(AppState.defaultSilenceThreshold, forKey: "vocamac.silenceThreshold")
+
+        XCTAssertFalse(AppState.migrateVADDetectorPreference(store: store))
+        XCTAssertNil(store.object(forKey: "vocamac.vadDetectorKind"),
+                     "A stored value equal to the default is not a tuned value")
+    }
+
+    func testMigrationKeepsTunedUpgradersOnLegacyDetector() throws {
+        let store = try makeScratchDefaults()
+        store.set(0.02, forKey: "vocamac.silenceThreshold")
+
+        XCTAssertTrue(AppState.migrateVADDetectorPreference(store: store))
+        XCTAssertEqual(store.string(forKey: "vocamac.vadDetectorKind"), VADDetectorKind.rmsThreshold.rawValue,
+                       "A user who tuned the threshold for their room keeps the behavior they tuned")
+        XCTAssertEqual(store.double(forKey: "vocamac.silenceThreshold"), 0.02,
+                       "Their tuned value is preserved, not rescaled")
+        XCTAssertTrue(store.bool(forKey: "vocamac.vadKeptLegacyForTunedThreshold"),
+                      "Settings must be able to explain the choice once")
+    }
+
+    func testMigrationRunsOnlyOnce() throws {
+        let store = try makeScratchDefaults()
+        store.set(0.02, forKey: "vocamac.silenceThreshold")
+        XCTAssertTrue(AppState.migrateVADDetectorPreference(store: store))
+
+        // The user then chooses VAD deliberately; a later launch must not
+        // drag them back to legacy.
+        store.set(VADDetectorKind.energyVAD.rawValue, forKey: "vocamac.vadDetectorKind")
+        XCTAssertFalse(AppState.migrateVADDetectorPreference(store: store))
+        XCTAssertEqual(store.string(forKey: "vocamac.vadDetectorKind"), VADDetectorKind.energyVAD.rawValue)
+    }
+
+    func testMigrationNeverOverridesAnExplicitDetectorChoice() throws {
+        let store = try makeScratchDefaults()
+        store.set(0.02, forKey: "vocamac.silenceThreshold")
+        store.set(VADDetectorKind.energyVAD.rawValue, forKey: "vocamac.vadDetectorKind")
+
+        XCTAssertFalse(AppState.migrateVADDetectorPreference(store: store))
+        XCTAssertEqual(store.string(forKey: "vocamac.vadDetectorKind"), VADDetectorKind.energyVAD.rawValue)
+        XCTAssertFalse(store.bool(forKey: "vocamac.vadKeptLegacyForTunedThreshold"))
+    }
+
+    func testTunedUpgraderActuallyRecordsWithTheLegacyDetector() async {
+        // End to end through AppState's own init-time migration: the tuned
+        // value reaches the audio engine, instead of being replaced by the
+        // VAD detector's 0.006 (which is the auto-stop regression NFR-5 forbids).
+        VocaDefaults.store.set(0.02, forKey: "vocamac.silenceThreshold")
+        defer {
+            VocaDefaults.store.removeObject(forKey: "vocamac.silenceThreshold")
+            VocaDefaults.store.removeObject(forKey: "vocamac.vadDetectorKind")
+            VocaDefaults.store.removeObject(forKey: "vocamac.vadKeptLegacyForTunedThreshold")
+            VocaDefaults.store.removeObject(forKey: "vocamac.vadDetectorMigrationCompleted")
+        }
+
+        let (appState, mocks) = AppState.makeTestState(preserveSilenceDetectionDefaults: true)
+        XCTAssertTrue(appState.vadKeptLegacyForTunedThreshold)
+
+        await appState.startRecording()
+
+        XCTAssertEqual(mocks.audioEngine.lastDetectorKind, .rmsThreshold)
+        XCTAssertEqual(mocks.audioEngine.lastSilenceThreshold, 0.02)
+    }
 }
 
 // MARK: - AppState Error Recovery Tests

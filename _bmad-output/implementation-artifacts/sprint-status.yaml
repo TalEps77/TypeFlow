@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 17:29
-last_updated: 08-20-2026 02:00
+last_updated: 08-20-2026 03:30
 project: local-whisper
 project_key: NOKEY
 tracking_system: file-system
@@ -97,6 +97,9 @@ development_status:
   # AC explicitly says to cut on. Feature cut per that explicit branch; no
   # streaming code was written. WhisperService.transcriptionLock (NSLock,
   # declared but never used) is left as-is since nothing in this story touches
-  # WhisperService -- deferred, not misrepresented as fixed.
+  # WhisperService -- deferred, not misrepresented as fixed. (Epic 7 review
+  # follow-up: the unused lock and its false "prevents concurrent
+  # transcription" comment were since deleted; the concurrency protection
+  # itself is still unimplemented and still deferred with this cut.)
   7-3-streaming-partial-results-spike-then-implement-or-cut: done
   epic-7-retrospective: optional
