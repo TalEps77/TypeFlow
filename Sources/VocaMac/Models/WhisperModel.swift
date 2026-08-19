@@ -206,6 +206,9 @@ struct WhisperModelInfo: Identifiable {
         if isLoading { return "arrow.trianglehead.2.clockwise" }
         if downloadProgress != nil { return "arrow.down.circle" }
         if isDownloaded { return "checkmark.circle" }
+        // Side-loaded models with no files on disk have no download to offer,
+        // so don't show the "download available" arrow icon for them.
+        if size.isSideloadOnly { return "folder.badge.questionmark" }
         return "arrow.down.to.line"
     }
 }

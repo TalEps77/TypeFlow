@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Epic Breakdown — local-whisper</title>
+  <style>
+
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+  <style type="text/css">:root {
+--bg: #fbfaf8;
+--panel: #ffffff;
+--ink: #1b1a18;
+--ink-soft: #55524d;
+--ink-faint: #8a857e;
+--rule: #e3ded6;
+--rule-soft: #efeae2;
+--accent: #9a3412;
+--accent-soft: #fdf1e7;
+--code-bg: #f4f1ec;
+--mark: #fff3cd;
+--shadow: 0 1px 2px rgba(27,26,24,.04), 0 8px 28px rgba(27,26,24,.06);
+}
+@media (prefers-color-scheme: dark) {
+:root {
+--bg: #16150f;
+--panel: #1d1c17;
+--ink: #eceae4;
+--ink-soft: #b3aea4;
+--ink-faint: #837d73;
+--rule: #35322a;
+--rule-soft: #2a2721;
+--accent: #f0a071;
+--accent-soft: #2b1f16;
+--code-bg: #24221c;
+--mark: #3d3418;
+--shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.35);
+}
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+margin: 0;
+background: var(--bg);
+color: var(--ink);
+font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Charter, Georgia, serif;
+font-size: 17px;
+line-height: 1.62;
+padding: 0 1.25rem 6rem;
+}
+#doc-wrap { max-width: 62rem; margin: 0 auto; }
+
+header#title-block-header {
+padding: 4.5rem 0 2rem;
+border-bottom: 3px double var(--rule);
+margin-bottom: 2.5rem;
+}
+header#title-block-header h1.title {
+font-size: clamp(2rem, 5vw, 3rem);
+line-height: 1.1;
+margin: 0 0 .5rem;
+letter-spacing: -.02em;
+border: 0;
+padding: 0;
+}
+header#title-block-header p.subtitle {
+margin: 0;
+color: var(--ink-soft);
+font-style: italic;
+font-size: 1.1rem;
+}
+
+h1, h2, h3, h4, h5, h6 {
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+line-height: 1.22;
+letter-spacing: -.015em;
+color: var(--ink);
+scroll-margin-top: 1.5rem;
+}
+h1 {
+font-size: 1.95rem;
+margin: 3.5rem 0 1.2rem;
+padding-bottom: .45rem;
+border-bottom: 2px solid var(--rule);
+}
+h2 {
+font-size: 1.45rem;
+margin: 2.75rem 0 .9rem;
+padding-bottom: .3rem;
+border-bottom: 1px solid var(--rule-soft);
+}
+h3 { font-size: 1.15rem; margin: 2rem 0 .6rem; }
+h4 {
+font-size: .82rem;
+margin: 1.6rem 0 .5rem;
+text-transform: uppercase;
+letter-spacing: .09em;
+color: var(--accent);
+}
+h5, h6 { font-size: .95rem; margin: 1.2rem 0 .4rem; color: var(--ink-soft); }
+p { margin: 0 0 1rem; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+ul, ol { margin: 0 0 1rem; padding-left: 1.4rem; }
+li { margin: .28rem 0; }
+li > ul, li > ol { margin: .28rem 0; }
+
+hr { border: 0; border-top: 1px solid var(--rule); margin: 3rem 0; }
+blockquote {
+margin: 1.2rem 0;
+padding: .1rem 0 .1rem 1.1rem;
+border-left: 3px solid var(--accent);
+color: var(--ink-soft);
+font-style: italic;
+}
+blockquote p:last-child { margin-bottom: 0; }
+
+code, pre, tt, kbd, samp {
+font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+font-size: .86em;
+font-style: normal;
+}
+:not(pre) > code {
+background: var(--code-bg);
+padding: .1em .38em;
+border-radius: 4px;
+border: 1px solid var(--rule-soft);
+
+overflow-wrap: anywhere;
+word-break: break-word;
+}
+pre {
+background: var(--code-bg);
+border: 1px solid var(--rule);
+border-radius: 8px;
+padding: 1rem 1.1rem;
+overflow-x: auto;
+line-height: 1.5;
+margin: 1.2rem 0;
+}
+pre code { background: none; border: 0; padding: 0; white-space: pre; }
+
+.table-scroll { overflow-x: auto; margin: 1.4rem 0; }
+table {
+border-collapse: collapse;
+width: 100%;
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+font-size: .88rem;
+background: var(--panel);
+border: 1px solid var(--rule);
+border-radius: 8px;
+overflow: hidden;
+box-shadow: var(--shadow);
+}
+caption { caption-side: top; text-align: left; font-size: .82rem; color: var(--ink-faint); padding-bottom: .5rem; }
+th, td {
+border-bottom: 1px solid var(--rule-soft);
+padding: .6rem .8rem;
+text-align: left;
+vertical-align: top;
+line-height: 1.45;
+}
+thead th {
+background: var(--accent-soft);
+color: var(--ink);
+font-weight: 650;
+font-size: .74rem;
+text-transform: uppercase;
+letter-spacing: .07em;
+border-bottom: 2px solid var(--rule);
+white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--accent-soft); }
+
+strong { font-weight: 680; }
+mark { background: var(--mark); color: inherit; padding: .05em .2em; border-radius: 3px; }
+
+nav#TOC {
+background: var(--panel);
+border: 1px solid var(--rule);
+border-radius: 10px;
+padding: 1.2rem 1.5rem;
+margin: 0 0 3rem;
+box-shadow: var(--shadow);
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+font-size: .85rem;
+line-height: 1.5;
+}
+nav#TOC::before {
+content: "Contents";
+display: block;
+font-size: .7rem;
+text-transform: uppercase;
+letter-spacing: .12em;
+color: var(--ink-faint);
+margin-bottom: .7rem;
+font-weight: 650;
+}
+nav#TOC ul { list-style: none; padding-left: 0; margin: 0; }
+nav#TOC ul ul { padding-left: 1rem; margin: .15rem 0; font-size: .95em; }
+nav#TOC ul ul ul { display: none; }
+nav#TOC li { margin: .12rem 0; }
+nav#TOC a { text-decoration: none; color: var(--ink-soft); }
+nav#TOC a:hover { color: var(--accent); text-decoration: underline; }
+nav#TOC > ul > li > a { color: var(--ink); font-weight: 600; }
+
+footer.doc-footer {
+margin-top: 4rem;
+padding-top: 1.2rem;
+border-top: 1px solid var(--rule);
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+font-size: .76rem;
+color: var(--ink-faint);
+display: flex;
+flex-wrap: wrap;
+gap: .5rem 1.5rem;
+}
+@media print {
+body { background: #fff; color: #000; font-size: 11pt; }
+nav#TOC { break-after: page; box-shadow: none; }
+h1 { break-before: page; }
+header#title-block-header h1.title { break-before: avoid; }
+table { box-shadow: none; font-size: 9pt; }
+}
+@media (max-width: 640px) {
+body { font-size: 16px; padding: 0 1rem 4rem; }
+header#title-block-header { padding-top: 2.5rem; }
+}
+</style>
+</head>
+<body>
+<div id="doc-wrap">
+<header id="title-block-header">
+<h1 class="title">Epic Breakdown — local-whisper</h1>
+<p class="subtitle">7 epics, 27 dev-agent-sized stories,
+dependency-ordered</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#overview" id="toc-overview">Overview</a></li>
+<li><a href="#requirements-inventory" id="toc-requirements-inventory">Requirements Inventory</a></li>
+<li><a href="#epic-list" id="toc-epic-list">Epic List</a></li>
+<li><a href="#epic-1-hebrew-asr-accuracy" id="toc-epic-1-hebrew-asr-accuracy">Epic 1: Hebrew ASR Accuracy</a></li>
+<li><a href="#epic-2-llm-post-processing" id="toc-epic-2-llm-post-processing">Epic 2: LLM Post-Processing</a></li>
+<li><a href="#epic-3-transcription-history" id="toc-epic-3-transcription-history">Epic 3: Transcription
+History</a></li>
+<li><a href="#epic-4-profiles-and-cursor-context" id="toc-epic-4-profiles-and-cursor-context">Epic 4: Profiles and Cursor
+Context</a></li>
+<li><a href="#epic-5-dictionary-and-snippets" id="toc-epic-5-dictionary-and-snippets">Epic 5: Dictionary and
+Snippets</a></li>
+<li><a href="#epic-6-command-mode" id="toc-epic-6-command-mode">Epic 6:
+Command Mode</a></li>
+<li><a href="#epic-7-responsive-capture" id="toc-epic-7-responsive-capture">Epic 7: Responsive Capture</a></li>
+</ul>
+</nav>
+<h2 id="overview">Overview</h2>
+<p>This document decomposes the PRD requirements and Architecture
+decisions into implementable stories. Every story is sized for a single
+dev-agent session, carries testable acceptance criteria, and lists
+explicit verification steps.</p>
+<p>Stories are ordered by dependency. Within an epic, a story never
+depends on a later story in the same epic. Across epics, Epic 2 (the
+pipeline) is the substrate for Epics 5 and 6; Epic 3 (history) is a
+precondition for Story 5.6.</p>
+<p><strong>Universal verification baseline.</strong> Every story must
+satisfy these before it moves to review, in addition to its own listed
+steps:</p>
+<ul>
+<li><code>make build</code> succeeds with no new warnings.</li>
+<li><code>make test</code> — full <code>swift test</code> suite green,
+no skipped or disabled tests.</li>
+<li>New logic has unit tests in <code>Tests/VocaMacTests/</code>; new
+services have a <code>Mock&lt;Name&gt;</code> in
+<code>Mocks/MockServices.swift</code> threaded through
+<code>TestMocks</code> and <code>AppState.makeTestState</code>
+(AD-7).</li>
+<li>The AD-13 identity test stays green: with all new features disabled,
+the pipeline is a byte-for-byte no-op.</li>
+<li>Manual smoke: launch the app, dictate one Hebrew sentence with the
+new feature <strong>off</strong>, confirm behavior is unchanged from
+before the story.</li>
+</ul>
+<h2 id="requirements-inventory">Requirements Inventory</h2>
+<h3 id="functional-requirements">Functional Requirements</h3>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>FR</th>
+<th>Capability</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FR-1</td>
+<td>Register a side-loaded local model</td>
+</tr>
+<tr>
+<td>FR-2</td>
+<td>Present an absent side-loaded model as unavailable</td>
+</tr>
+<tr>
+<td>FR-3</td>
+<td>Record per-stage latency</td>
+</tr>
+<tr>
+<td>FR-4</td>
+<td>Clean the transcript via the local LLM</td>
+</tr>
+<tr>
+<td>FR-5</td>
+<td>Fall back transparently on any failure</td>
+</tr>
+<tr>
+<td>FR-6</td>
+<td>Configure post-processing</td>
+</tr>
+<tr>
+<td>FR-7</td>
+<td>Verify the LLM connection on demand</td>
+</tr>
+<tr>
+<td>FR-8</td>
+<td>Persist every dictation</td>
+</tr>
+<tr>
+<td>FR-9</td>
+<td>Re-paste a previous transcription</td>
+</tr>
+<tr>
+<td>FR-10</td>
+<td>Undo the last injection</td>
+</tr>
+<tr>
+<td>FR-11</td>
+<td>Browse, search, and clear history</td>
+</tr>
+<tr>
+<td>FR-12</td>
+<td>Resolve a Profile from the frontmost application</td>
+</tr>
+<tr>
+<td>FR-13</td>
+<td>Create and manage Profiles</td>
+</tr>
+<tr>
+<td>FR-14</td>
+<td>Supply Cursor Context to the LLM</td>
+</tr>
+<tr>
+<td>FR-15</td>
+<td>Replace transcript terms from the Dictionary</td>
+</tr>
+<tr>
+<td>FR-16</td>
+<td>Normalize Hebrew for matching</td>
+</tr>
+<tr>
+<td>FR-17</td>
+<td>Manage Dictionary Entries</td>
+</tr>
+<tr>
+<td>FR-18</td>
+<td>Learn from user corrections</td>
+</tr>
+<tr>
+<td>FR-19</td>
+<td>Expand a spoken Cue into a text block</td>
+</tr>
+<tr>
+<td>FR-20</td>
+<td>Manage Snippets</td>
+</tr>
+<tr>
+<td>FR-21</td>
+<td>Rewrite the selection by voice</td>
+</tr>
+<tr>
+<td>FR-22</td>
+<td>Fail safely when preconditions are unmet</td>
+</tr>
+<tr>
+<td>FR-23</td>
+<td>Detect speech instead of amplitude</td>
+</tr>
+<tr>
+<td>FR-24</td>
+<td>Parallelize long-recording transcription</td>
+</tr>
+<tr>
+<td>FR-25</td>
+<td>Show partial results while speaking</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="nonfunctional-requirements">NonFunctional Requirements</h3>
+<div class="table-scroll"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>NFR</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NFR-1</td>
+<td>Offline-first — only loopback network traffic</td>
+</tr>
+<tr>
+<td>NFR-2</td>
+<td>Graceful degradation — every stage independently disableable,
+identity on failure</td>
+</tr>
+<tr>
+<td>NFR-3</td>
+<td>Resource ceiling — app + ASR model + Q4 4B LLM coexist on 24 GB</td>
+</tr>
+<tr>
+<td>NFR-4</td>
+<td>Concurrency safety — no races, no main-thread stalls</td>
+</tr>
+<tr>
+<td>NFR-5</td>
+<td>Backwards compatibility — existing settings, Vocabulary, stats
+survive upgrade</td>
+</tr>
+<tr>
+<td>NFR-6</td>
+<td>Testability — post-ASR transformations pure and unit-testable</td>
+</tr>
+<tr>
+<td>NFR-7</td>
+<td>Licensing — AGPL-3.0 retained, no VoiceInk code copied</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="additional-requirements">Additional Requirements</h3>
+<p>Architecture decisions AD-1 through AD-13 bind implementation. The
+load-bearing ones for story work: <strong>AD-1</strong> (one call in
+<code>AppState</code>), <strong>AD-2</strong> (identity fallback),
+<strong>AD-3</strong> (stage order), <strong>AD-4</strong> (Command Mode
+does not fall back), <strong>AD-5</strong> (context never persisted),
+<strong>AD-7</strong> (protocol + mock), <strong>AD-8</strong> (no
+actors), <strong>AD-11</strong> (model support bypass),
+<strong>AD-13</strong> (identity is a test).</p>
+<h3 id="fr-coverage-map">FR Coverage Map</h3>
+<div class="table-scroll"><table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Epic</th>
+<th>FRs</th>
+<th>NFRs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Epic 1 — Hebrew ASR Accuracy</td>
+<td>FR-1, FR-2, FR-3</td>
+<td>NFR-3, NFR-5</td>
+</tr>
+<tr>
+<td>Epic 2 — LLM Post-Processing</td>
+<td>FR-4, FR-5, FR-6, FR-7</td>
+<td>NFR-1, NFR-2, NFR-4, NFR-6</td>
+</tr>
+<tr>
+<td>Epic 3 — Transcription History</td>
+<td>FR-3, FR-8, FR-9, FR-10, FR-11</td>
+<td>NFR-2, NFR-4</td>
+</tr>
+<tr>
+<td>Epic 4 — Profiles and Cursor Context</td>
+<td>FR-12, FR-13, FR-14</td>
+<td>NFR-1, NFR-2</td>
+</tr>
+<tr>
+<td>Epic 5 — Dictionary and Snippets</td>
+<td>FR-15, FR-16, FR-17, FR-18, FR-19, FR-20</td>
+<td>NFR-2, NFR-6</td>
+</tr>
+<tr>
+<td>Epic 6 — Command Mode</td>
+<td>FR-21, FR-22</td>
+<td>NFR-2, NFR-4</td>
+</tr>
+<tr>
+<td>Epic 7 — Responsive Capture</td>
+<td>FR-23, FR-24, FR-25</td>
+<td>NFR-3, NFR-4</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="epic-list">Epic List</h2>
+<div class="table-scroll"><table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>#</th>
+<th>Epic</th>
+<th>Phase</th>
+<th>Stories</th>
+<th>Depends on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Hebrew ASR Accuracy</td>
+<td>1</td>
+<td>3</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2</td>
+<td>LLM Post-Processing</td>
+<td>1</td>
+<td>4</td>
+<td>—</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Transcription History</td>
+<td>1</td>
+<td>4</td>
+<td>Epic 2 (Story 2.1 for latency fields)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Profiles and Cursor Context</td>
+<td>2</td>
+<td>4</td>
+<td>Epic 2</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Dictionary and Snippets</td>
+<td>2</td>
+<td>6</td>
+<td>Epic 2 (5.6 also needs Epic 3)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Command Mode</td>
+<td>3</td>
+<td>3</td>
+<td>Epic 2</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Responsive Capture</td>
+<td>3</td>
+<td>3</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Recommended execution order:</strong> 1.1 → 1.2 → 2.1 → 2.2 →
+2.3 → 2.4 → 3.1 → 1.3 → 3.2 → 3.3 → 3.4 → 4.1 → 4.2 → 4.3 → 4.4 → 5.1 →
+5.2 → 5.3 → 5.4 → 5.5 → 5.6 → 6.1 → 6.2 → 6.3 → 7.1 → 7.2 → 7.3</p>
+<p>Story 1.3 (latency persistence) is deliberately sequenced after 3.1,
+because latency belongs on the History Record. Epic 7 is independent of
+everything else and can be pulled forward if VAD frustration outweighs
+feature appetite.</p>
+<hr />
+<h2 id="epic-1-hebrew-asr-accuracy">Epic 1: Hebrew ASR Accuracy</h2>
+<p>Make the ivrit.ai Hebrew fine-tune selectable and loadable, so the
+ASR stage produces materially better Hebrew than the current
+<code>large-v3-v20240930_626MB</code>. This is the one axis where the
+product can beat Wispr Flow outright rather than catch up to it. Covers
+FR-1, FR-2, FR-3.</p>
+<h3 id="story-1.1-register-the-side-loaded-ivrit.ai-hebrew-model">Story
+1.1: Register the side-loaded ivrit.ai Hebrew model</h3>
+<p>As a Hebrew dictation user, I want to select the ivrit.ai Hebrew
+model from the model picker, So that my transcripts are more accurate
+than a general-purpose Whisper model can manage.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> the ivrit.ai CoreML model directory is present
+under
+<code>~/Library/Application Support/VocaMac/models/models/argmaxinc/whisperkit-coreml/</code>,
+<strong>When</strong> I open Settings → Models, <strong>Then</strong>
+the ivrit.ai entry appears in the list with a display name, size, and
+RAM estimate, <strong>And</strong> selecting it loads the model
+successfully through the existing <code>WhisperService.loadModel</code>
+path, <strong>And</strong> dictating Hebrew afterwards produces a
+transcript.</p>
+<p><strong>Given</strong> the new <code>ModelSize</code> case is added,
+<strong>When</strong> the project is compiled, <strong>Then</strong>
+arms exist in all five exhaustive switches in
+<code>Models/WhisperModel.swift</code> — <code>displayName</code>
+(<code>:49</code>), <code>fileSizeBytes</code> (<code>:67</code>),
+<code>ramRequiredGB</code> (<code>:92</code>),
+<code>relativeSpeed</code> (<code>:110</code>),
+<code>qualityDescription</code> (<code>:128</code>),
+<strong>And</strong> <code>ModelManager.whisperKitModelName(for:)</code>
+(<code>:233</code>) maps it to its on-disk folder name,
+<strong>And</strong> the two <strong>non-exhaustive string
+ladders</strong> the compiler will not catch are updated:
+<code>WhisperService.modelSizeFromName(_:)</code> (<code>:310</code>)
+and the ladder in <code>AppState.loadModel</code>
+(<code>:749-772</code>).</p>
+<p><strong>Given</strong> <code>ModelManager.isModelSupported(_:)</code>
+(<code>:285</code>) gates on
+<code>WhisperKit.recommendedModels()</code>, which never endorses a
+custom local model, <strong>When</strong> support is evaluated for the
+ivrit.ai entry, <strong>Then</strong> support is determined by
+<strong>on-disk presence</strong> rather than WhisperKit’s endorsement
+(AD-11), <strong>And</strong> the entry is present in
+<code>ModelSize.standardCatalog</code> (<code>:32</code>) so
+<code>AppState.modelCatalog()</code> (<code>:419</code>) surfaces
+it.</p>
+<p><strong>Given</strong> the model is side-loaded and not downloadable,
+<strong>When</strong> the entry is shown or selected,
+<strong>Then</strong> no download is attempted for it,
+<strong>And</strong> existing models’ download behavior and the chip/RAM
+recommendation logic are unchanged.</p>
+<p><strong>Verification:</strong> - Unit: <code>ModelSizeTests</code>
+covers the new case across all five metadata properties;
+<code>ModelManagerTests</code> covers <code>whisperKitModelName</code>
+and the on-disk support bypass with a temp directory. - Unit: a
+regression test asserts <code>modelSizeFromName</code> round-trips the
+new folder name. - Manual: with the real model directory present, select
+it, dictate a Hebrew sentence, confirm text appears. If the parallel
+model-acquisition effort has not delivered yet, verify against a
+directory stub containing the required CoreML component layout
+(<code>MelSpectrogram.mlmodelc</code>,
+<code>AudioEncoder.mlmodelc</code>, <code>TextDecoder.mlmodelc</code>,
+tokenizer files) and record that the end-to-end load check is pending
+real weights. - Manual: confirm existing models still download and
+load.</p>
+<h3 id="story-1.2-handle-an-absent-side-loaded-model-and-restore-hebrew-to-the-language-picker">Story
+1.2: Handle an absent side-loaded model, and restore Hebrew to the
+language picker</h3>
+<p>As a user whose model files are not yet in place, I want the app to
+tell me clearly what is missing and where to put it, So that I am not
+staring at a broken picker entry with no explanation.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> the ivrit.ai model directory is missing or
+incomplete, <strong>When</strong> I open Settings → Models,
+<strong>Then</strong> the entry is marked “Not installed” and cannot be
+selected, <strong>And</strong> the expected on-disk path is displayed so
+I can place the files, <strong>And</strong> no download is offered or
+attempted, <strong>And</strong> no crash or unhandled error occurs.</p>
+<p><strong>Given</strong> the ivrit.ai model is the selected model and
+its files are subsequently removed, <strong>When</strong> the app next
+starts, <strong>Then</strong>
+<code>AppState.startupFallbackModel(for:)</code> (<code>:460</code>)
+selects a known-good model instead, <strong>And</strong> exactly one
+clear message explains the fallback.</p>
+<p><strong>Given</strong> <code>selectedLanguage</code> defaults to
+<code>&quot;he&quot;</code> (<code>AppState.swift:105</code>) but the Settings
+language <code>Picker</code> (<code>SettingsView.swift:110-135</code>)
+has <strong>no Hebrew option</strong> — a pre-existing defect that makes
+Hebrew unrecoverable once the picker is touched, <strong>When</strong> I
+open the language picker, <strong>Then</strong> Hebrew is present and
+selectable, <strong>And</strong> selecting it stores <code>&quot;he&quot;</code>,
+<strong>And</strong> the previously-stored value is preserved on upgrade
+(NFR-5).</p>
+<p><em>(The “selecting it stores <code>&quot;he&quot;</code>” clause has no
+automated test — it is verified manually only, per the picker’s manual
+verification step below.)</em></p>
+<p><strong>Verification:</strong> - Unit: model-support evaluation
+against a temp directory in three states — complete, partially complete,
+absent. - Unit: startup fallback selects a valid model when the
+configured one is unavailable. - Manual: rename the model directory,
+relaunch, confirm the “Not installed” state, the displayed path, and the
+fallback message. - Manual: open the language picker, select Hebrew,
+relaunch, confirm it persisted.</p>
+<h3 id="story-1.3-record-per-stage-latency-on-the-history-record">Story
+1.3: Record per-stage latency on the History Record</h3>
+<p>As someone deciding between a large model and a smaller model plus an
+LLM, I want to see how long each stage actually took, So that I choose
+based on measurement rather than impression.</p>
+<p><strong>Depends on:</strong> Story 2.1
+(<code>TranscriptContext</code> timing fields), Story 3.1
+(<code>HistoryStore</code>).</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> a dictation completes, <strong>When</strong>
+the History Record is written, <strong>Then</strong> it carries
+recording duration, ASR duration, and post-processing duration in
+milliseconds, <strong>And</strong> the values are non-zero and plausible
+for stages that ran, <strong>And</strong> stages that did not run record
+zero rather than a missing field.</p>
+<p><strong>Given</strong> I have dictated with two different ASR models,
+<strong>When</strong> I open the history view, <strong>Then</strong>
+each record shows its model and its ASR duration, <strong>And</strong>
+the two models’ typical latencies are directly comparable.</p>
+<p><strong>Given</strong> timing instrumentation is added,
+<strong>When</strong> dictation runs, <strong>Then</strong> measurement
+adds no perceptible latency and introduces no main-thread stalls
+(NFR-4).</p>
+<p><strong>Verification:</strong> - Unit: timing fields populate
+correctly, including the zero case for skipped stages. - Manual: dictate
+five sentences on each of two models; confirm ASR durations are recorded
+and differ as expected. - Manual: confirm the memory ceiling question
+(NFR-3, R-7) can now be investigated — record peak memory with the
+ivrit.ai model loaded alongside LM Studio running Qwen3-4B Q4.</p>
+<hr />
+<h2 id="epic-2-llm-post-processing">Epic 2: LLM Post-Processing</h2>
+<p>Introduce the pipeline substrate and the LLM stage that turns a Raw
+Transcript into send-ready text. This is the largest single product gap
+versus Wispr Flow, and the epic is structured so the risky part (the
+LLM) lands on top of a proven-inert foundation. Covers FR-4, FR-5, FR-6,
+FR-7.</p>
+<h3 id="story-2.1-transcript-pipeline-scaffolding-with-a-proven-identity-guarantee">Story
+2.1: Transcript pipeline scaffolding with a proven identity
+guarantee</h3>
+<p>As a developer, I want an ordered, testable pipeline between
+transcription and injection that provably does nothing yet, So that
+every later feature plugs in without touching <code>AppState</code> and
+without risking the existing dictation path.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> the pipeline types are added under
+<code>Sources/VocaMac/Pipeline/</code>, <strong>When</strong>
+<code>AppState.stopRecordingAndTranscribe()</code> runs,
+<strong>Then</strong> exactly <strong>one</strong> new call exists —
+<code>await transcriptPipeline.run(context)</code> — inserted between
+<code>let trimmedText = ...</code> (<code>AppState.swift:633</code>) and
+the <code>if !trimmedText.isEmpty</code> injection guard
+(<code>:634</code>) (AD-1), <strong>And</strong> no other logic is added
+to <code>AppState</code>.</p>
+<p><strong>Given</strong> the pipeline contains no stages,
+<strong>When</strong> it runs on any input, <strong>Then</strong> it
+returns that input unchanged, byte for byte (AD-2).</p>
+<p><strong>Given</strong> the <code>TranscriptStage</code> protocol is
+defined, <strong>When</strong> a stage is implemented,
+<strong>Then</strong> it cannot throw out of <code>run</code>; failures
+are captured as a <code>StageOutcome</code> recorded on the context and
+the input is passed through, <strong>And</strong>
+<code>TranscriptContext</code> is a <code>struct</code> carrying at
+minimum: raw transcript, current text, target bundle id, per-stage
+timings, protected-span map, and stage outcomes.</p>
+<p><strong>Given</strong> the identity property is load-bearing (AD-13),
+<strong>When</strong> the test suite runs, <strong>Then</strong> a test
+asserts byte-identical pass-through for a corpus including Hebrew with
+niqqud, mixed Hebrew/English, empty string, and whitespace-only
+input.</p>
+<p><strong>Given</strong> <code>TranscriptPipeline</code> is
+<code>@MainActor</code> and <code>async</code> (AD-8),
+<strong>When</strong> it runs, <strong>Then</strong> no
+<code>actor</code> is introduced anywhere and no strict-concurrency
+flags are enabled.</p>
+<p><strong>Verification:</strong> - Unit: the identity corpus test; a
+stage-failure test using a deliberately-throwing test stage confirming
+pass-through and a recorded outcome. - Unit:
+<code>MockTranscriptPipeline</code> added to
+<code>MockServices.swift</code> and threaded through
+<code>TestMocks</code>/<code>makeTestState</code> (AD-7). - Manual:
+dictate before and after the change; output must be identical.</p>
+<h3 id="story-2.2-postprocessservice-llm-client-with-a-hard-deadline-and-transparent-fallback">Story
+2.2: PostProcessService — LLM client with a hard deadline and
+transparent fallback</h3>
+<p>As a user, I want the local LLM contacted safely, So that a slow or
+absent LM Studio never degrades my dictation.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> <code>PostProcessService</code> is the sole
+owner of the HTTP client (AD-6), <strong>When</strong>
+<code>clean(text:prompt:)</code> is called, <strong>Then</strong> a
+single OpenAI-compatible chat-completions request is issued to the
+configured endpoint, <strong>And</strong> the response content is
+returned as the cleaned text.</p>
+<p><strong>Given</strong> LM Studio is not running,
+<strong>When</strong> <code>clean</code> is called,
+<strong>Then</strong> the connection error is caught and the input text
+is returned unchanged, <strong>And</strong> the failure reason is logged
+and reported as a <code>StageOutcome</code>.</p>
+<p><strong>Given</strong> the LLM is slower than the configured timeout,
+<strong>When</strong> the deadline elapses, <strong>Then</strong> the
+request is cancelled via both <code>URLSession</code> configuration and
+an outer <code>Task</code> deadline, <strong>And</strong> the input text
+is returned, <strong>And</strong> total elapsed time does not exceed the
+timeout by a meaningful margin.</p>
+<p><strong>Given</strong> the LLM returns a non-2xx status, malformed
+JSON, empty content, or output wildly disproportionate in length to the
+input, <strong>When</strong> the response is validated,
+<strong>Then</strong> the input text is returned unchanged,
+<strong>And</strong> the specific rejection reason is recorded.</p>
+<p><strong>Given</strong> prompt construction and response validation
+must be testable without a network (NFR-6), <strong>When</strong> those
+functions are implemented, <strong>Then</strong> they are pure and
+separately unit-tested, <strong>And</strong> default prompts live as
+<code>static let</code> constants in
+<code>Models/Prompts.swift</code>.</p>
+<p><strong>Given</strong> the offline guarantee (NFR-1),
+<strong>When</strong> any request is issued, <strong>Then</strong> it
+targets only the configured loopback endpoint, and the app remains fully
+functional with no internet route.</p>
+<p><strong>Verification:</strong> - Unit: prompt construction; response
+validation across every rejection case; the length-ratio guard at its
+boundaries. - Unit: timeout behavior with a stubbed slow transport;
+connection-refused behavior. - Manual: with LM Studio stopped, call
+“Test connection” and confirm an actionable failure. With it running,
+confirm success. - Manual: disable all network interfaces; confirm the
+app still dictates normally.</p>
+<h3 id="story-2.3-wire-post-processing-into-the-pipeline-behind-a-master-toggle">Story
+2.3: Wire post-processing into the pipeline behind a master toggle</h3>
+<p>As a user, I want my Hebrew transcripts cleaned, punctuated, and
+self-corrections resolved, So that what lands at my cursor is ready to
+send.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> post-processing is enabled,
+<strong>When</strong> I dictate a Hebrew sentence containing filler
+words, <strong>Then</strong> the injected text has fillers removed and
+sentence-final punctuation present.</p>
+<p><strong>Given</strong> I dictate a spoken enumeration,
+<strong>When</strong> post-processing runs, <strong>Then</strong> the
+result is formatted as a list.</p>
+<p><strong>Given</strong> I dictate “נפגש בשתיים… בעצם בשלוש”,
+<strong>When</strong> post-processing runs, <strong>Then</strong> the
+injected text contains only the corrected time.</p>
+<p><strong>Given</strong> I dictate a question, <strong>When</strong>
+post-processing runs, <strong>Then</strong> the output is the cleaned
+question, <strong>not</strong> an answer to it.</p>
+<p><strong>Given</strong> the master toggle is off,
+<strong>When</strong> I dictate, <strong>Then</strong> <strong>no HTTP
+request is made at all</strong>, <strong>And</strong> behavior is
+byte-identical to before this epic (AD-2, AD-13).</p>
+<p><strong>Given</strong> any post-processing failure occurs,
+<strong>When</strong> injection happens, <strong>Then</strong> the Raw
+Transcript is injected with no modal and no dialog, <strong>And</strong>
+the Raw Transcript is retained alongside the Final Text for the History
+Record.</p>
+<p><strong>Verification:</strong> - Unit: <code>PostProcessStage</code>
+with a mock service covering success, each failure mode, and the
+disabled path. - Manual: dictate five real Hebrew sentences with fillers
+and a self-correction; confirm the cleanup and that meaning is unchanged
+(SM-C1 — if you find yourself checking the LLM’s work, the prompt is too
+aggressive; note this and tune). - Manual: stop LM Studio mid-session,
+dictate, confirm raw text appears with no interruption and only the
+timeout’s delay.</p>
+<h3 id="story-2.4-post-processing-settings-tab">Story 2.4:
+Post-processing settings tab</h3>
+<p>As a user, I want to configure and verify the LLM connection, So that
+I can point at my own setup and confirm it works without guessing.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> a new settings tab is added to the
+<code>TabView</code> in <code>Views/SettingsView.swift</code>,
+<strong>When</strong> I open Settings, <strong>Then</strong> a
+post-processing tab is present alongside the existing six,
+<strong>And</strong> it is defined in its own file following the
+<code>StatsSettingsTab.swift</code> precedent.</p>
+<p><strong>Given</strong> the tab is open, <strong>When</strong> I edit
+settings, <strong>Then</strong> endpoint base URL, model identifier,
+timeout, and temperature are editable and persisted under
+<code>vocamac.postProcess.*</code> keys (AD-9), <strong>And</strong>
+defaults are <code>http://localhost:1234</code>, Qwen3-4B-Instruct, a
+low single-digit-second timeout, and temperature 0.</p>
+<p><strong>Given</strong> the system prompt is editable,
+<strong>When</strong> I modify it and then choose “Restore default”,
+<strong>Then</strong> the documented default from
+<code>Models/Prompts.swift</code> is restored.</p>
+<p><strong>Given</strong> I press “Test connection”,
+<strong>When</strong> LM Studio is reachable, <strong>Then</strong>
+success is reported along with the responding model’s identifier,
+<strong>And</strong> when it is unreachable, the failure reason is
+actionable — refused, timed out, or the HTTP status,
+<strong>And</strong> in neither case does the UI block or become
+stuck.</p>
+<p><strong>Verification:</strong> - Unit: settings persistence
+round-trip; restore-to-default. - Manual: change the endpoint to a wrong
+port, test connection, confirm an actionable error and a responsive UI;
+change it back, confirm success. - Manual: relaunch and confirm all
+settings persisted.</p>
+<hr />
+<h2 id="epic-3-transcription-history">Epic 3: Transcription History</h2>
+<p>Persist what the app produced, so nothing is lost, injections can be
+re-pasted or retracted, and later features have the substrate they need.
+The cheapest epic in the plan and a precondition for Story 5.6. Covers
+FR-3, FR-8, FR-9, FR-10, FR-11.</p>
+<h3 id="story-3.1-persist-every-dictation-via-a-shared-json-file-store">Story
+3.1: Persist every dictation via a shared JSON file store</h3>
+<p>As a user, I want every transcript saved locally, So that nothing the
+app produced is ever lost.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> <code>JSONFileStore&lt;T: Codable&gt;</code>
+is added under <code>Sources/VocaMac/Stores/</code> (AD-10),
+<strong>When</strong> it saves, <strong>Then</strong> it writes
+atomically to <code>~/Library/Application Support/VocaMac/</code>, on a
+serial <code>.utility</code> queue, without blocking the caller —
+modeled on <code>StatsManager.swift:24-38</code>.</p>
+<p><strong>Given</strong> the store’s file is corrupt or unreadable,
+<strong>When</strong> it loads, <strong>Then</strong> the type’s empty
+value is returned and the failure is logged, <strong>And</strong> the
+app does not crash and startup is not blocked.</p>
+<p><strong>Given</strong> a dictation completes, <strong>When</strong>
+the History Record is written, <strong>Then</strong> it captures raw
+transcript, final text, timestamp, target bundle id, profile name,
+model, per-stage latencies, whether a fallback occurred, and the mode,
+<strong>And</strong> each record carries a <code>UUID id</code>,
+<strong>And</strong> records survive app restart.</p>
+<p><strong>Given</strong> Cursor Context must never be persisted (AD-5),
+<strong>When</strong> the <code>HistoryRecord</code> type is defined,
+<strong>Then</strong> <strong>no field exists</strong> capable of
+holding cursor context, <strong>And</strong> a test asserts that a
+serialized record contains no context payload.</p>
+<p><strong>Given</strong> history is local-only, <strong>When</strong>
+records are stored, <strong>Then</strong> they are never transmitted and
+are excluded from any diagnostic export.</p>
+<p><strong>Verification:</strong> - Unit: <code>JSONFileStore</code>
+round-trip, atomic write, corrupt-file recovery, concurrent-save safety.
+- Unit: <code>HistoryRecord</code> encode/decode; the no-context-field
+assertion. - Manual: dictate three times, quit, relaunch, confirm all
+three records are present with correct metadata.</p>
+<h3 id="story-3.2-browse-search-and-clear-history">Story 3.2: Browse,
+search, and clear history</h3>
+<p>As a user, I want to review what I dictated and see what the LLM
+changed, So that I can recover text and build trust in the
+post-processing.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> I open the history view, <strong>When</strong>
+it loads, <strong>Then</strong> records are listed newest-first with
+timestamp, target app, and a text preview.</p>
+<p><strong>Given</strong> I select a record, <strong>When</strong> its
+detail is shown, <strong>Then</strong> both the Raw Transcript and the
+Final Text are visible, making the LLM’s edit inspectable.</p>
+<p><strong>Given</strong> I type in the search field,
+<strong>When</strong> the query changes, <strong>Then</strong> the list
+filters to matching records.</p>
+<p><strong>Given</strong> I want to manage storage,
+<strong>When</strong> I use the management controls,
+<strong>Then</strong> I can delete an individual record, delete all, and
+set a retention limit, <strong>And</strong> the retention limit is
+enforced automatically as new records arrive.</p>
+<p><strong>Verification:</strong> - Unit: search filtering including
+Hebrew queries; retention enforcement at the boundary. - Manual: dictate
+ten times, browse the list, search for a term, delete one record, verify
+the count. - Manual: set retention to 5, dictate three more, confirm the
+oldest are pruned.</p>
+<h3 id="story-3.3-re-paste-a-previous-transcription">Story 3.3: Re-paste
+a previous transcription</h3>
+<p>As a user whose injection landed in the wrong window, I want to
+re-paste it where I actually meant it to go, So that I do not have to
+dictate the whole thing again.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> at least one dictation exists,
+<strong>When</strong> I choose the menu-bar re-paste action,
+<strong>Then</strong> the most recent Final Text is injected at the
+current cursor via the same <code>TextInjector</code> path as a live
+dictation.</p>
+<p><strong>Given</strong> I am in the history view,
+<strong>When</strong> I choose re-paste on any listed record,
+<strong>Then</strong> that record’s Final Text is injected.</p>
+<p><strong>Given</strong> a re-paste occurs, <strong>When</strong> it
+completes, <strong>Then</strong> <strong>no duplicate History Record is
+created</strong>.</p>
+<p><strong>Given</strong> the clipboard-preservation setting is on,
+<strong>When</strong> re-paste uses the clipboard strategy,
+<strong>Then</strong> the prior clipboard contents are restored exactly
+as in a normal injection.</p>
+<p><strong>Verification:</strong> - Unit: re-paste calls the injector
+with the expected text and creates no new record. - Manual: dictate into
+TextEdit, switch to another app, re-paste from the menu bar, confirm the
+text lands and the clipboard is restored.</p>
+<h3 id="story-3.4-undo-the-last-injection">Story 3.4: Undo the last
+injection</h3>
+<p>As a user whose text landed somewhere it should not have, I want to
+retract it immediately, So that a misfire is not something I have to
+clean up by hand.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> text was just injected, <strong>When</strong>
+I choose undo, <strong>Then</strong> the injected text is removed from
+the target application.</p>
+<p><strong>Given</strong> undo is best-effort (FR-10, R-9),
+<strong>When</strong> the safety conditions are evaluated,
+<strong>Then</strong> undo is offered only within a short window with
+the same application still frontmost, <strong>And</strong> when it
+cannot be performed safely the action is <strong>unavailable rather than
+destructive</strong>, <strong>And</strong> the UI states the best-effort
+limitation.</p>
+<p><strong>Given</strong> the injection used the Accessibility path,
+<strong>When</strong> undo runs, <strong>Then</strong> the text is
+retracted precisely.</p>
+<p><strong>Given</strong> the injection used the clipboard path,
+<strong>When</strong> undo runs, <strong>Then</strong> ⌘Z is
+synthesized, and inconsistent behavior across applications is an
+accepted, documented limitation.</p>
+<p><strong>Verification:</strong> - Unit: the safety-window and
+frontmost-app guards; the unavailable state. - Manual: dictate into
+TextEdit (AX path) and undo — text removed. Dictate into a terminal
+(clipboard path) and undo — note actual behavior. - Manual: dictate,
+switch apps, confirm undo is unavailable rather than firing into the
+wrong window.</p>
+<hr />
+<h2 id="epic-4-profiles-and-cursor-context">Epic 4: Profiles and Cursor
+Context</h2>
+<p>Make the same utterance produce app-appropriate text — casual in
+chat, formal in mail, identifier-shaped in an editor — using only local
+signals. Covers FR-12, FR-13, FR-14.</p>
+<h3 id="story-4.1-capture-the-frontmost-application-at-recording-start">Story
+4.1: Capture the frontmost application at recording start</h3>
+<p>As a user who switches windows while thinking, I want the app to
+remember where I started dictating, So that my text is shaped for the
+app I was actually aiming at.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> <code>AXContextReader</code> is added as a
+<code>@MainActor</code> service with a protocol in
+<code>ServiceProtocols.swift</code> (AD-7), <strong>When</strong>
+recording starts, <strong>Then</strong> the frontmost application’s
+bundle identifier is captured at that moment via
+<code>NSWorkspace</code> — <strong>not</strong> when recording stops
+(AD-5).</p>
+<p><strong>Given</strong> I switch to a different application
+mid-dictation, <strong>When</strong> the transcript is processed,
+<strong>Then</strong> the originally-captured bundle identifier is
+used.</p>
+<p><strong>Given</strong> no frontmost application can be determined,
+<strong>When</strong> capture runs, <strong>Then</strong> a nil
+identifier is recorded and the pipeline proceeds normally.</p>
+<p><strong>Given</strong> the captured identifier flows through the
+pipeline, <strong>When</strong> the History Record is written,
+<strong>Then</strong> the bundle identifier is persisted (Story 3.1’s
+field is populated for real).</p>
+<p><strong>Verification:</strong> - Unit: capture-at-start semantics
+with a mock reader; the nil path. - Manual: start dictating in TextEdit,
+switch to Safari mid-utterance, release; confirm the history record
+names TextEdit.</p>
+<h3 id="story-4.2-resolve-a-profile-from-the-bundle-identifier">Story
+4.2: Resolve a Profile from the bundle identifier</h3>
+<p>As a user, I want each application mapped to a dictation Profile, So
+that the LLM is told what kind of text this app expects.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> <code>Profile</code>,
+<code>ProfileStore</code>, and <code>ProfileManager</code> exist,
+<strong>When</strong> a dictation starts, <strong>Then</strong> the
+captured bundle identifier resolves to a matching Profile,
+<strong>And</strong> when no Profile matches, the Default Profile is
+used.</p>
+<p><strong>Given</strong> a Profile is resolved, <strong>When</strong>
+post-processing runs, <strong>Then</strong> the Profile’s prompt
+override steers the LLM, <strong>And</strong> the Profile’s per-feature
+toggles for post-processing and context capture are honored.</p>
+<p><strong>Given</strong> Profiles are disabled entirely,
+<strong>When</strong> a dictation runs, <strong>Then</strong> the
+Default Profile always applies and behavior matches Epic 2’s.</p>
+<p><strong>Given</strong> a Profile is resolved, <strong>When</strong>
+the History Record is written, <strong>Then</strong> the Profile name is
+persisted.</p>
+<p><strong>Given</strong> the Default Profile is special,
+<strong>When</strong> profile management operations run,
+<strong>Then</strong> it can be edited but <strong>not
+deleted</strong>.</p>
+<p><strong>Verification:</strong> - Unit: resolution for a matching id,
+a non-matching id, an empty profile set, and the disabled state;
+default-profile deletion is rejected. - Manual: create a Profile bound
+to TextEdit with a distinctive prompt; dictate into TextEdit and into
+another app; confirm the outputs differ as the prompts dictate.</p>
+<h3 id="story-4.3-profiles-settings-tab-with-starter-profiles-and-json-export">Story
+4.3: Profiles settings tab with starter profiles and JSON export</h3>
+<p>As a user, I want to create and manage Profiles without editing
+files, So that tuning per-app behavior is a normal settings task.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> a Profiles settings tab is added,
+<strong>When</strong> I use it, <strong>Then</strong> I can create,
+edit, reorder, and delete Profiles, <strong>And</strong> each Profile
+exposes name, bundle identifiers, prompt override, and its two
+toggles.</p>
+<p><strong>Given</strong> typing bundle identifiers by hand is
+error-prone, <strong>When</strong> I add one, <strong>Then</strong> I
+can pick from currently-running applications instead.</p>
+<p><strong>Given</strong> a fresh install, <strong>When</strong>
+Profiles load for the first time, <strong>Then</strong> starter Profiles
+ship for a chat app, a mail app, and a code editor, illustrating casual,
+formal, and identifier-shaped output.</p>
+<p><strong>Given</strong> I want my configuration on another machine
+(AD-9, FR-13), <strong>When</strong> I export, <strong>Then</strong>
+Profiles are written as a single JSON file, <strong>And</strong>
+importing that file restores them, <strong>And</strong> an import of a
+malformed file is rejected with a clear message rather than corrupting
+existing Profiles.</p>
+<p><strong>Verification:</strong> - Unit: CRUD operations; export/import
+round-trip; malformed-import rejection. - Manual: create a Profile via
+the running-apps picker, restart, confirm persistence; export, delete
+all, import, confirm restoration.</p>
+<h3 id="story-4.4-supply-cursor-context-to-the-llm-off-by-default">Story
+4.4: Supply Cursor Context to the LLM, off by default</h3>
+<p>As a user dictating into an existing document, I want the LLM to see
+what surrounds my cursor, So that the inserted text matches the register
+and formatting already there.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> context capture is enabled both globally and
+on the active Profile, <strong>When</strong> recording starts,
+<strong>Then</strong> text before and after the insertion point is read
+via the Accessibility API and truncated to a bounded character budget,
+<strong>And</strong> it is included in the post-processing request.</p>
+<p><strong>Given</strong> context capture is off — <strong>which is the
+default</strong> — , <strong>When</strong> a dictation runs,
+<strong>Then</strong> no context is read and none is sent.</p>
+<p><strong>Given</strong> the target application exposes no readable
+context, <strong>When</strong> capture is attempted,
+<strong>Then</strong> post-processing proceeds without it rather than
+failing.</p>
+<p><strong>Given</strong> Cursor Context is the highest-privacy-cost
+capability here (AD-5, R-8), <strong>When</strong> a dictation
+completes, <strong>Then</strong> the context is <strong>never</strong>
+written to the History Record, <strong>never</strong> passed to
+<code>VocaLogger</code> at any level, and never persisted anywhere,
+<strong>And</strong> it is released from memory immediately after the
+request, <strong>And</strong> a test asserts that no log output and no
+persisted record contains the context payload.</p>
+<p><strong>Given</strong> context is read on the main thread,
+<strong>When</strong> capture runs, <strong>Then</strong> it adds
+negligible latency and never blocks injection (NFR-4).</p>
+<p><strong>Verification:</strong> - Unit: budget truncation; the
+both-toggles-required gate; the no-readable-context path. - Unit: the
+privacy assertion — capture context, run a full pipeline, inspect logs
+and the persisted record for leakage. - Manual: enable context, dictate
+into the middle of an existing Hebrew paragraph, confirm the insertion
+matches surrounding register. - Manual: confirm the feature is off on a
+fresh profile.</p>
+<hr />
+<h2 id="epic-5-dictionary-and-snippets">Epic 5: Dictionary and
+Snippets</h2>
+<p>Fix recurring mis-transcriptions permanently, and expand spoken cues
+into fixed text blocks. Both operate on the transcript; both depend on
+correct Hebrew normalization, which is why that lands first as its own
+story. Covers FR-15 through FR-20.</p>
+<h3 id="story-5.1-hebrew-normalization">Story 5.1: Hebrew
+normalization</h3>
+<p>As a developer, I want a correct, pure Hebrew normalizer, So that
+every fuzzy match in this epic compares like with like.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> <code>HebrewNormalizer</code> is added as an
+<code>enum</code> with <code>static</code> pure functions in
+<code>Models/</code> (AD-8, a dependency-free leaf),
+<strong>When</strong> it normalizes text, <strong>Then</strong> niqqud
+and cantillation marks are stripped, <strong>And</strong> matres
+lectionis variants (ו/וו, י/יי) are unified, <strong>And</strong>
+final-form letters are normalized to their base forms,
+<strong>And</strong> geresh and gershayim are handled.</p>
+<p><strong>Given</strong> transcripts mix Hebrew and English technical
+terms, <strong>When</strong> normalization runs, <strong>Then</strong>
+Latin text passes through unchanged.</p>
+<p><strong>Given</strong> normalization is the foundation for every
+match in this epic (NFR-6), <strong>When</strong> it is tested,
+<strong>Then</strong> it is unit-tested against a table of Hebrew
+variant pairs asserting that variants of the same word normalize
+identically, <strong>And</strong> the functions are side-effect free and
+require no audio, no LLM, and no AX.</p>
+<p><strong>Verification:</strong> - Unit: a variant-pair table covering
+each transformation independently and in combination; idempotence
+(normalizing twice equals normalizing once); the Latin pass-through;
+empty and whitespace input. - No manual step — this story is pure logic
+and stands entirely on its tests.</p>
+<h3 id="story-5.2-post-asr-dictionary-replacement">Story 5.2: Post-ASR
+dictionary replacement</h3>
+<p>As a user with domain terms Whisper keeps getting wrong, I want them
+corrected automatically after transcription, So that I stop fixing the
+same word by hand.</p>
+<p><strong>Depends on:</strong> Story 5.1, Story 2.1.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> <code>DictionaryService</code> and
+<code>DictionaryStage</code> exist, <strong>When</strong> the pipeline
+runs, <strong>Then</strong> the Dictionary stage runs
+<strong>first</strong>, before snippet protection and before
+post-processing (AD-3), so the LLM reasons over corrected terms.</p>
+<p><strong>Given</strong> a transcript contains an exact trigger,
+<strong>When</strong> replacement runs, <strong>Then</strong> it is
+replaced with the canonical form.</p>
+<p><strong>Given</strong> a transcript contains a near-match,
+<strong>When</strong> it is compared using edit distance over
+<code>HebrewNormalizer</code>-normalized forms, <strong>Then</strong> it
+is replaced if within the configured threshold, <strong>And</strong>
+<strong>not</strong> replaced if below it — a conservative miss is
+preferred to a wrong replacement (SM-C2).</p>
+<p><strong>Given</strong> replacement must not corrupt surrounding text,
+<strong>When</strong> it runs, <strong>Then</strong> surrounding
+whitespace and punctuation are preserved, <strong>And</strong> a trigger
+does not match inside a longer unrelated word.</p>
+<p><strong>Given</strong> entries may overlap, <strong>When</strong>
+multiple could apply, <strong>Then</strong> replacement is deterministic
+and ordered so results are reproducible.</p>
+<p><strong>Given</strong> the Dictionary is empty or the feature is
+disabled, <strong>When</strong> the stage runs, <strong>Then</strong> it
+returns its input unchanged (AD-2).</p>
+<p><strong>Verification:</strong> - Unit: exact match; near-match at,
+above, and below threshold; the no-substring-match guard;
+whitespace/punctuation preservation; overlapping-entry determinism;
+empty-dictionary identity. - Manual: add a term you know is
+mis-transcribed, dictate a sentence containing it, confirm
+correction.</p>
+<h3 id="story-5.3-dictionary-settings-ui-and-persistence">Story 5.3:
+Dictionary settings UI and persistence</h3>
+<p>As a user, I want to curate my Dictionary in settings, So that
+maintaining it is not a file-editing exercise.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> a vocabulary settings tab is added,
+<strong>When</strong> I use it, <strong>Then</strong> I can create,
+edit, and delete Dictionary Entries, each with a canonical form and one
+or more trigger variants.</p>
+<p><strong>Given</strong> entries are persisted via
+<code>JSONFileStore</code> (AD-10), <strong>When</strong> I restart the
+app, <strong>Then</strong> my entries are intact.</p>
+<p><strong>Given</strong> the existing Vocabulary
+(<code>promptTokens</code>, <code>&quot;Glossary: &quot;</code>) is a different
+mechanism operating before transcription, <strong>When</strong> I manage
+Dictionary Entries, <strong>Then</strong> the Dictionary is clearly
+distinct from it in the UI, <strong>And</strong> the existing Vocabulary
+is <strong>not modified</strong> (NFR-5).</p>
+<p><strong>Given</strong> portability matters, <strong>When</strong> I
+export, <strong>Then</strong> the Dictionary is written as JSON
+alongside Profiles and Snippets, and imports round-trip.</p>
+<p><strong>Verification:</strong> - Unit: CRUD; persistence round-trip;
+export/import. - Manual: add three entries, restart, confirm
+persistence; confirm the existing Vocabulary field is untouched and
+still biases the decoder.</p>
+<h3 id="story-5.4-snippet-expansion-with-placeholder-protection">Story
+5.4: Snippet expansion with placeholder protection</h3>
+<p>As a user, I want a spoken cue to expand into a fixed block of text,
+So that signatures and boilerplate do not have to be dictated or
+typed.</p>
+<p><strong>Depends on:</strong> Story 5.1, Story 2.1.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> <code>SnippetService</code>,
+<code>SnippetStage</code>, and <code>RehydrateStage</code> exist,
+<strong>When</strong> the pipeline runs, <strong>Then</strong>
+<code>SnippetStage</code> runs <strong>after</strong> the Dictionary
+stage and <strong>before</strong> post-processing, replacing each
+matched Cue with an opaque placeholder (<code>⟦S0⟧</code>,
+<code>⟦S1⟧</code>, …) and recording the mapping on the context (AD-3),
+<strong>And</strong> <code>RehydrateStage</code> runs
+<strong>after</strong> post-processing, substituting the real
+bodies.</p>
+<p><strong>Given</strong> the LLM must not rewrite snippet bodies,
+<strong>When</strong> post-processing runs, <strong>Then</strong> it
+sees only placeholders, never the body text.</p>
+<p><strong>Given</strong> the LLM drops or alters a placeholder,
+<strong>When</strong> rehydration validates, <strong>Then</strong> the
+entire post-processing result is rejected and the pre-LLM text is used,
+<strong>And</strong> the snippet body is still correctly
+substituted.</p>
+<p><strong>Given</strong> a Cue is matched, <strong>When</strong>
+substitution occurs, <strong>Then</strong> matching is case-insensitive
+and uses <code>HebrewNormalizer</code>, so a Cue matches despite niqqud
+or spelling variance, <strong>And</strong> multi-line bodies are
+preserved verbatim, <strong>And</strong> multiple distinct Cues in one
+transcript all expand.</p>
+<p><strong>Given</strong> post-processing is disabled,
+<strong>When</strong> I speak a Cue, <strong>Then</strong> the Snippet
+still expands — Snippets do not require the LLM.</p>
+<p><strong>Verification:</strong> - Unit: single cue; multiple cues;
+multi-line body preservation; normalization-tolerant matching; the
+dropped-placeholder rejection path; expansion with post-processing off.
+- Manual: define a signature snippet, dictate its cue with
+post-processing on, confirm the body is verbatim and unmangled.</p>
+<h3 id="story-5.5-snippets-settings-ui">Story 5.5: Snippets settings
+UI</h3>
+<p>As a user, I want to manage cue-to-text mappings in settings, So that
+I can add and adjust boilerplate easily.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> the vocabulary settings tab hosts Snippets,
+<strong>When</strong> I use it, <strong>Then</strong> I can create,
+edit, and delete Snippets with a multi-line body editor.</p>
+<p><strong>Given</strong> Snippets persist via
+<code>JSONFileStore</code> (AD-10), <strong>When</strong> I restart,
+<strong>Then</strong> my Snippets are intact, <strong>And</strong> they
+export as JSON alongside Profiles and the Dictionary.</p>
+<p><strong>Given</strong> cues must be unambiguous,
+<strong>When</strong> I enter a Cue that collides with an existing one,
+<strong>Then</strong> it is rejected with a clear message.</p>
+<p><strong>Verification:</strong> - Unit: CRUD; collision rejection;
+export/import round-trip. - Manual: create a multi-line snippet,
+restart, confirm the body survived line breaks exactly.</p>
+<h3 id="story-5.6-propose-dictionary-entries-from-user-corrections">Story
+5.6: Propose Dictionary Entries from user corrections</h3>
+<p>As a user, I want the app to notice when I fix a word by hand, So
+that my Dictionary builds itself instead of needing curation.</p>
+<p><strong>Depends on:</strong> Story 5.3, Story 3.1.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> correction learning is enabled — <strong>it is
+off by default</strong>, <strong>When</strong> text has been injected,
+<strong>Then</strong> the text field’s content is re-read after a short
+delay and diffed against what was injected.</p>
+<p><strong>Given</strong> a small, localized, word-level difference is
+found, <strong>When</strong> it is evaluated, <strong>Then</strong> it
+is treated as a candidate correction, <strong>And</strong> the candidate
+is <strong>proposed for confirmation, never added silently</strong>.</p>
+<p><strong>Given</strong> I dismiss a candidate, <strong>When</strong>
+the same pair occurs again, <strong>Then</strong> it is not proposed
+again.</p>
+<p><strong>Given</strong> unrelated typing must not generate noise
+(R-6), <strong>When</strong> the diff runs, <strong>Then</strong> it is
+bounded to word-level, single-token edits, <strong>And</strong> large or
+diffuse differences produce no candidate.</p>
+<p><strong>Given</strong> the feature proves noisy in practice,
+<strong>When</strong> it is evaluated, <strong>Then</strong> it remains
+off by default and shipping it loud is not an option (PRD §9.3).</p>
+<p><strong>Verification:</strong> - Unit: candidate detection for a
+single-word edit; rejection of large/diffuse diffs; dismissal
+persistence; the disabled path producing nothing. - Manual: dictate a
+sentence, immediately retype one word correctly, confirm exactly one
+sensible candidate is proposed. - Manual: dictate, then type a full new
+paragraph; confirm <strong>no</strong> candidates are proposed. If this
+produces noise, record it and leave the feature off.</p>
+<hr />
+<h2 id="epic-6-command-mode">Epic 6: Command Mode</h2>
+<p>Act on selected text by voice instead of inserting new text. The one
+flow that deliberately inverts the fallback rule, because pasting a
+spoken instruction over a user’s selection would be destructive. Covers
+FR-21, FR-22.</p>
+<h3 id="story-6.1-add-a-second-hotkey-binding">Story 6.1: Add a second
+hotkey binding</h3>
+<p>As a user, I want a separate hotkey for commanding, So that dictating
+and rewriting are distinct gestures.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> <code>HotKeyManager</code> currently drives
+one binding through a 643-line dual state machine (R-5),
+<strong>When</strong> a second binding is added, <strong>Then</strong>
+it shares the <strong>existing</strong> <code>CGEventTap</code> — no
+second tap is created, <strong>And</strong> it is exposed through
+dedicated callbacks rather than by generalizing the existing state
+machine.</p>
+<p><strong>Given</strong> the second binding is configured,
+<strong>When</strong> I use it, <strong>Then</strong> it honors the same
+push-to-talk and double-tap conventions as the existing hotkey,
+<strong>And</strong> it is separately configurable in settings.</p>
+<p><strong>Given</strong> two bindings could collide,
+<strong>When</strong> I try to assign the same key to both,
+<strong>Then</strong> the UI rejects it with a clear message,
+<strong>And</strong> the shipped default for Command Mode does not
+conflict with the Dictation Mode default.</p>
+<p><strong>Given</strong> the input path is the app’s most load-bearing
+(R-5), <strong>When</strong> this story lands, <strong>Then</strong>
+existing <code>HotKeyManagerConfigurationTests</code> and
+<code>HotKeyManagerResetStateTests</code> still pass,
+<strong>And</strong> new tests using the <code>_handleTestEvent</code>
+escape hatch (<code>HotKeyManager.swift:458</code>) cover both bindings,
+including interleaved and stuck-key cases.</p>
+<p><strong>Verification:</strong> - Unit: both bindings fire their own
+callbacks; interleaved presses; stuck-key recovery on each; collision
+rejection. - Manual: configure both hotkeys, exercise dictation
+repeatedly, confirm zero regression in the existing flow. This is the
+highest-regression-risk story in the plan — smoke it hard.</p>
+<h3 id="story-6.2-read-and-replace-the-selection-via-accessibility">Story
+6.2: Read and replace the selection via Accessibility</h3>
+<p>As a developer, I want reliable selection read and write, So that
+Command Mode can operate on what the user actually highlighted.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> <code>TextInjector</code> gains selection
+support, <strong>When</strong> <code>readSelection()</code> is called,
+<strong>Then</strong> the current selection is read via
+<code>kAXSelectedTextAttribute</code>, <strong>And</strong> nil is
+returned when there is no selection or no accessible focused
+element.</p>
+<p><strong>Given</strong> a rewrite must be written back,
+<strong>When</strong> <code>replaceSelection(_:)</code> is called,
+<strong>Then</strong> the selection is replaced in the target
+application, <strong>And</strong> failure to write is reported to the
+caller rather than silently swallowed.</p>
+<p><strong>Given</strong> <code>TextInjector</code> is load-bearing and
+must not regress (Inherited Invariants), <strong>When</strong> this
+story lands, <strong>Then</strong> the existing
+<code>inject(text:preserveClipboard:)</code> path, its role gate, its
+pasteboard snapshot/restore, and its changeCount guard are
+<strong>unchanged</strong>, <strong>And</strong> existing
+<code>TextInjectorTests</code> still pass.</p>
+<p><strong>Verification:</strong> - Unit: selection read returns nil
+without a focused element; write-failure reporting; existing injection
+tests unaffected. - Manual: select text in TextEdit, confirm read and
+replace work; repeat in a non-AX-writable target and confirm the failure
+is reported.</p>
+<h3 id="story-6.3-rewrite-the-selection-by-voice">Story 6.3: Rewrite the
+selection by voice</h3>
+<p>As a user, I want to select text, speak an instruction, and have the
+text rewritten, So that editing is as fast as dictating.</p>
+<p><strong>Depends on:</strong> Story 6.1, Story 6.2, Story 2.2.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> <code>CommandModeCoordinator</code>
+orchestrates the flow, <strong>When</strong> I press the Command Mode
+hotkey and speak an instruction, <strong>Then</strong> the selection is
+read, the utterance is transcribed, both are sent to
+<code>PostProcessService</code> in command mode, and the response
+replaces the selection.</p>
+<p><strong>Given</strong> the instruction is an instruction and not
+content, <strong>When</strong> the flow completes, <strong>Then</strong>
+the instruction text is <strong>never</strong> injected into the
+document.</p>
+<p><strong>Given</strong> Command Mode does not use the pipeline and
+does not fall back (AD-4), <strong>When</strong> any precondition fails
+— no selection, LLM unreachable, timeout, or an unwritable target,
+<strong>Then</strong> the operation <strong>aborts and changes
+nothing</strong>, <strong>And</strong> the existing error sound plays,
+<strong>And</strong> the selection is left exactly as it was.</p>
+<p><strong>Given</strong> a Command Mode operation completes,
+<strong>When</strong> the History Record is written,
+<strong>Then</strong> it is distinguishable from a Dictation Mode record
+by its mode field.</p>
+<p><strong>Verification:</strong> - Unit: the happy path with mocks;
+each abort precondition asserting <strong>no</strong> write occurred;
+the mode field on the record. - Manual: select a clumsy Hebrew
+paragraph, say “make this shorter and more formal”, confirm in-place
+rewrite. - Manual: with <strong>no</strong> selection, press the hotkey
+and speak — confirm the error sound and that nothing anywhere was
+modified. - Manual: stop LM Studio, select text, run a command — confirm
+the selection is untouched.</p>
+<hr />
+<h2 id="epic-7-responsive-capture">Epic 7: Responsive Capture</h2>
+<p>Stop cutting people off mid-sentence, transcribe long recordings
+faster, and show progress while speaking. Independent of Epics 2-6 and
+safely pullable forward. Covers FR-23, FR-24, FR-25.</p>
+<h3 id="story-7.1-replace-the-rms-threshold-with-voice-activity-detection">Story
+7.1: Replace the RMS threshold with voice activity detection</h3>
+<p>As a user who pauses mid-sentence and sometimes speaks quietly, I
+want the app to know the difference between silence and thinking, So
+that it stops cutting me off.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> a <code>VoiceActivityDetecting</code> protocol
+is added with a WhisperKit <code>EnergyVAD</code>-backed implementation
+and an <code>RMSThresholdDetector</code> preserving today’s behavior,
+<strong>When</strong> <code>AudioEngine</code> evaluates the stop
+condition, <strong>Then</strong> only the threshold comparison at
+<code>AudioEngine.swift:486-495</code> delegates to the detector.</p>
+<p><strong>Given</strong> the audio-level indicator must not regress
+(AD-12), <strong>When</strong> this story lands, <strong>Then</strong>
+<code>calculateRMSEnergy</code> (<code>:546</code>) and the ~15 Hz
+<code>onAudioLevel</code> path (<code>:457-461</code>) are
+<strong>retained unchanged</strong>, <strong>And</strong> the cursor
+overlay animation is visually identical.</p>
+<p><strong>Given</strong> I speak quietly or whisper,
+<strong>When</strong> VAD evaluates, <strong>Then</strong> it is
+classified as speech and does not trigger auto-stop.</p>
+<p><strong>Given</strong> I pause naturally mid-sentence,
+<strong>When</strong> VAD evaluates at the default setting,
+<strong>Then</strong> auto-stop is not triggered.</p>
+<p><strong>Given</strong> VAD may regress on real speech (R-1 class
+risk), <strong>When</strong> I open settings, <strong>Then</strong>
+sensitivity and silence duration are configurable, <strong>And</strong>
+<code>RMSThresholdDetector</code> remains selectable as a fallback.</p>
+<p><strong>Given</strong> the detector runs on the
+<code>AVAudioEngine</code> tap thread (AD-8 threading rules),
+<strong>When</strong> it executes, <strong>Then</strong> it holds no UI
+state, takes no contended locks, and is allocation-free in steady
+state.</p>
+<p><strong>Verification:</strong> - Unit: detector classification over
+synthetic buffers — speech, silence, low-amplitude speech; the RMS
+detector reproduces today’s threshold behavior exactly. - Manual:
+dictate a 60-second Hebrew passage with deliberate pauses; confirm no
+premature stop. Repeat whispering. - Manual: switch to the RMS detector
+and confirm the old behavior returns. - Manual: watch the cursor overlay
+throughout; confirm the level animation is unchanged.</p>
+<h3 id="story-7.2-parallelize-long-recordings-with-vad-chunking">Story
+7.2: Parallelize long recordings with VAD chunking</h3>
+<p>As a user dictating long passages, I want long recordings transcribed
+faster, So that a two-minute dictation does not feel like a two-minute
+wait.</p>
+<p><strong>Depends on:</strong> Story 7.1.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> <code>DecodingOptions.chunkingStrategy</code>
+is currently <code>nil</code> (<code>WhisperService.swift:178</code>),
+<strong>When</strong> it is set to <code>.vad</code>,
+<strong>Then</strong> long recordings are chunked on speech boundaries
+and transcribed concurrently.</p>
+<p><strong>Given</strong> a recording substantially longer than
+Whisper’s 30-second window, <strong>When</strong> it is transcribed,
+<strong>Then</strong> it completes measurably faster than with
+sequential chunking, <strong>And</strong> accuracy is equal or
+better.</p>
+<p><strong>Given</strong> short recordings are the common case,
+<strong>When</strong> they are transcribed, <strong>Then</strong> there
+is <strong>no regression</strong> in latency or accuracy.</p>
+<p><strong>Given</strong> memory headroom is a live concern (NFR-3,
+R-7), <strong>When</strong> parallel chunks are processed,
+<strong>Then</strong> peak memory remains within a safe margin on 24 GB
+with the ivrit.ai model loaded.</p>
+<p><strong>Verification:</strong> - Unit: <code>DecodingOptions</code>
+construction asserts the chunking strategy (note:
+<code>WhisperServiceTests</code> currently tests only pure static
+helpers — this may need the first test that inspects options
+construction). - Manual: time a 90-second Hebrew dictation before and
+after; record both numbers using Story 1.3’s instrumentation. - Manual:
+time ten short dictations before and after; confirm no regression. -
+Manual: monitor peak memory during a long parallel transcription.</p>
+<h3 id="story-7.3-streaming-partial-results-spike-then-implement-or-cut">Story
+7.3: Streaming partial results — spike, then implement or cut</h3>
+<p>As a user, I want to see transcription progress while I speak, So
+that long dictations do not feel like dead air.</p>
+<p><strong>Depends on:</strong> Story 7.1.</p>
+<p><strong>Acceptance Criteria — spike phase (do this
+first):</strong></p>
+<p><strong>Given</strong> <code>AudioStreamTranscriber</code> may own
+its own audio capture and conflict with <code>AudioEngine</code>’s
+installed tap (R-1), <strong>When</strong> the spike is performed,
+<strong>Then</strong> the conflict is definitively characterized,
+<strong>And</strong> if resolving it requires re-architecting capture,
+<strong>the feature is cut</strong> and this story closes with the
+finding recorded — its value is perceptual and explicitly the lowest
+priority in the plan.</p>
+<p><strong>Acceptance Criteria — implementation phase (only if the spike
+clears):</strong></p>
+<p><strong>Given</strong> streaming is enabled — <strong>it is off by
+default</strong>, <strong>When</strong> I dictate, <strong>Then</strong>
+partial hypotheses appear in the cursor overlay or menu bar.</p>
+<p><strong>Given</strong> partial hypotheses revise themselves (SM-C3),
+<strong>When</strong> any partial text exists, <strong>Then</strong> it
+is <strong>never</strong> injected into the target application,
+<strong>And</strong> only the final result passes through the pipeline
+to <code>TextInjector</code>, <strong>And</strong> a test asserts that
+no partial text ever reaches the injector.</p>
+<p><strong>Given</strong> streaming must not change results,
+<strong>When</strong> the same audio is transcribed with streaming on
+and off, <strong>Then</strong> the final text is identical,
+<strong>And</strong> end-to-end latency does not increase and accuracy
+does not degrade.</p>
+<p><strong>Given</strong> streaming is off, <strong>When</strong> I
+dictate, <strong>Then</strong> the pipeline behaves exactly as before
+this story (AD-2).</p>
+<p><strong>Given</strong> memory is constrained (NFR-3),
+<strong>When</strong> streaming runs, <strong>Then</strong> peak memory
+does not threaten the working set of the largest supported model on 24
+GB.</p>
+<p><strong>Given</strong> <code>WhisperService.transcriptionLock</code>
+(<code>:48</code>) is declared and never used, with a comment describing
+unimplemented concurrency protection, <strong>When</strong> this story
+touches <code>WhisperService</code>, <strong>Then</strong> the lock is
+either genuinely used or deleted — the misleading comment does not
+survive.</p>
+<p><strong>Verification:</strong> - Spike: document the
+capture-ownership finding before writing feature code. If it is a
+conflict, stop and close the story. - Unit:
+no-partial-text-reaches-injector assertion; the streaming-off identity
+path. - Manual: dictate a 60-second passage with streaming on; confirm
+partials appear and only the final text is injected. - Manual:
+transcribe identical audio with streaming on and off; compare final text
+and timings.</p>
+<footer class="doc-footer"><span>Epic Breakdown — local-whisper</span><span>BMAD planning artifact &middot; local-whisper</span><span>Companion to <code>epics.md</code> &mdash; the .md is the source of truth</span></footer>
+</div>
+</body>
+</html>

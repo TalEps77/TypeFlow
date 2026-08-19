@@ -15,6 +15,7 @@ enum ModelManagerError: LocalizedError {
     case deviceNotSupported(model: String)
     case missingModelDirectory(String)
     case tokenizerAssetsUnavailable(String)
+    case sideloadDeletionUnsupported(String)
 
     var errorDescription: String? {
         switch self {
@@ -28,6 +29,8 @@ enum ModelManagerError: LocalizedError {
             return "Model files are missing at: \(path)"
         case .tokenizerAssetsUnavailable(let model):
             return "Tokenizer assets are missing for model '\(model)'."
+        case .sideloadDeletionUnsupported(let model):
+            return "'\(model)' is side-loaded and has no download path — delete its files manually instead."
         }
     }
 }
@@ -44,6 +47,16 @@ final class ModelManager {
     private let requiredTokenizerFiles = ["tokenizer.json", "tokenizer_config.json"]
 
     private var fileManager: FileManager { .default }
+
+    /// Overrides `downloadBase` when set. Lets tests exercise model-discovery
+    /// logic (isModelDownloaded/isModelSupported) against a scratch directory
+    /// instead of the real Application Support path, so results don't depend
+    /// on what happens to be installed on the machine running the tests.
+    private let storageBaseOverride: URL?
+
+    init(storageBaseOverride: URL? = nil) {
+        self.storageBaseOverride = storageBaseOverride
+    }
 
     private var bundledModelsBase: URL? {
         Bundle.main.resourceURL?.appendingPathComponent(bundledModelsDirectory, isDirectory: true)
@@ -209,6 +222,9 @@ final class ModelManager {
     /// Local base directory passed to WhisperKit's downloadBase config.
     /// WhisperKit creates its own subdirectory structure under this path.
     private var downloadBase: URL {
+        if let storageBaseOverride {
+            return storageBaseOverride
+        }
         let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -280,7 +296,15 @@ final class ModelManager {
     /// Check if a model is downloaded locally
     func isModelDownloaded(_ size: ModelSize) -> Bool {
         guard let modelDir = modelFolder(for: size) else { return false }
-        return hasRequiredModelAssets(at: modelDir)
+        guard hasRequiredModelAssets(at: modelDir) else { return false }
+        // Sideload-only models never go through consolidateWhisperKitDownload,
+        // which repairs missing tokenizer assets for downloaded models. Without
+        // this check, a copy that only has the .mlmodelc directories reports as
+        // "installed" and fails at load time instead.
+        if size.isSideloadOnly {
+            return hasRequiredTokenizerAssets(at: modelDir)
+        }
+        return true
     }
 
     /// Get the local folder path for a downloaded or installed model
@@ -491,6 +515,15 @@ final class ModelManager {
     /// Delete a downloaded model's local files
     func deleteModel(_ size: ModelSize) throws {
         let modelName = whisperKitModelName(for: size)
+
+        // Sideload-only models (e.g. ivrit.ai) have no download path in the
+        // app — once deleted, a user could never get them back through the
+        // UI. There are no call sites today, but guard the invariant so one
+        // never gets wired up by accident.
+        guard !size.isSideloadOnly else {
+            throw ModelManagerError.sideloadDeletionUnsupported(modelName)
+        }
+
         let modelDir = modelStorageBase.appendingPathComponent(modelName)
 
         if FileManager.default.fileExists(atPath: modelDir.path) {

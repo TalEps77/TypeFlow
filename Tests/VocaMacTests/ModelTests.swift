@@ -258,11 +258,39 @@ final class ModelManagerTests: XCTestCase {
     /// `isModelSupported` must track on-disk presence rather than
     /// WhisperKit's recommendation, in every environment regardless of
     /// whether the real model happens to be installed on the test machine.
-    func testIsModelSupportedBypassesRecommendationForSideloadedModel() {
-        let manager = ModelManager()
-        XCTAssertEqual(
+    ///
+    /// Exercised against a scratch storage directory (via `storageBaseOverride`)
+    /// rather than the real Application Support path: both sides of a plain
+    /// `isModelSupported == isModelDownloaded` comparison would hit the same
+    /// real (absent) directory on any machine without the model, passing
+    /// vacuously even if the bypass itself were deleted. Pinning both the
+    /// "absent" and "present" states here catches that regression.
+    func testIsModelSupportedBypassesRecommendationForSideloadedModel() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manager = ModelManager(storageBaseOverride: root)
+
+        XCTAssertFalse(manager.isModelDownloaded(.ivritAiWhisperLargeV3Turbo))
+        XCTAssertFalse(
             manager.isModelSupported(.ivritAiWhisperLargeV3Turbo),
-            manager.isModelDownloaded(.ivritAiWhisperLargeV3Turbo),
+            "Absent sideload model must not be reported as supported"
+        )
+
+        let modelDir = root
+            .appendingPathComponent("models", isDirectory: true)
+            .appendingPathComponent("argmaxinc/whisperkit-coreml", isDirectory: true)
+            .appendingPathComponent(manager.whisperKitModelName(for: .ivritAiWhisperLargeV3Turbo), isDirectory: true)
+        for component in ["MelSpectrogram.mlmodelc", "AudioEncoder.mlmodelc", "TextDecoder.mlmodelc"] {
+            try writeComponentFixture(at: modelDir.appendingPathComponent(component, isDirectory: true), complete: true)
+        }
+        for tokenizerFile in ["tokenizer.json", "tokenizer_config.json"] {
+            try Data("{}".utf8).write(to: modelDir.appendingPathComponent(tokenizerFile))
+        }
+
+        XCTAssertTrue(manager.isModelDownloaded(.ivritAiWhisperLargeV3Turbo))
+        XCTAssertTrue(
+            manager.isModelSupported(.ivritAiWhisperLargeV3Turbo),
             "isModelSupported for the sideload-only entry must mirror on-disk presence, not WhisperKit's recommendation"
         )
     }

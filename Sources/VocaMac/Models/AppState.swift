@@ -331,8 +331,10 @@ final class AppState: ObservableObject {
             } ?? false
 
             if !isRecommendedSupported {
-                // Fall back to the largest supported model
-                if let bestSupported = availableModels.last(where: { $0.isSupported }) {
+                // Fall back to the largest supported model. Exclude sideload-only
+                // models: they're never a device recommendation, just a manual
+                // install, so they shouldn't be surfaced as "recommended".
+                if let bestSupported = availableModels.last(where: { $0.isSupported && !$0.size.isSideloadOnly }) {
                     deviceRecommendedModel = modelManager.whisperKitModelName(for: bestSupported.size)
                 } else {
                     // No models are supported — clear the recommendation
@@ -474,7 +476,7 @@ final class AppState: ObservableObject {
             return preferred
         }
 
-        if let downloadedSupported = availableModels.last(where: { $0.isSupported && $0.isDownloaded })?.size {
+        if let downloadedSupported = availableModels.last(where: { $0.isSupported && $0.isDownloaded && !$0.size.isSideloadOnly })?.size {
             return downloadedSupported
         }
 
@@ -992,7 +994,9 @@ final class AppState: ObservableObject {
         let preferredModel = ModelSize(rawValue: selectedModelSize) ?? .tiny
         var modelToLoad = startupFallbackModel(for: preferredModel)
         if modelToLoad != preferredModel {
-            VocaLogger.warning(.appState, "Preferred model \(preferredModel.displayName) is not supported on this device — falling back to \(modelToLoad.displayName)")
+            let fallbackMessage = "\(preferredModel.displayName) is no longer available — using \(modelToLoad.displayName) instead"
+            VocaLogger.warning(.appState, fallbackMessage)
+            showTemporaryError(fallbackMessage)
             selectedModelSize = modelToLoad.rawValue
             rebuildAvailableModels()
         }

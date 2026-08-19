@@ -547,13 +547,15 @@ struct ModelRow: View {
             }
 
             // Action button
-            if model.isActive {
+            if model.size.isSideloadOnly && !model.isDownloaded {
+                // Side-loaded model with no files on disk: no download to offer.
+                // Checked ahead of isActive so a row never shows both "Active"
+                // and "Not Installed" at once (e.g. files removed while selected).
+                EmptyView()
+            } else if model.isActive {
                 Label("Active", systemImage: "checkmark")
                     .font(.caption)
                     .foregroundStyle(.green)
-            } else if model.size.isSideloadOnly && !model.isDownloaded {
-                // Side-loaded model with no files on disk: no download to offer.
-                EmptyView()
             } else if !model.isSupported {
                 if model.isLoading || model.downloadProgress != nil {
                     EmptyView()

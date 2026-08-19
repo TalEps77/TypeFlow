@@ -333,7 +333,7 @@ final class MockModelManager: ModelManaging {
     }
 
     func expectedModelDirectory(for size: ModelSize) -> URL {
-        URL(fileURLWithPath: "/mock/path/\(size.rawValue)")
+        URL(fileURLWithPath: "/mock/path/\(whisperKitModelName(for: size))")
     }
 
     func modelSize(from whisperKitName: String) -> ModelSize? {
@@ -487,6 +487,11 @@ extension AppState {
         modelManager: MockModelManager = MockModelManager(),
         whisperService: MockWhisperService = MockWhisperService()
     ) -> (appState: AppState, mocks: TestMocks) {
+        // AppState.hasPerformedStartupGlobally is a process-level static that
+        // performStartup() only ever flips true. Reset it here (rather than
+        // per-test-class setUp) so every test built through makeTestState —
+        // across all test files — gets a fresh startup run.
+        AppState.hasPerformedStartupGlobally = false
         UserDefaults.standard.removeObject(forKey: "vocamac.selectedAudioDeviceID")
         UserDefaults.standard.removeObject(forKey: "vocamac.selectedAudioDeviceName")
 

@@ -445,6 +445,7 @@ struct ModelSelectionStep: View {
 // MARK: - Model Selection Card
 
 struct ModelSelectionCard: View {
+    @EnvironmentObject var appState: AppState
     let modelInfo: WhisperModelInfo
     let isRecommended: Bool
     let onSelect: () -> Void
@@ -538,6 +539,20 @@ struct ModelSelectionCard: View {
                                 .cornerRadius(6)
                         }
                         .buttonStyle(.plain)
+                    }
+                } else if modelInfo.size.isSideloadOnly {
+                    // Side-loaded model with no files on disk: no download to
+                    // offer. Mirrors SettingsView's ModelRow guard.
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Not Installed")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Place model files at: \(appState.modelManager.expectedModelDirectory(for: modelInfo.size).path)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .lineLimit(2)
+                            .truncationMode(.middle)
                     }
                 } else if !modelInfo.isSupported {
                     Button {
