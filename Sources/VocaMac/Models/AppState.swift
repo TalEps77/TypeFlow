@@ -136,6 +136,11 @@ final class AppState: ObservableObject {
     /// operation (AD-2), so there is nothing for a fresh install to notice.
     @AppStorage(DictionarySettings.Key.enabled) var dictionaryEnabled: Bool = DictionarySettings.Default.enabled
 
+    /// Master switch for Snippet expansion (Story 5.4, AD-9). Ships on for
+    /// the same reason as Dictionary: no Snippets defined means the stage
+    /// pair is already an identity operation (AD-2).
+    @AppStorage(SnippetSettings.Key.enabled) var snippetsEnabled: Bool = SnippetSettings.Default.enabled
+
     private var hotKeySafetyTimeout: Double {
         Double(maxRecordingDuration) + 5.0
     }
@@ -167,6 +172,10 @@ final class AppState: ObservableObject {
     /// `profileStore` above, and for the same reason: nothing in AppState's
     /// own business logic mutates it, only the UI does.
     let dictionaryStore: DictionaryStore
+
+    /// Same shape as `dictionaryStore`, behind SnippetStage's Cues
+    /// (Story 5.4) and the Snippets settings UI's CRUD (Story 5.5).
+    let snippetStore: SnippetStore
     let updateChecker = UpdateChecker()
     let permissionManager: any PermissionManaging
 
@@ -260,6 +269,7 @@ final class AppState: ObservableObject {
         profileManager: ProfileResolving,
         profileStore: ProfileStore,
         dictionaryStore: DictionaryStore,
+        snippetStore: SnippetStore,
         permissionManager: (any PermissionManaging)? = nil,
         skipSystemIntegration: Bool = false
     ) {
@@ -273,7 +283,8 @@ final class AppState: ObservableObject {
         self.statsManager = statsManager
         self.historyStore = historyStore
         self.dictionaryStore = dictionaryStore
-        self.transcriptPipeline = transcriptPipeline ?? TranscriptPipeline.production(dictionaryStore: dictionaryStore)
+        self.snippetStore = snippetStore
+        self.transcriptPipeline = transcriptPipeline ?? TranscriptPipeline.production(dictionaryStore: dictionaryStore, snippetStore: snippetStore)
         self.axContextReader = axContextReader
         self.profileManager = profileManager
         self.profileStore = profileStore
@@ -325,6 +336,14 @@ final class AppState: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Forward snippetStore changes so the Snippets settings tab re-renders
+        snippetStore.objectWillChangePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
         if !skipSystemIntegration {
             observeFrontmostApplication()
         }
@@ -364,7 +383,8 @@ final class AppState: ObservableObject {
             axContextReader: AXContextReader(),
             profileManager: ProfileManager(store: profileStore),
             profileStore: profileStore,
-            dictionaryStore: DictionaryStore()
+            dictionaryStore: DictionaryStore(),
+            snippetStore: SnippetStore()
         )
     }()
 

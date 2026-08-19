@@ -179,6 +179,13 @@ protocol TextInjecting: AnyObject {
 // (Story 5.2). Not @MainActor-bound: it is a pure, stateless struct with no
 // UI-observable state (AD-8).
 
+// MARK: - SnippetProviding
+//
+// Declared in Services/SnippetService.swift, alongside its vocabulary.
+// Matches transcript text against Snippet Cues and replaces each with an
+// opaque placeholder (Story 5.4). Not @MainActor-bound, same reason as
+// DictionaryProviding.
+
 // MARK: - TranscriptPipelining
 
 /// The ordered post-ASR transform chain (AD-1). Runs on the main actor because

@@ -603,6 +603,25 @@ final class MockDictionaryService: DictionaryProviding {
     }
 }
 
+// MARK: - MockSnippetService
+
+/// Identity by default (AD-2): a test that never sets `protectResult`
+/// returns the input text unchanged with no protected spans, matching what
+/// an empty/disabled Snippet set does in production.
+final class MockSnippetService: SnippetProviding {
+    var protectResult: SnippetProtectionResult?
+    var protectCallCount = 0
+    var lastText: String?
+    var lastSnippets: [Snippet]?
+
+    func protect(in text: String, using snippets: [Snippet]) -> SnippetProtectionResult {
+        protectCallCount += 1
+        lastText = text
+        lastSnippets = snippets
+        return protectResult ?? SnippetProtectionResult(text: text, protectedSpans: [:])
+    }
+}
+
 // MARK: - MockTranscriptPipeline
 
 /// Identity by default (AD-2): unless a test sets `transform`, it returns its
@@ -688,6 +707,12 @@ extension AppState {
             defaultValue: [],
             directoryURL: FileManager.default.temporaryDirectory
                 .appendingPathComponent("vocamac_test_dictionary_\(UUID().uuidString)", isDirectory: true)
+        )),
+        snippetStore: SnippetStore = SnippetStore(store: JSONFileStore(
+            fileName: "snippets.json",
+            defaultValue: [],
+            directoryURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("vocamac_test_snippets_\(UUID().uuidString)", isDirectory: true)
         ))
     ) -> (appState: AppState, mocks: TestMocks) {
         // AppState.hasPerformedStartupGlobally is a process-level static that
@@ -739,6 +764,7 @@ extension AppState {
             profileManager: profileManager,
             profileStore: profileStore,
             dictionaryStore: dictionaryStore,
+            snippetStore: snippetStore,
             permissionManager: permissionManager,
             skipSystemIntegration: true
         )

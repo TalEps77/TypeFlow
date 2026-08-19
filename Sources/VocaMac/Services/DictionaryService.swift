@@ -14,9 +14,9 @@
 import Foundation
 
 protocol DictionaryProviding {
-    /// Replaces every token in `text` that matches a trigger closely enough,
-    /// leaving everything else — including all surrounding whitespace and
-    /// punctuation — untouched.
+    /// Replaces every `WordTokenizer` token in `text` that matches a trigger
+    /// closely enough, leaving everything else — including all surrounding
+    /// whitespace and punctuation — untouched.
     func replace(in text: String, using entries: [DictionaryEntry]) -> DictionaryReplacementResult
 }
 
@@ -47,7 +47,7 @@ struct DictionaryService: DictionaryProviding, Sendable {
             return DictionaryReplacementResult(text: text, replacementCount: 0)
         }
 
-        let tokens = Self.tokenize(text)
+        let tokens = WordTokenizer.tokenize(text)
         guard !tokens.isEmpty else {
             return DictionaryReplacementResult(text: text, replacementCount: 0)
         }
@@ -72,36 +72,6 @@ struct DictionaryService: DictionaryProviding, Sendable {
         result += text[cursor...]
 
         return DictionaryReplacementResult(text: result, replacementCount: replacementCount)
-    }
-
-    // MARK: - Tokenization
-
-    private struct Token {
-        let text: Substring
-        let range: Range<String.Index>
-    }
-
-    /// Splits `text` into maximal runs of letters/digits, each a candidate
-    /// for whole-word replacement. Everything else (spaces, punctuation) is a
-    /// separator that is never touched and never itself considered for a
-    /// match — this is what keeps a trigger from matching a substring inside
-    /// a longer, unrelated word, and what preserves surrounding whitespace
-    /// and punctuation exactly (Story 5.2 AC).
-    private static func tokenize(_ text: String) -> [Token] {
-        var tokens: [Token] = []
-        var index = text.startIndex
-        while index < text.endIndex {
-            if text[index].isLetter || text[index].isNumber {
-                let start = index
-                while index < text.endIndex, text[index].isLetter || text[index].isNumber {
-                    index = text.index(after: index)
-                }
-                tokens.append(Token(text: text[start..<index], range: start..<index))
-            } else {
-                index = text.index(after: index)
-            }
-        }
-        return tokens
     }
 
     // MARK: - Matching

@@ -42,6 +42,14 @@ struct TranscriptContext {
     /// hide spans from the LLM and restore them afterwards (AD-3).
     var protectedSpans: [String: String]
 
+    /// A snapshot of `currentText` taken right after `SnippetStage` runs, so
+    /// `RehydrateStage` has something to fall back to if post-processing
+    /// drops or alters a placeholder (Story 5.4 AC): every placeholder is
+    /// guaranteed to still be intact here, since it is the text as it stood
+    /// the moment before the LLM ever saw it. `nil` until `SnippetStage` runs
+    /// (which `TranscriptPipeline` — the sole writer of this type — sets).
+    var textBeforePostProcess: String?
+
     /// One entry per stage that ran, in order.
     var reports: [StageReport]
 
@@ -59,6 +67,7 @@ struct TranscriptContext {
         self.cursorContextBefore = cursorContextBefore
         self.cursorContextAfter = cursorContextAfter
         self.protectedSpans = [:]
+        self.textBeforePostProcess = nil
         self.reports = []
     }
 

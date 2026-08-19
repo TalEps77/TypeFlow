@@ -19,16 +19,20 @@ final class TranscriptPipeline: TranscriptPipelining {
     }
 
     /// The pipeline as the shipping app assembles it. Every stage in here is
-    /// inert until its own setting is turned on (or, for Dictionary, until
-    /// entries exist), so this is still an identity pipeline for a user who
-    /// has changed nothing.
+    /// inert until its own setting is turned on (or, for Dictionary/Snippets,
+    /// until entries/Snippets exist), so this is still an identity pipeline
+    /// for a user who has changed nothing.
     ///
-    /// Order is fixed by AD-3: Dictionary runs first so PostProcess's LLM
-    /// reasons over corrected terms rather than raw ASR errors.
-    static func production(dictionaryStore: DictionaryStore) -> TranscriptPipeline {
+    /// Order is fixed by AD-3: Dictionary repairs ASR errors first; Snippet
+    /// protection replaces each matched Cue with an opaque placeholder before
+    /// PostProcess's LLM ever sees the text; Rehydrate substitutes the real
+    /// bodies back in afterwards, regardless of whether PostProcess is on.
+    static func production(dictionaryStore: DictionaryStore, snippetStore: SnippetStore) -> TranscriptPipeline {
         TranscriptPipeline(stages: [
             DictionaryStage(entriesProvider: { dictionaryStore.entries }),
-            PostProcessStage()
+            SnippetStage(snippetsProvider: { snippetStore.snippets }),
+            PostProcessStage(),
+            RehydrateStage()
         ])
     }
 
@@ -49,6 +53,21 @@ final class TranscriptPipeline: TranscriptPipelining {
             if result.outcome.didChangeText,
                !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 context.currentText = result.text
+            }
+
+            // Story 5.4/AD-3: fold in whatever placeholder mapping this stage
+            // produced (only ever non-empty for SnippetStage) so a later
+            // stage — RehydrateStage — can read it back off the context.
+            if !result.protectedSpans.isEmpty {
+                context.protectedSpans.merge(result.protectedSpans) { _, new in new }
+            }
+
+            // Snapshot the text as it stands right after Snippet protection —
+            // guaranteed to still have every placeholder intact — so
+            // RehydrateStage has something safe to fall back to if
+            // PostProcess's LLM drops or alters one (Story 5.4 AC).
+            if stage.name == SnippetStage.stageName {
+                context.textBeforePostProcess = context.currentText
             }
 
             context.reports.append(

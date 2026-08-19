@@ -276,7 +276,13 @@ final class PostProcessStageTests: XCTestCase {
             directoryURL: FileManager.default.temporaryDirectory
                 .appendingPathComponent("vocamac_test_dictionary_\(UUID().uuidString)", isDirectory: true)
         ))
-        let pipeline = TranscriptPipeline.production(dictionaryStore: dictionaryStore)
+        let snippetStore = SnippetStore(store: JSONFileStore(
+            fileName: "snippets.json",
+            defaultValue: [],
+            directoryURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("vocamac_test_snippets_\(UUID().uuidString)", isDirectory: true)
+        ))
+        let pipeline = TranscriptPipeline.production(dictionaryStore: dictionaryStore, snippetStore: snippetStore)
         for input in ["שָׁלוֹם עוֹלָם", "mixed עברית and English", "", "  "] {
             let result = await pipeline.run(TranscriptContext(rawTranscript: input))
             XCTAssertEqual(result.currentText, input)

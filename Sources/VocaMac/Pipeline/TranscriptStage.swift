@@ -48,10 +48,18 @@ struct StageResult: Equatable {
     /// duration means anything to a reader (MAJOR 6).
     let didRun: Bool
 
-    init(text: String, outcome: StageOutcome, didRun: Bool = true) {
+    /// Placeholder token -> original text, for a stage that hides spans from
+    /// the LLM (Story 5.4, AD-3). Empty for every stage except `SnippetStage`.
+    /// `TranscriptPipeline` — the sole writer of `TranscriptContext` — merges
+    /// this into `context.protectedSpans` so a later stage (`RehydrateStage`)
+    /// can read the mapping back off the context it receives.
+    let protectedSpans: [String: String]
+
+    init(text: String, outcome: StageOutcome, didRun: Bool = true, protectedSpans: [String: String] = [:]) {
         self.text = text
         self.outcome = outcome
         self.didRun = didRun
+        self.protectedSpans = protectedSpans
     }
 
     /// Convenience for the overwhelmingly common "leave it alone" answer.

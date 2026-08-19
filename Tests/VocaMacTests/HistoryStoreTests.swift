@@ -412,8 +412,14 @@ final class AppStateHistoryTests: XCTestCase {
             directoryURL: FileManager.default.temporaryDirectory
                 .appendingPathComponent("vocamac_test_dictionary_\(UUID().uuidString)", isDirectory: true)
         ))
+        let snippetStore = SnippetStore(store: JSONFileStore(
+            fileName: "snippets.json",
+            defaultValue: [],
+            directoryURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("vocamac_test_snippets_\(UUID().uuidString)", isDirectory: true)
+        ))
         let (appState, mocks) = AppState.makeTestState(
-            transcriptPipelineOverride: TranscriptPipeline.production(dictionaryStore: dictionaryStore)
+            transcriptPipelineOverride: TranscriptPipeline.production(dictionaryStore: dictionaryStore, snippetStore: snippetStore)
         )
         appState.isRecording = true
         appState.appStatus = .recording
