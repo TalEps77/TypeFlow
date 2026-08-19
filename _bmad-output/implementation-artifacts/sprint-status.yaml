@@ -1,0 +1,84 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 08-19-2026 17:29
+last_updated: 08-19-2026 18:20
+project: local-whisper
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts/stories
+development_status:
+  epic-1: in-progress
+  1-1-register-the-side-loaded-ivrit-ai-hebrew-model: done
+  1-2-handle-an-absent-side-loaded-model-and-restore-hebrew-to-the: backlog
+  1-3-record-per-stage-latency-on-the-history-record: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-transcript-pipeline-scaffolding-with-a-proven-identity-guara: backlog
+  2-2-postprocessservice-llm-client-with-a-hard-deadline-and-trans: backlog
+  2-3-wire-post-processing-into-the-pipeline-behind-a-master-toggl: backlog
+  2-4-post-processing-settings-tab: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-persist-every-dictation-via-a-shared-json-file-store: backlog
+  3-2-browse-search-and-clear-history: backlog
+  3-3-re-paste-a-previous-transcription: backlog
+  3-4-undo-the-last-injection: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-capture-the-frontmost-application-at-recording-start: backlog
+  4-2-resolve-a-profile-from-the-bundle-identifier: backlog
+  4-3-profiles-settings-tab-with-starter-profiles-and-json-export: backlog
+  4-4-supply-cursor-context-to-the-llm-off-by-default: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-hebrew-normalization: backlog
+  5-2-post-asr-dictionary-replacement: backlog
+  5-3-dictionary-settings-ui-and-persistence: backlog
+  5-4-snippet-expansion-with-placeholder-protection: backlog
+  5-5-snippets-settings-ui: backlog
+  5-6-propose-dictionary-entries-from-user-corrections: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-add-a-second-hotkey-binding: backlog
+  6-2-read-and-replace-the-selection-via-accessibility: backlog
+  6-3-rewrite-the-selection-by-voice: backlog
+  epic-6-retrospective: optional
+
+  epic-7: backlog
+  7-1-replace-the-rms-threshold-with-voice-activity-detection: backlog
+  7-2-parallelize-long-recordings-with-vad-chunking: backlog
+  7-3-streaming-partial-results-spike-then-implement-or-cut: backlog
+  epic-7-retrospective: optional

@@ -42,11 +42,6 @@ final class ModelManager {
     private let modelRepo = "argmaxinc/whisperkit-coreml"
     private let bundledModelsDirectory = "BundledModels/whisperkit-coreml"
     private let requiredTokenizerFiles = ["tokenizer.json", "tokenizer_config.json"]
-    private let requiredModelDirectories = [
-        "MelSpectrogram.mlmodelc",
-        "AudioEncoder.mlmodelc",
-        "TextDecoder.mlmodelc"
-    ]
 
     private var fileManager: FileManager { .default }
 
@@ -59,8 +54,22 @@ final class ModelManager {
     }
 
     private func hasRequiredModelAssets(at directory: URL) -> Bool {
-        requiredModelDirectories.allSatisfy { componentName in
-            Self.hasUsableCoreMLComponent(at: directory.appendingPathComponent(componentName, isDirectory: true))
+        Self.hasCompleteModelAssets(at: directory, fileManager: fileManager)
+    }
+
+    /// Whether all required CoreML components are present at a given directory.
+    /// Exposed as `static` (mirroring `hasUsableCoreMLComponent`) so the
+    /// on-disk support bypass (AD-11) can be unit-tested against a temporary
+    /// directory in all three states — complete, partial, absent — without
+    /// touching the real Application Support path.
+    static func hasCompleteModelAssets(at directory: URL, fileManager: FileManager = .default) -> Bool {
+        let requiredModelDirectories = [
+            "MelSpectrogram.mlmodelc",
+            "AudioEncoder.mlmodelc",
+            "TextDecoder.mlmodelc"
+        ]
+        return requiredModelDirectories.allSatisfy { componentName in
+            hasUsableCoreMLComponent(at: directory.appendingPathComponent(componentName, isDirectory: true), fileManager: fileManager)
         }
     }
 
@@ -256,7 +265,16 @@ final class ModelManager {
             return "openai_whisper-large-v3_turbo"
         case .medium:
             return "openai_whisper-medium"
+        case .ivritAiWhisperLargeV3Turbo:
+            return "ivrit-ai_whisper-large-v3-turbo"
         }
+    }
+
+    /// The directory where a model's files are expected on disk, whether or
+    /// not they are actually present. Used to show the side-loaded ivrit.ai
+    /// entry's expected install path when its files are absent (Story 1.2, AD-11).
+    func expectedModelDirectory(for size: ModelSize) -> URL {
+        installedModelDirectory(for: size)
     }
 
     /// Check if a model is downloaded locally
@@ -283,6 +301,13 @@ final class ModelManager {
     ///
     /// Uses exact model matching so distinct WhisperKit variants remain distinct.
     func isModelSupported(_ size: ModelSize) -> Bool {
+        // WhisperKit's recommendation engine will never endorse a side-loaded
+        // custom model, so support is instead determined by on-disk presence
+        // (AD-11).
+        if size.isSideloadOnly {
+            return isModelDownloaded(size)
+        }
+
         let rec = WhisperKit.recommendedModels()
         let modelName = whisperKitModelName(for: size)
 

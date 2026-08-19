@@ -749,6 +749,10 @@ final class AppState: ObservableObject {
                 let loadedName = (whisperService.loadedModelName ?? "").lowercased()
                 if let loadedSize = modelManager.modelSize(from: whisperService.loadedModelName ?? "") {
                     resolvedSize = loadedSize
+                } else if loadedName.contains("ivrit") {
+                    // Checked before the generic "large"+"turbo" branches below,
+                    // since the ivrit.ai folder name also contains both words.
+                    resolvedSize = .ivritAiWhisperLargeV3Turbo
                 } else if loadedName.contains("v20240930_turbo") {
                     resolvedSize = .largeV3LatestTurbo
                 } else if loadedName.contains("v20240930") {

@@ -19,6 +19,27 @@ final class WhisperServiceTranslationTests: XCTestCase {
     }
 }
 
+// MARK: - WhisperService modelSizeFromName Tests
+
+final class WhisperServiceModelSizeFromNameTests: XCTestCase {
+
+    /// Regression test for the ivrit.ai folder name: it contains both "large"
+    /// and "turbo", which would otherwise fall through to the generic
+    /// `.largeV3Turbo` branch if the ivrit-specific check weren't ordered
+    /// first (architecture.md R-4 / Story 1.1 AC).
+    func testIvritFolderNameRoundTrips() {
+        let service = WhisperService()
+        XCTAssertEqual(service.modelSizeFromName("ivrit-ai_whisper-large-v3-turbo"), .ivritAiWhisperLargeV3Turbo)
+        XCTAssertEqual(service.modelSizeFromName("IVRIT-AI_WHISPER-LARGE-V3-TURBO"), .ivritAiWhisperLargeV3Turbo)
+    }
+
+    func testExistingLargeTurboVariantsAreUnaffected() {
+        let service = WhisperService()
+        XCTAssertEqual(service.modelSizeFromName("openai_whisper-large-v3_turbo"), .largeV3Turbo)
+        XCTAssertEqual(service.modelSizeFromName("openai_whisper-large-v3-v20240930_turbo"), .largeV3LatestTurbo)
+    }
+}
+
 
 // MARK: - WhisperService Hallucination Filtering Tests
 

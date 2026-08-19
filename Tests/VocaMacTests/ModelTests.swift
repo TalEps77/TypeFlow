@@ -96,7 +96,7 @@ final class ModelSizeTests: XCTestCase {
     }
 
     func testAllCasesCount() {
-        XCTAssertEqual(ModelSize.allCases.count, 12)
+        XCTAssertEqual(ModelSize.allCases.count, 13)
     }
 
     func testRawValues() {
@@ -118,6 +118,27 @@ final class ModelSizeTests: XCTestCase {
         XCTAssertFalse(ModelSize.standardCatalog.contains(.medium))
         XCTAssertTrue(ModelSize.medium.isLegacy)
     }
+
+    // MARK: - ivrit.ai side-loaded model (Story 1.1 / AD-11)
+
+    func testIvritModelRawValueMatchesOnDiskFolderName() {
+        XCTAssertEqual(ModelSize.ivritAiWhisperLargeV3Turbo.rawValue, "ivrit-ai_whisper-large-v3-turbo")
+    }
+
+    func testIvritModelIsInStandardCatalog() {
+        XCTAssertTrue(ModelSize.standardCatalog.contains(.ivritAiWhisperLargeV3Turbo),
+                      "The ivrit.ai entry must always surface in AppState.modelCatalog(), per AD-11")
+    }
+
+    func testIvritModelIsSideloadOnly() {
+        XCTAssertTrue(ModelSize.ivritAiWhisperLargeV3Turbo.isSideloadOnly)
+    }
+
+    func testOnlyIvritModelIsSideloadOnly() {
+        for size in ModelSize.allCases where size != .ivritAiWhisperLargeV3Turbo {
+            XCTAssertFalse(size.isSideloadOnly, "\(size.rawValue) should not be marked side-load-only")
+        }
+    }
 }
 
 // MARK: - ModelManager Tests
@@ -138,6 +159,7 @@ final class ModelManagerTests: XCTestCase {
         XCTAssertEqual(manager.whisperKitModelName(for: .largeV3), "openai_whisper-large-v3")
         XCTAssertEqual(manager.whisperKitModelName(for: .largeV3Turbo), "openai_whisper-large-v3_turbo")
         XCTAssertEqual(manager.whisperKitModelName(for: .medium), "openai_whisper-medium")
+        XCTAssertEqual(manager.whisperKitModelName(for: .ivritAiWhisperLargeV3Turbo), "ivrit-ai_whisper-large-v3-turbo")
     }
 
     func testModelSizeFromWhisperKitNameUsesExactVariant() {
@@ -184,6 +206,71 @@ final class ModelManagerTests: XCTestCase {
     func testTotalDiskUsageNonNegative() {
         let manager = ModelManager()
         XCTAssertGreaterThanOrEqual(manager.totalDiskUsage(), 0)
+    }
+
+    // MARK: - AD-11: on-disk support bypass for the side-loaded ivrit.ai model
+
+    /// Writes a fake CoreML component directory: metadata.json + model.mil,
+    /// and weights/weight.bin only when `complete` is true. Mirrors the
+    /// fixture shape used by `testUsableCoreMLComponentRequiresWeights`.
+    private func writeComponentFixture(at directory: URL, complete: Bool) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: directory.appendingPathComponent("metadata.json"))
+        try Data("mil".utf8).write(to: directory.appendingPathComponent("model.mil"))
+        guard complete else { return }
+        let weights = directory.appendingPathComponent("weights", isDirectory: true)
+        try FileManager.default.createDirectory(at: weights, withIntermediateDirectories: true)
+        try Data("weights".utf8).write(to: weights.appendingPathComponent("weight.bin"))
+    }
+
+    func testHasCompleteModelAssetsForCompleteDirectory() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try writeComponentFixture(at: root.appendingPathComponent("MelSpectrogram.mlmodelc", isDirectory: true), complete: true)
+        try writeComponentFixture(at: root.appendingPathComponent("AudioEncoder.mlmodelc", isDirectory: true), complete: true)
+        try writeComponentFixture(at: root.appendingPathComponent("TextDecoder.mlmodelc", isDirectory: true), complete: true)
+
+        XCTAssertTrue(ModelManager.hasCompleteModelAssets(at: root))
+    }
+
+    func testHasCompleteModelAssetsForPartialDirectory() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // Only two of three required components, and one is missing weights.
+        try writeComponentFixture(at: root.appendingPathComponent("MelSpectrogram.mlmodelc", isDirectory: true), complete: true)
+        try writeComponentFixture(at: root.appendingPathComponent("AudioEncoder.mlmodelc", isDirectory: true), complete: false)
+
+        XCTAssertFalse(ModelManager.hasCompleteModelAssets(at: root))
+    }
+
+    func testHasCompleteModelAssetsForAbsentDirectory() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
+        XCTAssertFalse(ModelManager.hasCompleteModelAssets(at: root))
+    }
+
+    /// The core AD-11 contract: for the side-loaded ivrit.ai entry,
+    /// `isModelSupported` must track on-disk presence rather than
+    /// WhisperKit's recommendation, in every environment regardless of
+    /// whether the real model happens to be installed on the test machine.
+    func testIsModelSupportedBypassesRecommendationForSideloadedModel() {
+        let manager = ModelManager()
+        XCTAssertEqual(
+            manager.isModelSupported(.ivritAiWhisperLargeV3Turbo),
+            manager.isModelDownloaded(.ivritAiWhisperLargeV3Turbo),
+            "isModelSupported for the sideload-only entry must mirror on-disk presence, not WhisperKit's recommendation"
+        )
+    }
+
+    func testExpectedModelDirectoryForIvritModel() {
+        let manager = ModelManager()
+        let path = manager.expectedModelDirectory(for: .ivritAiWhisperLargeV3Turbo).path
+        XCTAssertTrue(path.hasSuffix("argmaxinc/whisperkit-coreml/ivrit-ai_whisper-large-v3-turbo"))
     }
 }
 

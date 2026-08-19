@@ -288,6 +288,12 @@ final class MockModelManager: ModelManaging {
     }
 
     func isModelSupported(_ size: ModelSize) -> Bool {
+        // Mirrors ModelManager's AD-11 bypass: side-loaded models are never
+        // endorsed by a device recommendation, so support tracks on-disk
+        // presence instead.
+        if size.isSideloadOnly {
+            return isModelDownloaded(size)
+        }
         if let supportedModelNames {
             return supportedModelNames.contains(whisperKitModelName(for: size))
                 && !disabledModelNames.contains(whisperKitModelName(for: size))
@@ -321,7 +327,13 @@ final class MockModelManager: ModelManaging {
             return "openai_whisper-large-v3_turbo"
         case .medium:
             return "openai_whisper-medium"
+        case .ivritAiWhisperLargeV3Turbo:
+            return "ivrit-ai_whisper-large-v3-turbo"
         }
+    }
+
+    func expectedModelDirectory(for size: ModelSize) -> URL {
+        URL(fileURLWithPath: "/mock/path/\(size.rawValue)")
     }
 
     func modelSize(from whisperKitName: String) -> ModelSize? {

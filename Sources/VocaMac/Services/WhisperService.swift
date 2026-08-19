@@ -307,8 +307,11 @@ final class WhisperService: @unchecked Sendable {
     }
 
     /// Map a model name string to our ModelSize enum
-    private func modelSizeFromName(_ name: String) -> ModelSize {
+    func modelSizeFromName(_ name: String) -> ModelSize {
         let lowered = name.lowercased()
+        // Checked first: the ivrit.ai folder name also contains "large" and
+        // "turbo", which would otherwise mis-match the generic branches below.
+        if lowered.contains("ivrit") { return .ivritAiWhisperLargeV3Turbo }
         if lowered.contains("v20240930") && lowered.contains("turbo") { return .largeV3LatestTurbo }
         if lowered.contains("v20240930") { return .largeV3Latest }
         if lowered.contains("distil") && lowered.contains("turbo") { return .distilLargeV3TurboCompact }

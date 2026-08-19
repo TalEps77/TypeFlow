@@ -21,6 +21,7 @@ enum ModelSize: String, CaseIterable, Codable, Identifiable {
     case largeV3                      = "large-v3"
     case largeV3Turbo                 = "large-v3_turbo"
     case medium                       = "medium"
+    case ivritAiWhisperLargeV3Turbo   = "ivrit-ai_whisper-large-v3-turbo"
 
     var id: String { rawValue }
 
@@ -38,11 +39,21 @@ enum ModelSize: String, CaseIterable, Codable, Identifiable {
         .distilLargeV3TurboCompact,
         .largeV3LatestCompact,
         .largeV3Latest,
+        .ivritAiWhisperLargeV3Turbo,
     ]
 
     /// Whether this model is kept only for compatibility or explicit support.
     var isLegacy: Bool {
         self == .medium
+    }
+
+    /// Whether this model is side-loaded onto disk by the user rather than
+    /// downloaded through WhisperKit's HuggingFace pipeline. WhisperKit's
+    /// `recommendedModels()` will never endorse it, so `isModelSupported`
+    /// bypasses that check and reports support from on-disk presence instead
+    /// (AD-11). No download is ever offered or attempted for it.
+    var isSideloadOnly: Bool {
+        self == .ivritAiWhisperLargeV3Turbo
     }
 
     /// Human-readable display name
@@ -60,6 +71,7 @@ enum ModelSize: String, CaseIterable, Codable, Identifiable {
         case .largeV3:                   return "Large v3"
         case .largeV3Turbo:              return "Large v3 Turbo"
         case .medium:                    return "Medium (Legacy)"
+        case .ivritAiWhisperLargeV3Turbo: return "ivrit.ai Hebrew (Large v3 Turbo)"
         }
     }
 
@@ -78,6 +90,7 @@ enum ModelSize: String, CaseIterable, Codable, Identifiable {
         case .largeV3:                   return 3_100_000_000
         case .largeV3Turbo:              return 954_000_000
         case .medium:                    return 1_500_000_000
+        case .ivritAiWhisperLargeV3Turbo: return 1_500_000_000
         }
     }
 
@@ -103,6 +116,7 @@ enum ModelSize: String, CaseIterable, Codable, Identifiable {
         case .largeV3:                   return 10.0
         case .largeV3Turbo:              return 6.0
         case .medium:                    return 5.0
+        case .ivritAiWhisperLargeV3Turbo: return 6.0
         }
     }
 
@@ -121,6 +135,7 @@ enum ModelSize: String, CaseIterable, Codable, Identifiable {
         case .largeV3:                   return 16
         case .largeV3Turbo:              return 10
         case .medium:                    return 8
+        case .ivritAiWhisperLargeV3Turbo: return 9
         }
     }
 
@@ -139,6 +154,7 @@ enum ModelSize: String, CaseIterable, Codable, Identifiable {
         case .largeV3:                   return "Best"
         case .largeV3Turbo:              return "Best"
         case .medium:                    return "Legacy"
+        case .ivritAiWhisperLargeV3Turbo: return "Best"
         }
     }
 }
