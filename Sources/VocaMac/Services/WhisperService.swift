@@ -166,17 +166,7 @@ final class WhisperService: @unchecked Sendable {
         let promptTokens = Self.promptTokens(for: vocabulary, tokenizer: kit.tokenizer)
 
         // Configure decoding options — optimized for low latency dictation
-        var options = DecodingOptions(
-            task: translate ? .translate : .transcribe,
-            language: language,
-            temperature: 0.0,
-            temperatureFallbackCount: 0,  // No fallback for speed
-            usePrefillPrompt: language != nil || promptTokens != nil,
-            detectLanguage: language == nil,
-            wordTimestamps: false,
-            promptTokens: promptTokens,
-            chunkingStrategy: nil  // No chunking for short dictation clips
-        )
+        var options = Self.decodingOptions(language: language, translate: translate, promptTokens: promptTokens)
 
         do {
             var results = try await kit.transcribe(
@@ -291,6 +281,32 @@ final class WhisperService: @unchecked Sendable {
 
     static func shouldRetryWithoutVocabulary(rawText: String, promptTokens: [Int]?) -> Bool {
         promptTokens != nil && rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Decoding options for dictation — optimized for low latency.
+    /// - Note (Story 7.2): `chunkingStrategy` is always `.vad`. WhisperKit
+    ///   only actually chunks audio longer than its ~30s window
+    ///   (`isChunkable` in `WhisperKit.transcribe`) — for the common
+    ///   short-dictation case this is a no-op identical to `nil`, so it is
+    ///   set unconditionally rather than gated on audio length. For longer
+    ///   recordings it splits on VAD-detected speech boundaries and
+    ///   transcribes the chunks concurrently.
+    static func decodingOptions(
+        language: String?,
+        translate: Bool,
+        promptTokens: [Int]?
+    ) -> DecodingOptions {
+        DecodingOptions(
+            task: translate ? .translate : .transcribe,
+            language: language,
+            temperature: 0.0,
+            temperatureFallbackCount: 0,  // No fallback for speed
+            usePrefillPrompt: language != nil || promptTokens != nil,
+            detectLanguage: language == nil,
+            wordTimestamps: false,
+            promptTokens: promptTokens,
+            chunkingStrategy: .vad
+        )
     }
 
     /// Encode custom vocabulary into WhisperKit conditioning tokens.

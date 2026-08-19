@@ -19,6 +19,35 @@ final class WhisperServiceTranslationTests: XCTestCase {
     }
 }
 
+// MARK: - WhisperService DecodingOptions Tests
+
+/// Story 7.2: `transcribe`'s `DecodingOptions` construction, extracted into
+/// `WhisperService.decodingOptions` so it can be asserted on without a
+/// loaded model.
+final class WhisperServiceDecodingOptionsTests: XCTestCase {
+
+    func testChunkingStrategyIsAlwaysVAD() {
+        let options = WhisperService.decodingOptions(language: "he", translate: false, promptTokens: nil)
+        XCTAssertEqual(options.chunkingStrategy, .vad)
+    }
+
+    func testChunkingStrategyIsVADEvenWithTranslateAndVocabulary() {
+        let options = WhisperService.decodingOptions(language: nil, translate: true, promptTokens: [1, 2, 3])
+        XCTAssertEqual(options.chunkingStrategy, .vad)
+    }
+
+    func testTaskReflectsTranslateFlag() {
+        XCTAssertEqual(WhisperService.decodingOptions(language: "he", translate: true, promptTokens: nil).task, .translate)
+        XCTAssertEqual(WhisperService.decodingOptions(language: "he", translate: false, promptTokens: nil).task, .transcribe)
+    }
+
+    func testUsePrefillPromptWhenLanguageOrVocabularyIsPresent() {
+        XCTAssertTrue(WhisperService.decodingOptions(language: "he", translate: false, promptTokens: nil).usePrefillPrompt)
+        XCTAssertTrue(WhisperService.decodingOptions(language: nil, translate: false, promptTokens: [1]).usePrefillPrompt)
+        XCTAssertFalse(WhisperService.decodingOptions(language: nil, translate: false, promptTokens: nil).usePrefillPrompt)
+    }
+}
+
 // MARK: - WhisperService modelSizeFromName Tests
 
 final class WhisperServiceModelSizeFromNameTests: XCTestCase {
