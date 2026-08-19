@@ -432,6 +432,17 @@ So that I can recover text and build trust in the post-processing.
 - Manual: dictate ten times, browse the list, search for a term, delete one record, verify the count.
 - Manual: set retention to 5, dictate three more, confirm the oldest are pruned.
 
+**Known gap — "target app" reads "Unknown app" until Epic 4:**
+The first acceptance criterion asks for the target app in each row, but nothing
+populates `HistoryRecord.targetBundleId` at this point in the sequence: the
+frontmost application is not captured until Story 4.1. Every row and detail pane
+therefore shows "Unknown app" for records written before that story lands. This
+is a sequencing artifact, not a defect — the field, the schema, and the UI that
+reads it are all in place and start showing real values as soon as 4.1 begins
+populating them. Records written before then keep `nil` permanently; they are
+not backfilled. Accepted knowingly rather than resequenced, because pulling 4.1
+forward would drag Profile resolution with it.
+
 ### Story 3.3: Re-paste a previous transcription
 
 As a user whose injection landed in the wrong window,

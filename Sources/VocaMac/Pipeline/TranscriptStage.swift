@@ -39,9 +39,30 @@ struct StageResult: Equatable {
     let text: String
     let outcome: StageOutcome
 
+    /// Whether the stage actually did its work before answering.
+    ///
+    /// `.skipped` alone cannot tell the two apart: a stage that declined
+    /// because it is switched off costs microseconds, while a stage that
+    /// called the LLM and got back text identical to its input also reports
+    /// `.skipped` — after a real, multi-second round trip. Only the latter's
+    /// duration means anything to a reader (MAJOR 6).
+    let didRun: Bool
+
+    init(text: String, outcome: StageOutcome, didRun: Bool = true) {
+        self.text = text
+        self.outcome = outcome
+        self.didRun = didRun
+    }
+
     /// Convenience for the overwhelmingly common "leave it alone" answer.
     static func unchanged(_ text: String, outcome: StageOutcome) -> StageResult {
         StageResult(text: text, outcome: outcome)
+    }
+
+    /// A stage declining before it did any work at all — disabled, or handed
+    /// nothing to work on. Its duration is measurement noise, not latency.
+    static func declined(_ text: String, reason: String) -> StageResult {
+        StageResult(text: text, outcome: .skipped(reason: reason), didRun: false)
     }
 }
 
@@ -50,6 +71,16 @@ struct StageReport: Equatable {
     let stageName: String
     let outcome: StageOutcome
     let duration: TimeInterval
+
+    /// Mirrors `StageResult.didRun`. `duration` is only meaningful when true.
+    let didRun: Bool
+
+    init(stageName: String, outcome: StageOutcome, duration: TimeInterval, didRun: Bool = true) {
+        self.stageName = stageName
+        self.outcome = outcome
+        self.duration = duration
+        self.didRun = didRun
+    }
 }
 
 /// One link in the pipes-and-filters chain.

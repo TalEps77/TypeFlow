@@ -6,15 +6,45 @@
 
 import SwiftUI
 
+/// Drops the Dock icon and menu bar again once the last ordinary window has
+/// closed — and only then.
+///
+/// Each window manager used to demote unconditionally half a second after
+/// *its* window closed, which yanked the Dock icon and menu out from under
+/// whatever other window was still open (MINOR 4). Closing Settings while
+/// Onboarding is up is enough to reproduce it.
+private func demoteToAccessoryIfNoWindowsRemain() {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        let hasOrdinaryWindow = NSApp.windows.contains { window in
+            window.isVisible && window.canBecomeMain && !(window is NSPanel)
+        }
+        guard !hasOrdinaryWindow else { return }
+        NSApp.setActivationPolicy(.accessory)
+    }
+}
+
+/// True when this window should be reused rather than replaced: a window the
+/// user merely minimized is still ours to bring back. `isVisible` is false for
+/// a miniaturized window, so testing it created a second window every time and
+/// orphaned the first in the Dock (MINOR 3).
+private func reuse(_ window: NSWindow?) -> Bool {
+    guard let window else { return false }
+    if window.isMiniaturized {
+        window.deminiaturize(nil)
+    }
+    window.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
+    return true
+}
+
 /// Manages the settings window for menu-bar-only apps
 final class SettingsWindowManager: ObservableObject {
     private var settingsWindow: NSWindow?
+    private var closeObserver: NSObjectProtocol?
 
     func open(appState: AppState) {
         // If window already exists, just bring it to front
-        if let window = settingsWindow, window.isVisible {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+        if reuse(settingsWindow) {
             return
         }
 
@@ -41,17 +71,20 @@ final class SettingsWindowManager: ObservableObject {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
 
-        // Watch for window close to hide from dock again
-        NotificationCenter.default.addObserver(
+        // Watch for window close to hide from dock again. The token is kept
+        // and removed on fire, so reopening the window doesn't stack up a new
+        // observer every time (MINOR 4).
+        closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: window,
             queue: .main
         ) { [weak self] _ in
-            self?.settingsWindow = nil
-            // Hide from dock again when settings closes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                NSApp.setActivationPolicy(.accessory)
+            if let token = self?.closeObserver {
+                NotificationCenter.default.removeObserver(token)
             }
+            self?.closeObserver = nil
+            self?.settingsWindow = nil
+            demoteToAccessoryIfNoWindowsRemain()
         }
     }
 }
@@ -59,11 +92,10 @@ final class SettingsWindowManager: ObservableObject {
 /// Manages the history window
 final class HistoryWindowManager: ObservableObject {
     private var historyWindow: NSWindow?
+    private var closeObserver: NSObjectProtocol?
 
     func open(appState: AppState) {
-        if let window = historyWindow, window.isVisible {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+        if reuse(historyWindow) {
             return
         }
 
@@ -87,15 +119,17 @@ final class HistoryWindowManager: ObservableObject {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
 
-        NotificationCenter.default.addObserver(
+        closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: window,
             queue: .main
         ) { [weak self] _ in
-            self?.historyWindow = nil
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                NSApp.setActivationPolicy(.accessory)
+            if let token = self?.closeObserver {
+                NotificationCenter.default.removeObserver(token)
             }
+            self?.closeObserver = nil
+            self?.historyWindow = nil
+            demoteToAccessoryIfNoWindowsRemain()
         }
     }
 }
@@ -104,13 +138,12 @@ final class HistoryWindowManager: ObservableObject {
 @MainActor
 final class OnboardingWindowManager: ObservableObject {
     private var onboardingWindow: NSWindow?
+    private var closeObserver: NSObjectProtocol?
     var onCompletion: (() -> Void)?
 
     func open(appState: AppState, force: Bool = false) {
         // If window already exists, just bring it to front
-        if let window = onboardingWindow, window.isVisible {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+        if reuse(onboardingWindow) {
             return
         }
 
@@ -144,16 +177,20 @@ final class OnboardingWindowManager: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
 
         // Watch for window close
-        NotificationCenter.default.addObserver(
+        closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: window,
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                if let token = self?.closeObserver {
+                    NotificationCenter.default.removeObserver(token)
+                }
+                self?.closeObserver = nil
                 self?.onboardingWindow = nil
-                // Hide from dock when onboarding closes
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                NSApp.setActivationPolicy(.accessory)
+                // Hide from dock when onboarding closes — but not while
+                // Settings or History is still open (MINOR 4).
+                demoteToAccessoryIfNoWindowsRemain()
             }
         }
 

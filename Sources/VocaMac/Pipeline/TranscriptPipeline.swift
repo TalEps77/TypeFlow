@@ -47,7 +47,12 @@ final class TranscriptPipeline: TranscriptPipelining {
             }
 
             context.reports.append(
-                StageReport(stageName: stage.name, outcome: result.outcome, duration: duration)
+                StageReport(
+                    stageName: stage.name,
+                    outcome: result.outcome,
+                    duration: duration,
+                    didRun: result.didRun
+                )
             )
 
             if case .failed(let reason) = result.outcome {

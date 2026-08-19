@@ -25,15 +25,21 @@ final class TextInjector {
 
     /// Default virtual key code for the V key on a US-QWERTY layout.
     /// Used as a fallback when the active layout cannot be inspected.
-    private let kVK_ANSI_V_Fallback: CGKeyCode = 9
+    private static let kVK_ANSI_V_Fallback: CGKeyCode = 9
 
     /// Default virtual key code for the Z key on a US-QWERTY layout.
     /// Used as a fallback when the active layout cannot be inspected.
-    private let kVK_ANSI_Z_Fallback: CGKeyCode = 6
+    private static let kVK_ANSI_Z_Fallback: CGKeyCode = 6
 
     /// Undo (FR-10) is offered only within this short window after an
     /// injection, and only while the same application is still frontmost.
     private let undoWindow: TimeInterval = 10.0
+
+    /// How long to wait after handing focus back to the target application
+    /// before injecting into it or retracting from it. Application
+    /// activation is asynchronous and slower to settle than a pasteboard
+    /// write, so this is deliberately longer than `prePasteDelay`.
+    static let focusSettleDelay: Double = 0.15
 
     // MARK: - Types
 
@@ -64,6 +70,33 @@ final class TextInjector {
         let strategy: InjectionStrategy
         let timestamp: Date
         let frontmostBundleId: String?
+
+        /// The application the text actually landed in. Undo and re-paste are
+        /// triggered from VocaMac's own menu-bar panel or History window,
+        /// which hold key status at that moment — so the target has to be
+        /// re-activated before anything is aimed at it (BLOCKER 2).
+        let targetApp: NSRunningApplication?
+
+        /// The exact element the Accessibility path wrote into. Retraction
+        /// refuses to touch any other element, even inside the same
+        /// application: "same app" is not "same text field" (BLOCKER 1).
+        let element: AXUIElement?
+
+        init(
+            text: String,
+            strategy: InjectionStrategy,
+            timestamp: Date,
+            frontmostBundleId: String?,
+            targetApp: NSRunningApplication? = nil,
+            element: AXUIElement? = nil
+        ) {
+            self.text = text
+            self.strategy = strategy
+            self.timestamp = timestamp
+            self.frontmostBundleId = frontmostBundleId
+            self.targetApp = targetApp
+            self.element = element
+        }
     }
 
     /// What the last `inject(text:preserveClipboard:)` call actually did.
@@ -71,6 +104,28 @@ final class TextInjector {
     /// no-accessibility-permission fallback (clipboard-only, no keystroke
     /// dispatched — there is nothing in the target application to retract).
     var lastInjection: InjectionRecord?
+
+    /// True from the start of a clipboard injection until its clipboard
+    /// restore has completed. A second `inject()` inside that window would
+    /// snapshot the transcript the first one just wrote and later "restore"
+    /// it over the user's real clipboard, which is unrecoverable (MAJOR 4).
+    private var isInjecting = false
+
+    /// `changeCount` of the last pasteboard write we made ourselves, so we
+    /// never snapshot our own transcript as if it were the user's clipboard.
+    private var lastWrittenChangeCount: Int = -1
+
+    // MARK: - Keystroke seams
+    //
+    // Posting a CGEvent is a system-wide side effect: it lands in whatever
+    // application is frontmost, including the developer's editor during
+    // `make test`. These two seams are the only places a keystroke is
+    // actually posted, and `TextInjectorTests` replaces them (via
+    // `@testable import`) so the unit suite never types into anything
+    // (BLOCKER 3). Both report whether the keystroke went out (MAJOR 5).
+
+    var pasteKeystrokeDispatcher: () -> Bool = TextInjector.postPasteKeystroke
+    var undoKeystrokeDispatcher: () -> Bool = TextInjector.postUndoKeystroke
 
     // MARK: - Public API
 
@@ -91,6 +146,15 @@ final class TextInjector {
     func inject(text: String, preserveClipboard: Bool = true) {
         guard !text.isEmpty else { return }
 
+        // Two injections overlapping in the ~100 ms clipboard window destroy
+        // the user's clipboard permanently: #2 snapshots #1's transcript and
+        // later writes it back as if it were the user's own content. Rejecting
+        // the overlap is the only outcome that cannot lose data (MAJOR 4).
+        guard !isInjecting else {
+            VocaLogger.warning(.textInjector, "inject() called while a previous injection is still in flight — ignoring")
+            return
+        }
+
         // Check accessibility permission
         let trusted = AXIsProcessTrusted()
         VocaLogger.debug(.textInjector, "AXIsProcessTrusted = \(trusted ? "YES" : "NO")")
@@ -107,24 +171,28 @@ final class TextInjector {
         // Works with Raycast, Spotlight, and any app whose focused text field
         // is writable via the AX API. Preferred because it does not touch the
         // clipboard and does not require dispatching a keyboard shortcut.
-        if injectViaAccessibility(text: text) {
+        if let element = injectViaAccessibility(text: text) {
             VocaLogger.info(.textInjector, "Text injected via Accessibility API")
-            recordInjection(text: text, strategy: .accessibility)
+            recordInjection(text: text, strategy: .accessibility, element: element)
             return
         }
 
-        // Strategy 2: Clipboard + Cmd+V (legacy fallback).
+        // Strategy 2: Clipboard + Cmd+V (legacy fallback). The injection is
+        // recorded inside this call, once the paste keystroke has actually
+        // been dispatched — see `injectViaClipboard` (MAJOR 5).
         VocaLogger.info(.textInjector, "AX injection unavailable — falling back to clipboard + Cmd+V")
-        recordInjection(text: text, strategy: .clipboard)
         injectViaClipboard(text: text, preserveClipboard: preserveClipboard)
     }
 
-    private func recordInjection(text: String, strategy: InjectionStrategy) {
+    private func recordInjection(text: String, strategy: InjectionStrategy, element: AXUIElement?) {
+        let frontmost = NSWorkspace.shared.frontmostApplication
         lastInjection = InjectionRecord(
             text: text,
             strategy: strategy,
             timestamp: Date(),
-            frontmostBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            frontmostBundleId: frontmost?.bundleIdentifier,
+            targetApp: frontmost,
+            element: element
         )
     }
 
@@ -142,27 +210,52 @@ final class TextInjector {
     /// Best-effort retraction of the last injection (FR-10). Returns `false`
     /// — changing nothing — when it cannot be performed safely, or when the
     /// retraction itself fails.
+    ///
+    /// When the target application has to be re-activated first (BLOCKER 2)
+    /// the retraction is dispatched after a short settle delay and `true`
+    /// means "accepted and dispatched"; the retraction itself still refuses
+    /// to delete anything it cannot prove is ours.
     @discardableResult
     func undoLastInjection() -> Bool {
         guard let last = lastInjection, canUndoLastInjection else { return false }
 
-        let didUndo: Bool
-        switch last.strategy {
-        case .accessibility:
-            // Precise: select exactly the span we inserted and delete it.
-            didUndo = undoViaAccessibility(text: last.text)
-        case .clipboard:
-            // Best-effort: synthesize ⌘Z. Behavior is app-dependent and that
-            // is an accepted, documented limitation (AC, Story 3.4).
-            simulateUndo()
-            didUndo = true
+        // Consume the record up front. A retraction that is merely *dispatched*
+        // must still be unrepeatable — otherwise a second click while the
+        // target application is coming forward fires a second retraction at
+        // text that is already gone. A refused retraction stays refused, too:
+        // for destructive work, unavailable beats retried (R-9).
+        lastInjection = nil
+
+        guard let target = last.targetApp, !target.isActive else {
+            return performUndo(last)
         }
 
-        if didUndo {
-            // A retracted injection cannot be retracted again.
-            lastInjection = nil
+        // The user reached Undo from VocaMac's own menu-bar panel or History
+        // window, so *we* hold key status right now. Retracting here would
+        // aim ⌘Z — or an AX delete — at our own UI (BLOCKER 2). Hand focus
+        // back to the application the text went into, then retract.
+        VocaLogger.info(.textInjector, "Undo: re-activating the target application before retracting")
+        NSApp.deactivate()
+        target.activate(options: [])
+        DispatchQueue.main.asyncAfter(deadline: .now() + TextInjector.focusSettleDelay) { [self] in
+            _ = performUndo(last)
         }
-        return didUndo
+        return true
+    }
+
+    private func performUndo(_ record: InjectionRecord) -> Bool {
+        switch record.strategy {
+        case .accessibility:
+            // Precise: select exactly the span we inserted and delete it —
+            // but only after proving the span really is ours.
+            return undoViaAccessibility(record)
+        case .clipboard:
+            // Best-effort: synthesize ⌘Z. Behavior is app-dependent and that
+            // is an accepted, documented limitation (AC, Story 3.4). Reports
+            // failure rather than claiming success when the keystroke could
+            // not be dispatched at all (MAJOR 5).
+            return simulateUndo()
+        }
     }
 
     private func isWithinUndoWindow(_ record: InjectionRecord) -> Bool {
@@ -170,12 +263,57 @@ final class TextInjector {
     }
 
     private func isSameFrontmostApp(_ record: InjectionRecord) -> Bool {
-        NSWorkspace.shared.frontmostApplication?.bundleIdentifier == record.frontmostBundleId
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        return isSameFrontmostApp(
+            record,
+            frontmostPid: frontmost?.processIdentifier,
+            frontmostBundleId: frontmost?.bundleIdentifier
+        )
+    }
+
+    /// The frontmost-app half of the undo guard, taking the frontmost app's
+    /// identity as arguments.
+    ///
+    /// Internal rather than `private` so `TextInjectorTests` can exercise the
+    /// VocaMac-is-frontmost case, which a test runner cannot actually put on
+    /// screen — and which is precisely the case that was broken (BLOCKER 2).
+    func isSameFrontmostApp(
+        _ record: InjectionRecord,
+        frontmostPid: pid_t?,
+        frontmostBundleId: String?
+    ) -> Bool {
+        guard let frontmostPid else { return false }
+
+        // VocaMac itself is transparent here. Reaching the Undo row means
+        // clicking our own menu-bar panel, which makes *us* frontmost —
+        // comparing bundle identifiers naively made undo permanently
+        // unavailable, i.e. the feature simply never appeared. Compared by pid
+        // so a dev binary with no bundle identifier cannot accidentally match
+        // some other unbundled app.
+        if frontmostPid == NSRunningApplication.current.processIdentifier {
+            return true
+        }
+        return frontmostBundleId == record.frontmostBundleId
     }
 
     /// Selects the exact span of characters we inserted via the Accessibility
     /// API, immediately before the current caret, and deletes it.
-    private func undoViaAccessibility(text: String) -> Bool {
+    ///
+    /// The caret arithmetic alone is not enough to make this safe. "N units
+    /// before the caret" is our text only if nothing has happened since —
+    /// type "!!!" after an 11-unit injection and that span becomes 3 of the
+    /// user's own characters plus 8 of ours (BLOCKER 1). So the retraction
+    /// only proceeds once it has proved two things: focus is still on the
+    /// very element we wrote into, and the span it is about to delete reads
+    /// back as exactly the text we inserted. Anything else refuses, and puts
+    /// the caret back where it found it.
+    private func undoViaAccessibility(_ record: InjectionRecord) -> Bool {
+        guard let injectedElement = record.element else {
+            VocaLogger.debug(.textInjector, "Undo: the AX injection has no recorded element — refusing")
+            return false
+        }
+
+        let text = record.text
         let systemWide = AXUIElementCreateSystemWide()
         var focusedRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
@@ -188,6 +326,14 @@ final class TextInjector {
         // swiftlint:disable force_cast
         let element = focusedRef as! AXUIElement
         // swiftlint:enable force_cast
+
+        // The bundle-identifier check upstream only proves the same *app*.
+        // A second text field in that app — or a different document — would
+        // sail straight through it (BLOCKER 1).
+        guard CFEqual(element, injectedElement) else {
+            VocaLogger.debug(.textInjector, "Undo: focus has moved to a different element — refusing")
+            return false
+        }
 
         var rangeRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeRef) == .success,
@@ -220,9 +366,27 @@ final class TextInjector {
             return false
         }
 
+        // Read the span back and require it to be, character for character,
+        // what we inserted. This is the check that stops the user's own typing
+        // from being swept away with ours, and it is also what makes the
+        // UTF-16-vs-code-point range mismatch on Chromium/Electron fields
+        // harmless: an overshooting range simply fails to match and refuses.
+        //
+        // AD-5: this read is transient. `selectedText` is compared and dropped
+        // on this stack frame — it is never logged, never handed to
+        // VocaLogger, and never reaches a HistoryRecord.
+        var selectedRef: CFTypeRef?
+        let readResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedRef)
+        guard readResult == .success, (selectedRef as? String) == text else {
+            VocaLogger.debug(.textInjector, "Undo: the span before the caret is not the text we injected — refusing")
+            restoreSelection(currentRange, on: element)
+            return false
+        }
+
         let deleteResult = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, "" as CFTypeRef)
         guard deleteResult == .success else {
             VocaLogger.debug(.textInjector, "Undo: could not delete the injected span (\(deleteResult.rawValue))")
+            restoreSelection(currentRange, on: element)
             return false
         }
 
@@ -230,22 +394,42 @@ final class TextInjector {
         return true
     }
 
+    /// Puts the caret (or selection) back exactly where the retraction found
+    /// it. A refused undo must leave no trace — least of all a selection the
+    /// user never made, one keystroke away from being overwritten.
+    private func restoreSelection(_ range: CFRange, on element: AXUIElement) {
+        var range = range
+        guard let value = AXValueCreate(.cfRange, &range) else { return }
+        _ = AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, value)
+    }
+
     /// Simulate ⌘Z. Mirrors `simulatePaste()`'s layout-aware keycode
     /// resolution — see its documentation for why this cannot just post the
     /// US-QWERTY keycode for "z" directly.
-    private func simulateUndo() {
-        let keyCode = TextInjector.keyCode(forCharacter: "z") ?? kVK_ANSI_Z_Fallback
+    private func simulateUndo() -> Bool {
+        undoKeystrokeDispatcher()
+    }
+
+    private static func postUndoKeystroke() -> Bool {
+        let keyCode = TextInjector.keyCode(forCharacter: "z") ?? TextInjector.kVK_ANSI_Z_Fallback
         let source = CGEventSource(stateID: .combinedSessionState)
 
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) else { return }
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) else {
+            VocaLogger.error(.textInjector, "ERROR: Failed to create Cmd+Z key down event")
+            return false
+        }
         keyDown.flags = [.maskCommand]
         keyDown.post(tap: .cgAnnotatedSessionEventTap)
 
-        guard let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else { return }
+        guard let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
+            VocaLogger.error(.textInjector, "ERROR: Failed to create Cmd+Z key up event")
+            return false
+        }
         keyUp.flags = [.maskCommand]
         keyUp.post(tap: .cgAnnotatedSessionEventTap)
 
         VocaLogger.info(.textInjector, "Cmd+Z posted (keycode \(keyCode))")
+        return true
     }
 
     // MARK: - Strategy 1: Accessibility API
@@ -267,11 +451,12 @@ final class TextInjector {
     /// reliable for apps like Raycast while letting terminal/editor traffic
     /// fall through to the clipboard+Cmd+V path that has always worked there.
     ///
-    /// - Returns: `true` if the text was successfully written via the AX API;
-    ///            `false` if the focused element is unreachable, has an
-    ///            unsupported role, or the write was rejected.
-    @discardableResult
-    private func injectViaAccessibility(text: String) -> Bool {
+    /// - Returns: The element the text was written into, or `nil` if the
+    ///            focused element is unreachable, has an unsupported role, or
+    ///            the write was rejected. The element is kept on the
+    ///            `InjectionRecord` so an undo can prove it is retracting from
+    ///            the same field it wrote to (BLOCKER 1).
+    private func injectViaAccessibility(text: String) -> AXUIElement? {
         let systemWide = AXUIElementCreateSystemWide()
         var focusedRef: CFTypeRef?
 
@@ -282,13 +467,13 @@ final class TextInjector {
         )
         guard fetchResult == .success, let focusedRef else {
             VocaLogger.debug(.textInjector, "AX: no focused element (\(fetchResult.rawValue))")
-            return false
+            return nil
         }
 
         // The returned CFTypeRef must be an AXUIElement.
         guard CFGetTypeID(focusedRef) == AXUIElementGetTypeID() else {
             VocaLogger.debug(.textInjector, "AX: focused element is not an AXUIElement")
-            return false
+            return nil
         }
 
         // swiftlint:disable force_cast
@@ -305,7 +490,7 @@ final class TextInjector {
         let supportedRoles: Set<String> = ["AXTextField", "AXSearchField", "AXComboBox"]
         guard supportedRoles.contains(role) else {
             VocaLogger.debug(.textInjector, "AX: skipping role '\(role)' — not a single-line input field")
-            return false
+            return nil
         }
 
         let setResult = AXUIElementSetAttributeValue(
@@ -316,11 +501,11 @@ final class TextInjector {
 
         if setResult == .success {
             VocaLogger.debug(.textInjector, "AX: inserted \(text.count) chars via kAXSelectedTextAttribute (role: \(role))")
-            return true
+            return element
         }
 
         VocaLogger.debug(.textInjector, "AX: kAXSelectedTextAttribute write failed (\(setResult.rawValue)) — element may be read-only")
-        return false
+        return nil
     }
 
     // MARK: - Strategy 2: Clipboard + Cmd+V
@@ -330,11 +515,22 @@ final class TextInjector {
     /// apps whose focused element is not writable via the Accessibility API.
     private func injectViaClipboard(text: String, preserveClipboard: Bool) {
         let pasteboard = NSPasteboard.general
+        isInjecting = true
 
         // Deep-copy current clipboard state before we overwrite it.
         // NSPasteboardItem objects are invalidated when the pasteboard is cleared,
         // so we must extract the raw data eagerly.
-        let snapshot = preserveClipboard ? captureSnapshot(pasteboard) : nil
+        //
+        // Never snapshot content we put there ourselves: when a previous
+        // restore was skipped (or `preserveClipboard` was off) the last
+        // transcript is still sitting on the pasteboard, and snapshotting it
+        // would arm a later "restore" that overwrites the user's real
+        // clipboard with our text (MAJOR 4).
+        let isOurOwnContent = pasteboard.changeCount == lastWrittenChangeCount
+        if preserveClipboard && isOurOwnContent {
+            VocaLogger.debug(.textInjector, "Clipboard still holds our previous transcript — not snapshotting it")
+        }
+        let snapshot = (preserveClipboard && !isOurOwnContent) ? captureSnapshot(pasteboard) : nil
 
         // Set transcribed text to clipboard
         pasteboard.clearContents()
@@ -345,31 +541,47 @@ final class TextInjector {
         // We check this before restoring so we don't clobber a newer clipboard
         // entry if the user (or another app) copies something in the meantime.
         let changeCountAfterWrite = pasteboard.changeCount
+        lastWrittenChangeCount = changeCountAfterWrite
 
         // Delay to let clipboard settle, then simulate Cmd+V
         DispatchQueue.main.asyncAfter(deadline: .now() + prePasteDelay) { [self] in
             VocaLogger.debug(.textInjector, "Simulating Cmd+V...")
-            simulatePaste()
+            let didPaste = simulatePaste()
+
+            // The injection is recorded only now, once the paste keystroke has
+            // actually gone out. Recording it before meant that a paste which
+            // never reached the target still armed an undo — and that undo's
+            // ⌘Z would have retracted an edit of the user's own (MAJOR 5).
+            if didPaste {
+                recordInjection(text: text, strategy: .clipboard, element: nil)
+            } else {
+                VocaLogger.error(.textInjector, "Paste keystroke was not dispatched — no undoable injection recorded")
+            }
 
             // Restore clipboard as soon as the paste event has been dispatched.
             // The short delay gives the target app time to read the pasteboard.
-            if preserveClipboard {
-                DispatchQueue.main.asyncAfter(deadline: .now() + clipboardRestoreDelay) {
-                    // Guard: only restore if the pasteboard hasn't been modified
-                    // by the user or another app since we wrote the transcribed text.
-                    guard pasteboard.changeCount == changeCountAfterWrite else {
-                        VocaLogger.debug(.textInjector, "Clipboard was modified externally — skipping restore")
-                        return
-                    }
+            guard preserveClipboard else {
+                isInjecting = false
+                return
+            }
 
-                    if let snapshot = snapshot {
-                        self.restoreSnapshot(snapshot, to: pasteboard)
-                    } else {
-                        // Previous clipboard was empty; clear the transcribed text
-                        pasteboard.clearContents()
-                    }
-                    VocaLogger.debug(.textInjector, "Clipboard restored")
+            DispatchQueue.main.asyncAfter(deadline: .now() + clipboardRestoreDelay) {
+                defer { self.isInjecting = false }
+
+                // Guard: only restore if the pasteboard hasn't been modified
+                // by the user or another app since we wrote the transcribed text.
+                guard pasteboard.changeCount == changeCountAfterWrite else {
+                    VocaLogger.debug(.textInjector, "Clipboard was modified externally — skipping restore")
+                    return
                 }
+
+                if let snapshot = snapshot {
+                    self.restoreSnapshot(snapshot, to: pasteboard)
+                } else {
+                    // Previous clipboard was empty; clear the transcribed text
+                    pasteboard.clearContents()
+                }
+                VocaLogger.debug(.textInjector, "Clipboard restored")
             }
         }
     }
@@ -434,8 +646,12 @@ final class TextInjector {
     /// on the *currently active* keyboard layout and post that keycode
     /// instead. If the active layout cannot be inspected (e.g. in tests
     /// with no input source available) we fall back to the QWERTY keycode.
-    private func simulatePaste() {
-        let keyCode = TextInjector.keyCode(forCharacter: "v") ?? kVK_ANSI_V_Fallback
+    private func simulatePaste() -> Bool {
+        pasteKeystrokeDispatcher()
+    }
+
+    private static func postPasteKeystroke() -> Bool {
+        let keyCode = TextInjector.keyCode(forCharacter: "v") ?? TextInjector.kVK_ANSI_V_Fallback
         VocaLogger.debug(.textInjector, "Resolved keycode for 'v' on active layout: \(keyCode)")
 
         let source = CGEventSource(stateID: .combinedSessionState)
@@ -443,7 +659,7 @@ final class TextInjector {
         // Cmd+V key down
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) else {
             VocaLogger.error(.textInjector, "ERROR: Failed to create key down event")
-            return
+            return false
         }
         keyDown.flags = [.maskCommand]
         keyDown.post(tap: .cgAnnotatedSessionEventTap)
@@ -451,12 +667,13 @@ final class TextInjector {
         // Cmd+V key up
         guard let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
             VocaLogger.error(.textInjector, "ERROR: Failed to create key up event")
-            return
+            return false
         }
         keyUp.flags = [.maskCommand]
         keyUp.post(tap: .cgAnnotatedSessionEventTap)
 
         VocaLogger.info(.textInjector, "Cmd+V posted (keycode \(keyCode))")
+        return true
     }
 
     // MARK: - Keyboard Layout Resolution

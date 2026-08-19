@@ -6,6 +6,7 @@
 // that writes a record after every completed dictation.
 
 import XCTest
+import Combine
 @testable import VocaMac
 
 // MARK: - HistoryRecord
@@ -133,7 +134,7 @@ final class HistoryStoreTests: XCTestCase {
         first.record(record("dictation one"))
         first.record(record("dictation two"))
         first.record(record("dictation three"))
-        fileStore.synchronizeForTesting()
+        fileStore.flush()
 
         // Simulate "quit and relaunch": a brand new HistoryStore reading the
         // same underlying file.
@@ -186,6 +187,17 @@ final class HistoryStoreTests: XCTestCase {
 
         XCTAssertEqual(store.search("hello world").count, 1)
         XCTAssertEqual(store.search("HELLO WORLD").count, 1)
+    }
+
+    /// MINOR 2: Hebrew is dictated here far more often than it is typed with
+    /// niqqud, so an unpointed query has to reach pointed text. Plain
+    /// case-insensitive matching treats the marks as distinct characters and
+    /// finds nothing.
+    func testSearchMatchesHebrewAcrossNiqqud() {
+        let (store, _) = makeStore()
+        store.record(HistoryRecord(rawTranscript: "שָׁלוֹם עוֹלָם", finalText: "שָׁלוֹם עוֹלָם.", modelName: "Tiny"))
+
+        XCTAssertEqual(store.search("שלום").count, 1, "An unpointed query must find pointed text")
     }
 
     func testSearchSupportsHebrewQueries() {
@@ -242,6 +254,53 @@ final class HistoryStoreTests: XCTestCase {
         }
 
         XCTAssertEqual(store.records.count, 10)
+    }
+
+    /// MAJOR 1: every record() re-encodes and rewrites the whole file. An
+    /// unlimited default makes that work grow without bound for the life of
+    /// the install, which is a stall on the main actor right after the
+    /// injection the user is watching for (NFR-4).
+    func testDefaultRetentionLimitIsBounded() {
+        let (store, _) = makeStore()
+
+        XCTAssertGreaterThan(store.retentionLimit, 0,
+                              "The default must be bounded; Unlimited stays available as an explicit choice")
+        XCTAssertEqual(store.retentionLimit, 500)
+    }
+
+    /// MINOR 7: retention was only applied as new records arrived, so a file
+    /// restored from backup — or written before the limit was lowered — stayed
+    /// over the limit indefinitely.
+    func testRetentionIsEnforcedOnLoadNotOnlyOnInsert() {
+        let seeded = (1...5).map { index in
+            record("item \(index)", at: Date(timeIntervalSince1970: TimeInterval(index)))
+        }
+        let writer = JSONFileStore<[HistoryRecord]>(fileName: "history.json", defaultValue: [], directoryURL: tempDirectory)
+        writer.save(seeded)
+        writer.flush()
+
+        UserDefaults.standard.set(3, forKey: "vocamac.history.retentionLimit")
+
+        let reader = JSONFileStore<[HistoryRecord]>(fileName: "history.json", defaultValue: [], directoryURL: tempDirectory)
+        let restarted = HistoryStore(store: reader)
+
+        XCTAssertEqual(restarted.records.map(\.rawTranscript), ["item 5", "item 4", "item 3"])
+    }
+
+    /// MINOR 1: the retention menu shows the current limit, so it has to
+    /// re-render on every change — including the ones that trim nothing.
+    func testChangingTheRetentionLimitAlwaysPublishes() {
+        let (store, _) = makeStore()
+        store.record(record("only one"))
+
+        var publishCount = 0
+        let cancellable = store.objectWillChangePublisher.sink { publishCount += 1 }
+
+        // Raising the limit prunes nothing at all.
+        store.retentionLimit = 900
+        cancellable.cancel()
+
+        XCTAssertGreaterThan(publishCount, 0, "A limit change that trims nothing must still publish")
     }
 
     func testLoweringRetentionLimitTrimsExistingRecords() {
@@ -338,6 +397,51 @@ final class AppStateHistoryTests: XCTestCase {
         XCTAssertEqual(mocks.historyStore.lastRecordedRecord?.postProcessMillis, 0)
     }
 
+    /// MAJOR 6: the test above passed for the wrong reason — the mock pipeline
+    /// simply never files a PostProcess report. The *real* pipeline files one
+    /// for every stage it runs, including a disabled one, whose few
+    /// microseconds then surfaced in the History detail as "Post-process 0ms".
+    /// This drives `TranscriptPipeline.production()` for real.
+    func testRealPipelineWithPostProcessingOffReportsNoPostProcessLatency() async {
+        UserDefaults.standard.set(false, forKey: PostProcessSettings.Key.enabled)
+        defer { UserDefaults.standard.removeObject(forKey: PostProcessSettings.Key.enabled) }
+
+        let (appState, mocks) = AppState.makeTestState(
+            transcriptPipelineOverride: TranscriptPipeline.production()
+        )
+        appState.isRecording = true
+        appState.appStatus = .recording
+        mocks.audioEngine.stopRecordingResult = [0.1, 0.2, 0.3]
+        mocks.whisperService.mockTranscriptionResult = VocaTranscription(
+            text: "שלום עולם",
+            duration: 1.0,
+            detectedLanguage: "he",
+            audioLengthSeconds: 1.0,
+            modelUsed: .tiny
+        )
+
+        await appState.stopRecordingAndTranscribe()
+
+        let recorded = mocks.historyStore.lastRecordedRecord
+        XCTAssertEqual(recorded?.finalText, "שלום עולם", "A disabled stage is an identity stage (AD-2)")
+        XCTAssertEqual(recorded?.postProcessMillis, 0,
+                        "A stage that declined before doing any work has no latency to report")
+        XCTAssertFalse(recorded?.didFallback ?? true, "Declining is not failing")
+    }
+
+    /// MINOR 12: a dictation that produced words and then ended up with
+    /// nothing to paste is exactly the one worth having a record of.
+    func testHistoryIsRecordedEvenWhenThereIsNothingLeftToInject() async {
+        let (appState, mocks) = makeStateThatTranscribes("שלום עולם")
+        mocks.transcriptPipeline.transform = { _ in "" }
+
+        await appState.stopRecordingAndTranscribe()
+
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 0, "There is nothing to inject")
+        XCTAssertEqual(mocks.historyStore.recordCallCount, 1, "…but the dictation must not vanish silently")
+        XCTAssertEqual(mocks.historyStore.lastRecordedRecord?.rawTranscript, "שלום עולם")
+    }
+
     func testHistoryRecordCapturesThePostProcessStagesOwnDuration() async {
         let (appState, mocks) = makeStateThatTranscribes("שלום עולם")
         mocks.transcriptPipeline.additionalReports = [
@@ -414,5 +518,54 @@ final class AppStateRePasteTests: XCTestCase {
         appState.rePasteMostRecent()
 
         XCTAssertEqual(mocks.textInjector.injectCallCount, 0)
+    }
+
+    // MARK: - Idle gate (MAJOR 7)
+    //
+    // "Re-paste Last" is a menu row the user can hit at any moment, including
+    // mid-dictation. Doing so overlaps the live injection on the clipboard and
+    // overwrites `lastInjection`, so a subsequent undo retracts the wrong text.
+
+    func testRePasteIsIgnoredWhileRecording() {
+        let (appState, mocks) = AppState.makeTestState()
+        appState.appStatus = .recording
+
+        appState.rePaste(HistoryRecord(rawTranscript: "raw", finalText: "final", modelName: "Tiny"))
+
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 0)
+    }
+
+    func testRePasteIsIgnoredWhileProcessing() {
+        let (appState, mocks) = AppState.makeTestState()
+        appState.appStatus = .processing
+
+        appState.rePaste(HistoryRecord(rawTranscript: "raw", finalText: "final", modelName: "Tiny"))
+
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 0)
+    }
+
+    func testRePasteMostRecentIsAlsoGatedOnIdle() {
+        let (appState, mocks) = AppState.makeTestState()
+        mocks.historyStore.records = [
+            HistoryRecord(rawTranscript: "newer", finalText: "newer final", modelName: "Tiny")
+        ]
+        appState.appStatus = .recording
+
+        appState.rePasteMostRecent()
+
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 0)
+    }
+
+    func testRePasteResumesOnceIdleAgain() {
+        let (appState, mocks) = AppState.makeTestState()
+        let record = HistoryRecord(rawTranscript: "raw", finalText: "final", modelName: "Tiny")
+
+        appState.appStatus = .recording
+        appState.rePaste(record)
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 0)
+
+        appState.appStatus = .idle
+        appState.rePaste(record)
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 1, "The gate must not be sticky")
     }
 }

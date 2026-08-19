@@ -9,11 +9,18 @@
 
 import Foundation
 
-final class JSONFileStore<T: Codable>: @unchecked Sendable {
+final class JSONFileStore<T: Codable & Sendable>: @unchecked Sendable {
 
     private let fileURL: URL
     private let defaultValue: T
     private let saveQueue: DispatchQueue
+
+    /// Owner-only permissions for the directory and every file in it. These
+    /// payloads are verbatim transcripts of everything the user has ever
+    /// dictated; at the default 0755/0644 any other local account or process
+    /// can read them, and backup/sync clients sweep them up as-is (MAJOR 3).
+    private static var directoryPermissions: NSNumber { NSNumber(value: Int16(0o700)) }
+    private static var filePermissions: NSNumber { NSNumber(value: Int16(0o600)) }
 
     /// - Parameters:
     ///   - fileName: e.g. "history.json".
@@ -29,7 +36,11 @@ final class JSONFileStore<T: Codable>: @unchecked Sendable {
     ) {
         let baseDirectory = directoryURL ?? JSONFileStore.applicationSupportDirectory()
         if !FileManager.default.fileExists(atPath: baseDirectory.path) {
-            try? FileManager.default.createDirectory(at: baseDirectory, withIntermediateDirectories: true)
+            try? FileManager.default.createDirectory(
+                at: baseDirectory,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: JSONFileStore.directoryPermissions]
+            )
         }
         self.fileURL = baseDirectory.appendingPathComponent(fileName)
         self.defaultValue = defaultValue
@@ -54,35 +65,74 @@ final class JSONFileStore<T: Codable>: @unchecked Sendable {
             let data = try Data(contentsOf: fileURL)
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
-            VocaLogger.error(.general, "JSONFileStore: failed to load \(fileURL.lastPathComponent) — \(error.localizedDescription). Using default value.")
+            // Returning the default value alone is not enough: the very next
+            // save() would write over the unreadable file and take whatever
+            // was recoverable in it with them. Set it aside first so a
+            // partially-corrupt history is still there to be salvaged by hand
+            // (MAJOR 2). `quarantinedFileURL` is left behind as the record of
+            // what happened.
+            quarantineCorruptFile()
+            VocaLogger.error(.history, "JSONFileStore: failed to load \(fileURL.lastPathComponent) — \(error.localizedDescription). Using default value.")
             return defaultValue
         }
     }
 
-    /// Encodes on the caller's thread (cheap — these payloads are small) then
-    /// writes off-main, atomically, on the serial save queue so writes never
-    /// race each other and never block the caller.
-    func save(_ value: T) {
-        let data: Data
+    /// Where `load()` moved a file it could not decode, if it ever did. Read
+    /// by callers that want to tell the user their history was set aside.
+    private(set) var quarantinedFileURL: URL?
+
+    private func quarantineCorruptFile() {
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        let destination = fileURL.appendingPathExtension("corrupt-\(stamp)")
         do {
-            data = try JSONEncoder().encode(value)
+            try FileManager.default.moveItem(at: fileURL, to: destination)
+            quarantinedFileURL = destination
+            VocaLogger.warning(.history, "JSONFileStore: preserved the unreadable \(fileURL.lastPathComponent) as \(destination.lastPathComponent)")
         } catch {
-            VocaLogger.error(.general, "JSONFileStore: failed to encode \(fileURL.lastPathComponent) — \(error.localizedDescription)")
-            return
+            VocaLogger.error(.history, "JSONFileStore: could not preserve the unreadable \(fileURL.lastPathComponent) — \(error.localizedDescription)")
         }
+    }
+
+    /// Encodes *and* writes off-main, atomically, on the serial save queue, so
+    /// writes never race each other and never block the caller.
+    ///
+    /// The encode used to happen on the caller's thread, which is always the
+    /// main actor: with an unbounded history that is a whole-file JSON encode
+    /// on the main thread after every single dictation, growing without limit
+    /// — hundreds of milliseconds of stall right after the injection the user
+    /// is watching for (MAJOR 1, NFR-4). `T: Sendable` is what makes moving it
+    /// across the queue boundary safe rather than merely convenient.
+    func save(_ value: T) {
         let url = fileURL
         saveQueue.async {
+            let data: Data
+            do {
+                data = try JSONEncoder().encode(value)
+            } catch {
+                VocaLogger.error(.history, "JSONFileStore: failed to encode \(url.lastPathComponent) — \(error.localizedDescription)")
+                return
+            }
             do {
                 try data.write(to: url, options: .atomic)
+                // An atomic write replaces the file, so the permissions have
+                // to be re-applied to the new inode every time (MAJOR 3).
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: JSONFileStore.filePermissions],
+                    ofItemAtPath: url.path
+                )
             } catch {
-                VocaLogger.error(.general, "JSONFileStore: failed to write \(url.lastPathComponent) — \(error.localizedDescription)")
+                VocaLogger.error(.history, "JSONFileStore: failed to write \(url.lastPathComponent) — \(error.localizedDescription)")
             }
         }
     }
 
-    /// Test-only escape hatch: blocks until every write enqueued so far has
-    /// completed, so a test can assert on what actually landed on disk.
-    func synchronizeForTesting() {
+    /// Blocks until every write enqueued so far has completed.
+    ///
+    /// Used by tests to assert on what actually landed on disk, and at
+    /// termination to make sure the last dictation of the session is not
+    /// still sitting in the queue when the process goes away (MINOR 6) — a
+    /// SIGTERM from `ensureSingleInstance` arrives with no warning at all.
+    func flush() {
         saveQueue.sync {}
     }
 }

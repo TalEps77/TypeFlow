@@ -153,6 +153,15 @@ final class AppState: ObservableObject {
     /// history once it finally resumes (MAJOR 2).
     private var dictationGeneration = 0
 
+    /// The last application other than VocaMac to become frontmost.
+    ///
+    /// Re-paste is reached through VocaMac's own menu-bar panel or History
+    /// window, which means *we* are frontmost by the time the action runs —
+    /// injecting right then types into our own search field rather than the
+    /// user's document (BLOCKER 2, Story 3.3 AC). This is the application to
+    /// hand focus back to first.
+    private(set) var lastNonSelfFrontmostApp: NSRunningApplication?
+
     /// AudioEngine serializes its own lifecycle internally; this wrapper makes
     /// the intentional background handoff explicit for Dispatch's @Sendable API.
     private struct AudioEngineWorker: @unchecked Sendable {
@@ -245,6 +254,25 @@ final class AppState: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
+        if !skipSystemIntegration {
+            observeFrontmostApplication()
+        }
+    }
+
+    /// Remembers who held focus before VocaMac's own UI took it, so re-paste
+    /// can give it back (BLOCKER 2). Deliberately not `@Published`: nothing
+    /// renders from it, and republishing on every app switch in the system
+    /// would re-render the whole menu bar.
+    private func observeFrontmostApplication() {
+        NSWorkspace.shared.notificationCenter
+            .publisher(for: NSWorkspace.didActivateApplicationNotification)
+            .compactMap { $0.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication }
+            .filter { $0.processIdentifier != NSRunningApplication.current.processIdentifier }
+            .sink { [weak self] app in
+                self?.lastNonSelfFrontmostApp = app
             }
             .store(in: &cancellables)
     }
@@ -700,14 +728,22 @@ final class AppState: ObservableObject {
                     text: finalText,
                     preserveClipboard: preserveClipboard
                 )
+            } else {
+                VocaLogger.info(.appState, "Transcription produced no usable text (silence or blank audio)")
+            }
+
+            // The record is written even when there was nothing to inject, as
+            // long as ASR heard something. A dictation that produced words and
+            // then ended up with nothing to paste is precisely the one worth
+            // having a record of — losing it silently is the worse failure
+            // (MINOR 12). Only genuinely blank audio writes nothing.
+            if !pipelineContext.rawTranscript.isEmpty || !finalText.isEmpty {
                 recordHistory(
                     context: pipelineContext,
                     model: result.modelUsed,
                     recordingMillis: result.audioLengthSeconds * 1000,
                     asrMillis: result.duration * 1000
                 )
-            } else {
-                VocaLogger.info(.appState, "Transcription produced no usable text (silence or blank audio)")
             }
 
             cursorOverlay.hide()
@@ -739,8 +775,49 @@ final class AppState: ObservableObject {
     /// Re-inject a previous dictation's Final Text via the same `TextInjector`
     /// path a live dictation uses. Does not write a new History Record — the
     /// record already exists, and re-pasting it must not duplicate it.
+    ///
+    /// Only while idle (MAJOR 7): re-pasting mid-dictation overlaps the live
+    /// injection on the clipboard and overwrites `lastInjection`, so a
+    /// subsequent undo would retract the wrong text.
     func rePaste(_ record: HistoryRecord) {
-        textInjector.inject(text: record.finalText, preserveClipboard: preserveClipboard)
+        guard appStatus == .idle else {
+            VocaLogger.info(.appState, "Re-paste requested while \(appStatus.rawValue) — ignoring")
+            return
+        }
+
+        // The action was triggered from VocaMac's own UI, which holds key
+        // status right now. Hand focus back to the app the user was actually
+        // typing in before injecting anything (BLOCKER 2).
+        let generation = dictationGeneration
+        let text = record.finalText
+        withTargetAppActivated { [weak self] in
+            guard let self else { return }
+            // A recording may have started during the activation delay; the
+            // newer dictation owns the injection point now (MAJOR 2).
+            guard generation == self.dictationGeneration, self.appStatus == .idle else {
+                VocaLogger.info(.appState, "Re-paste abandoned — a new dictation started while focus was being handed back")
+                return
+            }
+            self.textInjector.inject(text: text, preserveClipboard: self.preserveClipboard)
+        }
+    }
+
+    /// Gives focus back to `lastNonSelfFrontmostApp` and runs `work` once the
+    /// activation has settled. Runs `work` immediately when there is nothing
+    /// to activate — no known target, or it is already frontmost — which is
+    /// also what keeps this synchronous under test.
+    private func withTargetAppActivated(_ work: @escaping () -> Void) {
+        guard let target = lastNonSelfFrontmostApp, !target.isActive else {
+            work()
+            return
+        }
+
+        VocaLogger.info(.appState, "Re-activating \(target.bundleIdentifier ?? "the previous app") before injecting")
+        NSApp.deactivate()
+        target.activate(options: [])
+        DispatchQueue.main.asyncAfter(deadline: .now() + TextInjector.focusSettleDelay) {
+            work()
+        }
     }
 
     /// Re-paste the most recent dictation, if any exist.
@@ -773,11 +850,15 @@ final class AppState: ObservableObject {
     /// Per-stage latency (FR-3, Story 1.3): `recordingMillis` and `asrMillis`
     /// come from measurements WhisperService already makes (audio length and
     /// transcription elapsed time); `postProcessMillis` comes from the
-    /// PostProcess stage's own `StageReport.duration`, which `TranscriptPipeline`
-    /// already records for every stage regardless of outcome (AD-2). A stage
-    /// that did not run — post-processing disabled, or absent from the
-    /// pipeline — has no matching report, so it defaults to zero rather than
-    /// leaving the field unset.
+    /// PostProcess stage's own `StageReport.duration`.
+    ///
+    /// `TranscriptPipeline` reports every stage it runs, including ones that
+    /// declined before doing any work — a disabled PostProcess stage still
+    /// files a report worth a few microseconds, which the History view then
+    /// showed as a spurious "Post-process 0ms" row (MAJOR 6). `didRun` is what
+    /// separates that from a stage that really did make an LLM round trip and
+    /// came back with `.skipped("no changes needed")`: the latter's two
+    /// seconds are real and must be shown.
     private func recordHistory(
         context: TranscriptContext,
         model: ModelSize,
@@ -788,7 +869,8 @@ final class AppState: ObservableObject {
             if case .failed = report.outcome { return true }
             return false
         }
-        let postProcessMillis = (context.reports.first(where: { $0.stageName == "PostProcess" })?.duration ?? 0) * 1000
+        let postProcessReport = context.reports.first { $0.stageName == PostProcessStage.stageName }
+        let postProcessMillis = (postProcessReport?.didRun == true ? postProcessReport?.duration ?? 0 : 0) * 1000
 
         historyStore.record(HistoryRecord(
             rawTranscript: context.rawTranscript,

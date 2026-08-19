@@ -21,6 +21,7 @@ enum LogCategory: String {
     case onboarding = "Onboarding"
     case pipeline = "Pipeline"
     case postProcess = "PostProcess"
+    case history = "History"
     case general = "General"
 }
 

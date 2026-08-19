@@ -477,12 +477,15 @@ final class MockHistoryStore: HistoryRecording, ObservableObject {
         records.removeAll()
     }
 
+    /// Mirrors `HistoryStore.search` exactly, diacritic folding included
+    /// (MINOR 2) — a mock that matches differently from the real store is a
+    /// test that proves nothing.
     func search(_ query: String) -> [HistoryRecord] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return records }
         return records.filter {
-            $0.rawTranscript.localizedCaseInsensitiveContains(trimmed) ||
-            $0.finalText.localizedCaseInsensitiveContains(trimmed)
+            $0.rawTranscript.localizedStandardContains(trimmed) ||
+            $0.finalText.localizedStandardContains(trimmed)
         }
     }
 }

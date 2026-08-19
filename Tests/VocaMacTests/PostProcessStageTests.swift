@@ -63,6 +63,8 @@ final class PostProcessStageTests: XCTestCase {
 
         XCTAssertEqual(result.text, "הפגישה נדחתה למחר.")
         XCTAssertEqual(result.outcome, .skipped(reason: "no changes needed"))
+        XCTAssertTrue(result.didRun,
+                       "This skip came *after* a real round trip — its duration is genuine latency (MAJOR 6)")
     }
 
     // MARK: - The master toggle
@@ -77,6 +79,8 @@ final class PostProcessStageTests: XCTestCase {
         XCTAssertEqual(service.cleanCallCount, 0, "With the master toggle off no HTTP request may be made")
         XCTAssertEqual(result.text, "שלום עולם")
         XCTAssertEqual(result.outcome, .skipped(reason: "post-processing disabled"))
+        XCTAssertFalse(result.didRun,
+                        "Declining before any work means there is no latency worth reporting (MAJOR 6)")
     }
 
     func testDisabledStageIsIdentityAcrossTheCorpus() async {
@@ -107,6 +111,7 @@ final class PostProcessStageTests: XCTestCase {
             let result = await stage.run(TranscriptContext(rawTranscript: input))
             XCTAssertEqual(result.text, input)
             XCTAssertEqual(result.outcome, .skipped(reason: "nothing to clean"))
+            XCTAssertFalse(result.didRun)
         }
         XCTAssertEqual(service.cleanCallCount, 0)
     }

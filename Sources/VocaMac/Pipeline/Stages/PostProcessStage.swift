@@ -10,7 +10,12 @@ import Foundation
 @MainActor
 final class PostProcessStage: TranscriptStage {
 
-    let name = "PostProcess"
+    /// The stable stage name, shared rather than re-spelled: `AppState` looks
+    /// its report up by this exact string when reading back the stage's
+    /// latency, and a silent typo there would zero the field forever (MINOR 10).
+    static let stageName = "PostProcess"
+
+    let name = PostProcessStage.stageName
 
     private let service: PostProcessing
     /// Read per run, so toggling the feature or editing the prompt takes effect
@@ -31,11 +36,14 @@ final class PostProcessStage: TranscriptStage {
 
         // The master toggle is checked before anything else, so that with
         // post-processing off no request is constructed, let alone sent.
+        // Both of these decline before any work happens, so their duration is
+        // measurement noise — `.declined` says so, and stops the History view
+        // showing a "Post-process 0ms" row for a stage that never ran (MAJOR 6).
         guard settings.isEnabled else {
-            return StageResult(text: text, outcome: .skipped(reason: "post-processing disabled"))
+            return StageResult.declined(text, reason: "post-processing disabled")
         }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return StageResult(text: text, outcome: .skipped(reason: "nothing to clean"))
+            return StageResult.declined(text, reason: "nothing to clean")
         }
 
         switch await service.clean(

@@ -67,12 +67,12 @@ final class KeyCodeReferenceTests: XCTestCase {
 final class TextInjectorTests: XCTestCase {
 
     func testInstantiation() {
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         XCTAssertNotNil(injector)
     }
 
     func testInjectEmptyStringDoesNothing() {
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         // Should return immediately without crashing
         injector.inject(text: "", preserveClipboard: true)
         injector.inject(text: "", preserveClipboard: false)
@@ -91,7 +91,7 @@ final class TextInjectorTests: XCTestCase {
         // but we *can* assert the injector doesn't crash and the total
         // constant budget is reasonable by inspecting known internals via
         // the file (compile-time guarantee that the constants exist).
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         // Instantiation succeeds — the constants compiled to valid values
         XCTAssertNotNil(injector)
     }
@@ -114,24 +114,59 @@ final class TextInjectorTests: XCTestCase {
 
     // MARK: - Undo (Story 3.4, FR-10)
     //
-    // The real AX retraction and ⌘Z dispatch can't be exercised headlessly
-    // (no Accessibility permission in CI), so these tests seed `lastInjection`
-    // directly via `@testable import` and assert on the safety-window and
-    // frontmost-app guards, which are the load-bearing, host-independent
-    // logic this story adds.
+    // The real AX retraction can't be exercised headlessly (no focused text
+    // field in a test runner), so these tests seed `lastInjection` directly
+    // via `@testable import` and assert on the safety-window, frontmost-app
+    // and keystroke-dispatch logic, which is the load-bearing, host-independent
+    // part.
+    //
+    // BLOCKER 3: no test in this suite may post a real CGEvent. A ⌘Z posted
+    // from `make test` lands in whatever the developer happens to have
+    // frontmost — their editor, their browser, Slack — and undoes an edit of
+    // theirs. Every injector built here therefore gets both keystroke
+    // dispatchers stubbed before it is used.
+
+    /// A `TextInjector` that can never type into anything. Records what it
+    /// *would* have posted so tests can assert on dispatch without any
+    /// system-wide side effect.
+    private final class KeystrokeRecorder {
+        private(set) var pasteCount = 0
+        private(set) var undoCount = 0
+        var pasteSucceeds = true
+        var undoSucceeds = true
+
+        func install(on injector: TextInjector) {
+            injector.pasteKeystrokeDispatcher = { [self] in
+                pasteCount += 1
+                return pasteSucceeds
+            }
+            injector.undoKeystrokeDispatcher = { [self] in
+                undoCount += 1
+                return undoSucceeds
+            }
+        }
+    }
+
+    /// Every injector in this file comes from here, so none of them can post.
+    private func makeSilentInjector() -> (TextInjector, KeystrokeRecorder) {
+        let injector = TextInjector()
+        let recorder = KeystrokeRecorder()
+        recorder.install(on: injector)
+        return (injector, recorder)
+    }
 
     func testCanUndoIsFalseWithNoPriorInjection() {
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         XCTAssertFalse(injector.canUndoLastInjection)
     }
 
     func testUndoWithNoPriorInjectionReturnsFalseAndChangesNothing() {
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         XCTAssertFalse(injector.undoLastInjection())
     }
 
     func testCanUndoIsFalseOutsideTheSafetyWindow() {
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         injector.lastInjection = TextInjector.InjectionRecord(
             text: "hello",
             strategy: .clipboard,
@@ -144,7 +179,7 @@ final class TextInjectorTests: XCTestCase {
     }
 
     func testCanUndoIsFalseWhenADifferentAppIsFrontmost() {
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         injector.lastInjection = TextInjector.InjectionRecord(
             text: "hello",
             strategy: .clipboard,
@@ -160,7 +195,7 @@ final class TextInjectorTests: XCTestCase {
         guard let frontmostBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else {
             throw XCTSkip("Could not determine the frontmost application in this environment")
         }
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         injector.lastInjection = TextInjector.InjectionRecord(
             text: "hello",
             strategy: .clipboard,
@@ -175,7 +210,7 @@ final class TextInjectorTests: XCTestCase {
         guard let frontmostBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else {
             throw XCTSkip("Could not determine the frontmost application in this environment")
         }
-        let injector = TextInjector()
+        let (injector, recorder) = makeSilentInjector()
         injector.lastInjection = TextInjector.InjectionRecord(
             text: "hello",
             strategy: .clipboard,
@@ -184,7 +219,101 @@ final class TextInjectorTests: XCTestCase {
         )
 
         XCTAssertTrue(injector.undoLastInjection())
+        XCTAssertEqual(recorder.undoCount, 1, "The clipboard strategy retracts by dispatching one ⌘Z")
+        XCTAssertEqual(recorder.pasteCount, 0)
         XCTAssertFalse(injector.canUndoLastInjection, "A retracted injection cannot be retracted again")
+
+        // And the second attempt does nothing at all — no second keystroke.
+        XCTAssertFalse(injector.undoLastInjection())
+        XCTAssertEqual(recorder.undoCount, 1)
+    }
+
+    /// MAJOR 5: the clipboard path used to hardcode success. When the ⌘Z
+    /// cannot be dispatched at all, `undoLastInjection()` must say so rather
+    /// than report a retraction that never happened.
+    func testClipboardUndoReportsFailureWhenTheKeystrokeCannotBeDispatched() throws {
+        guard let frontmostBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else {
+            throw XCTSkip("Could not determine the frontmost application in this environment")
+        }
+        let (injector, recorder) = makeSilentInjector()
+        recorder.undoSucceeds = false
+        injector.lastInjection = TextInjector.InjectionRecord(
+            text: "hello",
+            strategy: .clipboard,
+            timestamp: Date(),
+            frontmostBundleId: frontmostBundleId
+        )
+
+        XCTAssertFalse(injector.undoLastInjection())
+    }
+
+    /// BLOCKER 1: an AX injection whose element was never captured has no way
+    /// to prove the span before the caret is ours, so it must refuse outright
+    /// rather than delete `text.utf16.count` characters of whatever is there.
+    func testAccessibilityUndoRefusesWithoutARecordedElement() throws {
+        guard let frontmostBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else {
+            throw XCTSkip("Could not determine the frontmost application in this environment")
+        }
+        let (injector, recorder) = makeSilentInjector()
+        injector.lastInjection = TextInjector.InjectionRecord(
+            text: "hello",
+            strategy: .accessibility,
+            timestamp: Date(),
+            frontmostBundleId: frontmostBundleId,
+            element: nil
+        )
+
+        XCTAssertFalse(injector.undoLastInjection(), "No recorded element means no provable span — refuse")
+        XCTAssertEqual(recorder.undoCount, 0, "The AX path must never fall back to posting ⌘Z")
+    }
+
+    /// BLOCKER 2: VocaMac holds key status whenever the user clicks the Undo
+    /// row in its own menu-bar panel, so the frontmost app at that moment is
+    /// *us*. Comparing bundle identifiers naively made the guard fail every
+    /// time and the feature never appeared at all.
+    func testUndoGuardTreatsVocaMacItselfAsTransparent() {
+        let (injector, _) = makeSilentInjector()
+        let record = TextInjector.InjectionRecord(
+            text: "hello",
+            strategy: .clipboard,
+            timestamp: Date(),
+            frontmostBundleId: "com.apple.TextEdit"
+        )
+
+        XCTAssertTrue(
+            injector.isSameFrontmostApp(
+                record,
+                frontmostPid: NSRunningApplication.current.processIdentifier,
+                frontmostBundleId: Bundle.main.bundleIdentifier
+            ),
+            "Our own panel being frontmost must not make undo unavailable"
+        )
+    }
+
+    func testUndoGuardStillRejectsAThirdPartyApp() {
+        let (injector, _) = makeSilentInjector()
+        let record = TextInjector.InjectionRecord(
+            text: "hello",
+            strategy: .clipboard,
+            timestamp: Date(),
+            frontmostBundleId: "com.apple.TextEdit"
+        )
+
+        XCTAssertFalse(
+            injector.isSameFrontmostApp(
+                record,
+                frontmostPid: 1,
+                frontmostBundleId: "com.apple.Safari"
+            ),
+            "A genuinely different app in front must still block the retraction"
+        )
+        XCTAssertTrue(
+            injector.isSameFrontmostApp(
+                record,
+                frontmostPid: 1,
+                frontmostBundleId: "com.apple.TextEdit"
+            )
+        )
     }
 
     // MARK: - Keyboard Layout Resolution (GitHub issue #123)
@@ -235,7 +364,7 @@ final class TextInjectorTests: XCTestCase {
     /// The empty-string guard must fire before either strategy (AX API or
     /// clipboard+Cmd+V) is attempted, so the pasteboard must be unchanged.
     func testInjectEmptyStringDoesNotModifyClipboard() {
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString("original content", forType: .string)
 
@@ -258,12 +387,37 @@ final class TextInjectorTests: XCTestCase {
     /// are explicitly excluded from the AX strategy, so terminal emulators
     /// (Terminal.app, Ghostty) and code editors always use clipboard+Cmd+V.
     func testInjectNonEmptyStringDoesNotCrashOnAXFallback() {
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         // No focused AXTextField/AXSearchField/AXComboBox exists in the test
         // runner, so the AX strategy returns false and the clipboard path runs.
-        // Both preserveClipboard variants must survive without crashing.
+        // Both preserveClipboard variants must survive without crashing. (The
+        // second call is coalesced away by the re-entrancy guard — see
+        // testOverlappingInjectionIsRejectedRatherThanRacingTheClipboard.)
         injector.inject(text: "Hello, Raycast!", preserveClipboard: false)
         injector.inject(text: "Hello, Raycast!", preserveClipboard: true)
+    }
+
+    /// MAJOR 4: two injections inside the ~100 ms clipboard window destroy the
+    /// user's clipboard — the second snapshots the first's transcript and
+    /// later writes it back as if it were the user's own content. The second
+    /// call has to be refused outright.
+    func testOverlappingInjectionIsRejectedRatherThanRacingTheClipboard() throws {
+        guard AXIsProcessTrusted() else {
+            throw XCTSkip("Accessibility permission is not granted; the clipboard path is not reached.")
+        }
+        let (injector, recorder) = makeSilentInjector()
+
+        injector.inject(text: "first transcript", preserveClipboard: true)
+        injector.inject(text: "second transcript", preserveClipboard: true)
+
+        XCTAssertEqual(recorder.pasteCount, 0, "The paste is still queued behind the pre-paste delay")
+
+        // Let the first injection finish its dispatch + restore cycle.
+        let settled = XCTestExpectation(description: "first injection settled")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { settled.fulfill() }
+        wait(for: [settled], timeout: 1.0)
+
+        XCTAssertEqual(recorder.pasteCount, 1, "The overlapping second inject() must not have pasted")
     }
 
     /// When the process does not have Accessibility permission,
@@ -279,7 +433,7 @@ final class TextInjectorTests: XCTestCase {
             throw XCTSkip("Accessibility permission is granted on this machine; the no-permission path cannot be exercised.")
         }
 
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         let expected = "raycast fallback dictation"
 
         NSPasteboard.general.clearContents()
@@ -305,7 +459,7 @@ final class TextInjectorTests: XCTestCase {
             throw XCTSkip("Accessibility permission is not granted; clipboard fallback cannot be triggered (AX is not even attempted).")
         }
 
-        let injector = TextInjector()
+        let (injector, _) = makeSilentInjector()
         let expected = "fallback text after ax failure"
 
         // Seed the pasteboard with a known value so we can detect a change.
