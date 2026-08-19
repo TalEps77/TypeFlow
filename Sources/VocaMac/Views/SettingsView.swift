@@ -38,6 +38,11 @@ struct SettingsView: View {
                     Label("Cleanup", systemImage: "wand.and.sparkles")
                 }
 
+            ProfilesSettingsTab()
+                .tabItem {
+                    Label("Profiles", systemImage: "person.crop.rectangle.stack")
+                }
+
             DebugTab()
                 .tabItem {
                     Label("Debug", systemImage: "ladybug")

@@ -635,7 +635,13 @@ extension AppState {
         /// for tests that don't need this and read/configure it directly.
         transcriptPipelineOverride: TranscriptPipelining? = nil,
         contextReader: MockContextReader = MockContextReader(),
-        profileManager: MockProfileManager = MockProfileManager()
+        profileManager: MockProfileManager = MockProfileManager(),
+        profileStore: ProfileStore = ProfileStore(store: JSONFileStore(
+            fileName: "profiles.json",
+            defaultValue: [],
+            directoryURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("vocamac_test_profiles_\(UUID().uuidString)", isDirectory: true)
+        ))
     ) -> (appState: AppState, mocks: TestMocks) {
         // AppState.hasPerformedStartupGlobally is a process-level static that
         // performStartup() only ever flips true. Reset it here (rather than
@@ -684,6 +690,7 @@ extension AppState {
             transcriptPipeline: transcriptPipelineOverride ?? transcriptPipeline,
             axContextReader: contextReader,
             profileManager: profileManager,
+            profileStore: profileStore,
             permissionManager: permissionManager,
             skipSystemIntegration: true
         )

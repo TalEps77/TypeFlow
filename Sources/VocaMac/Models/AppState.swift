@@ -143,6 +143,13 @@ final class AppState: ObservableObject {
     let transcriptPipeline: TranscriptPipelining
     let axContextReader: ContextReading
     let profileManager: ProfileResolving
+
+    /// The concrete store behind `profileManager`, exposed directly for the
+    /// Profiles settings tab (Story 4.3) to drive CRUD and reordering. Not
+    /// behind its own protocol/mock — unlike `historyStore`, nothing in
+    /// AppState's own business logic calls its mutating methods, only the UI
+    /// does, mirroring the existing `updateChecker` precedent.
+    let profileStore: ProfileStore
     let updateChecker = UpdateChecker()
     let permissionManager: any PermissionManaging
 
@@ -230,6 +237,7 @@ final class AppState: ObservableObject {
         transcriptPipeline: TranscriptPipelining? = nil,
         axContextReader: ContextReading,
         profileManager: ProfileResolving,
+        profileStore: ProfileStore,
         permissionManager: (any PermissionManaging)? = nil,
         skipSystemIntegration: Bool = false
     ) {
@@ -245,6 +253,7 @@ final class AppState: ObservableObject {
         self.transcriptPipeline = transcriptPipeline ?? TranscriptPipeline.production()
         self.axContextReader = axContextReader
         self.profileManager = profileManager
+        self.profileStore = profileStore
         self.permissionManager = permissionManager ?? PermissionManager(audioEngine: audioEngine, hotKeyManager: hotKeyManager)
         self.skipSystemIntegration = skipSystemIntegration
 
@@ -271,6 +280,14 @@ final class AppState: ObservableObject {
 
         // Forward historyStore changes so the History view re-renders
         historyStore.objectWillChangePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
+        // Forward profileStore changes so the Profiles settings tab re-renders
+        profileStore.objectWillChangePublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
@@ -304,13 +321,20 @@ final class AppState: ObservableObject {
     /// stored-property initialization prevents duplicate service graphs, event
     /// taps, audio observers, and stale SwiftUI environment objects.
     @MainActor
-    private static let sharedProductionInstance = AppState(
-        cursorOverlay: CursorOverlayManager(),
-        statsManager: StatsManager(),
-        historyStore: HistoryStore(),
-        axContextReader: AXContextReader(),
-        profileManager: ProfileManager(store: ProfileStore())
-    )
+    private static let sharedProductionInstance: AppState = {
+        // Shared with `profileManager` below — resolution at dictation time
+        // and the Profiles settings tab must see the same Profiles, not two
+        // independently-loaded copies.
+        let profileStore = ProfileStore()
+        return AppState(
+            cursorOverlay: CursorOverlayManager(),
+            statsManager: StatsManager(),
+            historyStore: HistoryStore(),
+            axContextReader: AXContextReader(),
+            profileManager: ProfileManager(store: profileStore),
+            profileStore: profileStore
+        )
+    }()
 
     /// Convenience factory for creating AppState with all real services.
     /// Needed because CursorOverlayManager is @MainActor and can't be a default parameter.
