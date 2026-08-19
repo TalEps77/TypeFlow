@@ -111,6 +111,15 @@ final class AppState: ObservableObject {
     @AppStorage("vocamac.customVocabulary") var customVocabulary: String = "WhisperKit, CoreML, Apple Silicon, macOS, Swift, SwiftUI, Xcode, Homebrew, GitHub, API, JSON, TypeScript, JavaScript, Python, Docker, Kubernetes, React, Node.js, terminal, VS Code, OpenAI, Claude Code, pull request, branch, commit"
     @AppStorage("vocamac.logLevel") var logLevel: String = "info"
 
+    // Post-processing (AD-9). The stage reads the same keys through
+    // PostProcessSettings, so no service has to depend on AppState.
+    @AppStorage(PostProcessSettings.Key.enabled) var postProcessEnabled: Bool = PostProcessSettings.Default.enabled
+    @AppStorage(PostProcessSettings.Key.baseURL) var postProcessBaseURL: String = PostProcessSettings.Default.baseURL
+    @AppStorage(PostProcessSettings.Key.model) var postProcessModel: String = PostProcessSettings.Default.model
+    @AppStorage(PostProcessSettings.Key.timeout) var postProcessTimeout: Double = PostProcessSettings.Default.timeout
+    @AppStorage(PostProcessSettings.Key.temperature) var postProcessTemperature: Double = PostProcessSettings.Default.temperature
+    @AppStorage(PostProcessSettings.Key.systemPrompt) var postProcessSystemPrompt: String = PostProcessSettings.Default.systemPrompt
+
     private var hotKeySafetyTimeout: Double {
         Double(maxRecordingDuration) + 5.0
     }

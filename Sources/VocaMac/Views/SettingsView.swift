@@ -2,7 +2,7 @@
 // VocaMac
 //
 // Settings window for VocaMac configuration.
-// Organized into tabs: General, Models, Audio, Debug, About.
+// Organized into tabs: General, Models, Stats, Audio, Cleanup, Debug, About.
 
 import SwiftUI
 
@@ -31,6 +31,11 @@ struct SettingsView: View {
             AudioSettingsTab()
                 .tabItem {
                     Label("Audio", systemImage: "waveform")
+                }
+
+            PostProcessSettingsTab()
+                .tabItem {
+                    Label("Cleanup", systemImage: "wand.and.sparkles")
                 }
 
             DebugTab()
