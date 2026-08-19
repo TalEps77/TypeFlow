@@ -27,6 +27,16 @@ final class TranscriptPipeline: TranscriptPipelining {
     /// protection replaces each matched Cue with an opaque placeholder before
     /// PostProcess's LLM ever sees the text; Rehydrate substitutes the real
     /// bodies back in afterwards, regardless of whether PostProcess is on.
+    ///
+    /// Known consequence of Dictionary running first (MINOR 7): a fuzzy
+    /// Dictionary hit on a word that is *part of a Cue* rewrites it, and the
+    /// Cue then no longer matches — the Snippet silently fails to expand. The
+    /// fuzzy tier's strict threshold and first-character anchor (see
+    /// `DictionaryService`) make this narrow, and reversing the order would
+    /// trade it for the worse problem of the Dictionary never being able to
+    /// repair a mis-transcribed Cue at all. Documented rather than fixed;
+    /// protecting matched Cues before the Dictionary pass is the real fix if
+    /// this is ever observed in practice.
     static func production(dictionaryStore: DictionaryStore, snippetStore: SnippetStore) -> TranscriptPipeline {
         TranscriptPipeline(stages: [
             DictionaryStage(entriesProvider: { dictionaryStore.entries }),
@@ -50,15 +60,23 @@ final class TranscriptPipeline: TranscriptPipelining {
             // trims to blank — the runner is the sole enforcer of AD-2, so a
             // stage claiming success with nothing in it must not clobber
             // whatever the pipeline already had (MINOR 7).
-            if result.outcome.didChangeText,
-               !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let didInstallText = result.outcome.didChangeText
+                && !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if didInstallText {
                 context.currentText = result.text
+            }
+
+            if result.usedFallback {
+                context.didFallback = true
             }
 
             // Story 5.4/AD-3: fold in whatever placeholder mapping this stage
             // produced (only ever non-empty for SnippetStage) so a later
-            // stage — RehydrateStage — can read it back off the context.
-            if !result.protectedSpans.isEmpty {
+            // stage — RehydrateStage — can read it back off the context. Only
+            // when the text carrying those placeholders was actually installed:
+            // a mapping whose placeholders are nowhere in `currentText` hands
+            // the rehydrate step a fallback it never needed to take.
+            if didInstallText, !result.protectedSpans.isEmpty {
                 context.protectedSpans.merge(result.protectedSpans) { _, new in new }
             }
 
@@ -93,9 +111,39 @@ final class TranscriptPipeline: TranscriptPipelining {
             }
 
             if case .failed(let reason) = result.outcome {
+                context.didFallback = true
                 VocaLogger.warning(.pipeline, "\(stage.name) failed — passing text through unchanged: \(reason)")
             }
         }
+
+        // BLOCKER 1: nothing that looks like Snippet machinery may reach the
+        // user's document. Rehydration is the one stage whose correct output
+        // can be shorter than its input — including empty — so a blank body, a
+        // duplicated placeholder, or any future arrangement of outcomes could
+        // leave `⟦S0⟧` standing as the text about to be injected and written to
+        // History. Each of those is fixed at its source; this is the assertion
+        // that says so, and it costs one regex on text that almost never
+        // contains a `⟦` at all.
+        //
+        // Scoped to runs that actually minted a placeholder, so a user who
+        // dictates the characters themselves is unaffected — and skipped when a
+        // Snippet body legitimately contains placeholder-shaped text of its
+        // own, which is verbatim content, not leftover machinery.
+        if !context.protectedSpans.isEmpty,
+           SnippetService.containsPlaceholder(context.currentText),
+           !context.protectedSpans.values.contains(where: SnippetService.containsPlaceholder) {
+            VocaLogger.error(.pipeline, "A snippet placeholder survived rehydration — falling back to the raw transcript rather than injecting it")
+            context.currentText = context.rawTranscript
+            context.didFallback = true
+        }
+
+        // AD-5, same retention argument as Cursor Context below: `protectedSpans`
+        // holds whole Snippet bodies and `textBeforePostProcess` a full copy of
+        // the transcript, and both are dead the moment rehydration is done. The
+        // returned context goes back to `AppState`, so leaving them populated
+        // keeps them alive well past the run that needed them (MINOR 9).
+        context.protectedSpans = [:]
+        context.textBeforePostProcess = nil
 
         // AD-5 again, now unconditionally. The clear inside the loop fires as
         // soon as the one consuming stage has run, which is what keeps every

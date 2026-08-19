@@ -122,10 +122,10 @@ final class HebrewNormalizerTests: XCTestCase {
     func testVariantPairsNormalizeIdentically() {
         let pairs: [(String, String)] = [
             ("שָׁלוֹם", "שלום"),                    // niqqud vs bare
-            ("קווברנטיס", "קוברנטיס"),              // doubled vav vs single
-            ("דיינות", "דינות"),                    // doubled yod vs single
             ("מלך", "מלכ"),                         // final vs base form (post-normalization form)
             ("ג'ירפה", "ג\u{05F3}ירפה"),            // ASCII apostrophe vs canonical geresh, post-pipeline
+            ("\u{05F0}אס", "וואס"),                 // Yiddish double-vav ligature vs the letter pair (MINOR 6)
+            ("\u{05F2}ד", "ייד"),                   // Yiddish double-yod ligature vs the letter pair
         ]
         for (variant, canonical) in pairs {
             XCTAssertEqual(
@@ -136,10 +136,41 @@ final class HebrewNormalizerTests: XCTestCase {
         }
     }
 
+    // MARK: - Matres lectionis is NOT part of normalize (MAJOR 1)
+
+    func testNormalizeDoesNotMergeDistinctWordsThatDifferOnlyByAMatresLectionis() {
+        // These are four different Hebrew words, not four spellings of one.
+        // `normalize` feeds exact-match tiers that bypass every threshold and
+        // anchor, so merging them there rewrites text the user really said.
+        let distinctPairs: [(String, String)] = [
+            ("מוות", "מות"),
+            ("עוול", "עול"),
+            ("ראייה", "ראיה"),
+            ("חייב", "חיב"),
+        ]
+        for (first, second) in distinctPairs {
+            XCTAssertNotEqual(
+                HebrewNormalizer.normalize(first),
+                HebrewNormalizer.normalize(second),
+                "'\(first)' and '\(second)' are different words and must not normalize the same"
+            )
+        }
+    }
+
+    func testTheStandaloneCollapseStillUnifiesSpellingVariants() {
+        // Story 5.1's AC still holds for the transform itself — it is only no
+        // longer wired into `normalize` or into any matcher.
+        XCTAssertEqual(
+            HebrewNormalizer.normalizeMatresLectionis("קווברנטיס"),
+            HebrewNormalizer.normalizeMatresLectionis("קוברנטיס")
+        )
+    }
+
     func testCombinedTransformationsAllApplyTogether() {
-        // Niqqud + doubled vav + final form + ASCII apostrophe, all in one string.
+        // Niqqud + final form + ASCII apostrophe, all in one string. The
+        // doubled vav is deliberately preserved (MAJOR 1).
         let input = "קָווברנטיס' מלך"
-        let expected = "קוברנטיס\u{05F3} מלכ"
+        let expected = "קווברנטיס\u{05F3} מלכ"
         XCTAssertEqual(HebrewNormalizer.normalize(input), expected)
     }
 

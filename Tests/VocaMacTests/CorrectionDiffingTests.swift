@@ -22,11 +22,73 @@ final class CorrectionDiffingTests: XCTestCase {
     }
 
     func testSingleWordEditInHebrewIsACandidate() {
+        // MINOR 15: the shared bound prefix ב is dropped from both sides. The
+        // correction is of קוברנטיס, not of the prefixed form — learning the
+        // prefixed pair yields an entry that only ever fires after ב.
         let candidate = CorrectionDiffing.detectCandidate(
             injected: "אני משתמש בקוברנטיס כאן",
             current: "אני משתמש בקוברנטס כאן"
         )
-        XCTAssertEqual(candidate, CorrectionCandidate(original: "בקוברנטיס", corrected: "בקוברנטס"))
+        XCTAssertEqual(candidate, CorrectionCandidate(original: "קוברנטיס", corrected: "קוברנטס"))
+    }
+
+    func testABoundPrefixOnOnlyOneSideIsNotStripped() {
+        // The prefix is part of what changed, so it stays.
+        let candidate = CorrectionDiffing.detectCandidate(
+            injected: "אני משתמש קוברנטיס כאן",
+            current: "אני משתמש בקוברנטיס כאן"
+        )
+        XCTAssertEqual(candidate, CorrectionCandidate(original: "קוברנטיס", corrected: "בקוברנטיס"))
+    }
+
+    // MARK: - The injected text located inside a larger field (MAJOR 7)
+
+    func testACorrectionIsFoundWhenTheFieldAlsoHoldsOtherText() {
+        // The dominant real case: dictating a reply under a quoted thread, or
+        // appending to a paragraph that is already there. Diffing against the
+        // whole field made every one of these bail on the word count.
+        let candidate = CorrectionDiffing.detectCandidate(
+            injected: "please add Kuberentes here",
+            current: "On Monday you wrote: please add Kubernetes here\n\nThanks"
+        )
+        XCTAssertEqual(candidate, CorrectionCandidate(original: "Kuberentes", corrected: "Kubernetes"))
+    }
+
+    func testTextTypedAroundAnUnchangedDictationProducesNoCandidate() {
+        XCTAssertNil(CorrectionDiffing.detectCandidate(
+            injected: "please add Kubernetes here",
+            current: "hello there, please add Kubernetes here, thanks very much"
+        ))
+    }
+
+    func testAnAmbiguousLocationProducesNoCandidate() {
+        // Two equally good places the dictation could sit; which one the user
+        // edited is a guess.
+        XCTAssertNil(CorrectionDiffing.detectCandidate(
+            injected: "add the thing",
+            current: "add the thang add the thong"
+        ))
+    }
+
+    // MARK: - Magnitude bound (MAJOR 11)
+
+    func testAnOrdinaryWordSwapIsNotACorrection() {
+        // Confirming these would install a permanent global find-and-replace.
+        XCTAssertNil(CorrectionDiffing.detectCandidate(injected: "see you Monday", current: "see you Tuesday"))
+        XCTAssertNil(CorrectionDiffing.detectCandidate(injected: "הוא אמר לי", current: "הוא טען לי"))
+        XCTAssertNil(CorrectionDiffing.detectCandidate(injected: "the red car", current: "the blue car"))
+    }
+
+    func testATinyWordSwapIsNotACorrectionEither() {
+        // Distance 2, but over two characters — the similarity floor is what
+        // catches this one.
+        XCTAssertNil(CorrectionDiffing.detectCandidate(injected: "get at it", current: "get on it"))
+    }
+
+    func testADifferenceOnlyInNiqqudProducesNoCandidate() {
+        // Identical once normalized: every comparison in this epic already
+        // treats these as the same word, so there is nothing to learn.
+        XCTAssertNil(CorrectionDiffing.detectCandidate(injected: "אמרתי שלום לך", current: "אמרתי שָׁלוֹם לך"))
     }
 
     func testEditAtTheFirstWordIsStillDetected() {

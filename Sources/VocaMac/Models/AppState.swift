@@ -384,10 +384,19 @@ final class AppState: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Forward dismissedCorrectionsStore changes so the "Clear Dismissed
+        // Corrections" control and its count re-render (MAJOR 9).
+        dismissedCorrectionsStore.objectWillChangePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
         // Story 5.6: a candidate is proposed, never added silently — it
         // waits here for the user to confirm or dismiss via the settings UI.
         correctionLearner.onCandidateProposed = { [weak self] candidate in
-            self?.pendingCorrectionCandidates.append(candidate)
+            self?.proposeCorrectionCandidate(candidate)
         }
 
         if !skipSystemIntegration {
@@ -803,6 +812,13 @@ final class AppState: ObservableObject {
         // still suspended in the pipeline from a previous one (MAJOR 2).
         dictationGeneration += 1
 
+        // And drop the previous dictation's pending correction re-read with it
+        // (MAJOR 8): by the time it would fire the user is mid-sentence into
+        // the next dictation, so whatever it read could only produce noise —
+        // and rapid dictations would otherwise queue overlapping reads of the
+        // same field.
+        correctionLearner.cancelPendingObservation()
+
         // AD-5: captured now, at the moment recording starts — not when it
         // stops. The user may switch applications while dictating; only what
         // was frontmost when they started speaking is the app they meant to
@@ -1022,15 +1038,46 @@ final class AppState: ObservableObject {
 
     // MARK: - Correction Learning (Story 5.6)
 
+    /// Adds a proposed candidate to the pending list, unless it is already
+    /// there or already answered.
+    ///
+    /// The pending list is rendered with `id: \.self` (MINOR 1), so appending
+    /// the same pair twice — trivially done by correcting the same word in two
+    /// dictations — gives SwiftUI two rows with identical identity, and it
+    /// animates and updates them incorrectly. A pair the Dictionary already
+    /// covers is dropped for a plainer reason: there is nothing to approve.
+    private func proposeCorrectionCandidate(_ candidate: CorrectionCandidate) {
+        guard !pendingCorrectionCandidates.contains(candidate) else { return }
+        guard !dictionaryCovers(candidate) else { return }
+        pendingCorrectionCandidates.append(candidate)
+    }
+
+    /// Whether an entry already maps this candidate's original to its
+    /// corrected form, compared the normalization-tolerant way every other
+    /// match in this epic is.
+    private func dictionaryCovers(_ candidate: CorrectionCandidate) -> Bool {
+        let canonical = HebrewNormalizer.normalize(candidate.corrected).lowercased()
+        let trigger = HebrewNormalizer.normalize(candidate.original).lowercased()
+        return dictionaryStore.entries.contains { entry in
+            HebrewNormalizer.normalize(entry.canonicalForm).lowercased() == canonical
+                && entry.triggers.contains { HebrewNormalizer.normalize($0).lowercased() == trigger }
+        }
+    }
+
     /// The user approved a proposed correction: it becomes a Dictionary
     /// Entry, marked `learned` so it's distinguishable from one typed in by
     /// hand, and the candidate leaves the pending list.
     func confirmCorrectionCandidate(_ candidate: CorrectionCandidate) {
-        dictionaryStore.add(DictionaryEntry(
-            canonicalForm: candidate.corrected,
-            triggers: [candidate.original],
-            learned: true
-        ))
+        // MINOR 16: confirming a pair the Dictionary already has adds a second
+        // entry saying the same thing — inert, but it accumulates in a list the
+        // user has to maintain by hand.
+        if !dictionaryCovers(candidate) {
+            dictionaryStore.add(DictionaryEntry(
+                canonicalForm: candidate.corrected,
+                triggers: [candidate.original],
+                learned: true
+            ))
+        }
         pendingCorrectionCandidates.removeAll { $0 == candidate }
     }
 
@@ -1136,10 +1183,11 @@ final class AppState: ObservableObject {
         recordingMillis: Double,
         asrMillis: Double
     ) {
-        let didFallback = context.reports.contains { report in
-            if case .failed = report.outcome { return true }
-            return false
-        }
+        // Written by the pipeline, which sees the fallbacks a report's outcome
+        // cannot express — RehydrateStage discarding a whole post-processing
+        // result still reports `.applied`, because its text really is adopted
+        // (MAJOR 4).
+        let didFallback = context.didFallback
         let postProcessReport = context.reports.first { $0.stageName == PostProcessStage.stageName }
         let postProcessMillis = (postProcessReport?.didRun == true ? postProcessReport?.duration ?? 0 : 0) * 1000
 

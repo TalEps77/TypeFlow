@@ -41,11 +41,29 @@ struct DictionaryEntry: Codable, Identifiable, Equatable, Sendable {
     /// Custom so a `dictionary.json` written before Story 5.6 (no `learned`
     /// key) still decodes — absent means "typed in by hand", never a
     /// decode failure that would quarantine an otherwise-valid file.
+    ///
+    /// `id` is optional for the same reason (MINOR 10). The Dictionary is
+    /// documented as importable JSON, and a file written by hand or generated
+    /// from a term list has no reason to carry UUIDs — yet a single missing
+    /// `id` used to fail the decode of the *whole array*, rejecting every entry
+    /// in the file with a message about a key. Minting one is always the right
+    /// answer: nothing outside this file references it.
+    ///
+    /// Duplicate triggers are dropped here rather than at every use site
+    /// (MINOR 11): the editor lists them with `id: \.self` and removes by
+    /// value, so two identical triggers give SwiftUI two rows with the same
+    /// identity and make the minus button delete both.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         canonicalForm = try container.decode(String.self, forKey: .canonicalForm)
-        triggers = try container.decode([String].self, forKey: .triggers)
+        triggers = Self.deduplicated(try container.decode([String].self, forKey: .triggers))
         learned = try container.decodeIfPresent(Bool.self, forKey: .learned) ?? false
+    }
+
+    /// First occurrence wins, order otherwise preserved.
+    static func deduplicated(_ triggers: [String]) -> [String] {
+        var seen: Set<String> = []
+        return triggers.filter { seen.insert($0).inserted }
     }
 }

@@ -106,4 +106,67 @@ final class SnippetServiceTests: XCTestCase {
 
         XCTAssertEqual(result.text, "  please, ⟦S0⟧!  ")
     }
+
+    // MARK: - A Cue must not reach across a boundary (MINOR 3)
+
+    func testAMultiWordCueDoesNotMatchAcrossAFullStop() {
+        // "תודה. רבה" is two sentences. Matching the Cue "תודה רבה" here would
+        // also swallow the full stop the speaker put there.
+        let service = SnippetService()
+        let snippet = Snippet(cue: "תודה רבה", body: "BODY")
+
+        let result = service.protect(in: "תודה. רבה לך", using: [snippet])
+
+        XCTAssertEqual(result.text, "תודה. רבה לך")
+        XCTAssertTrue(result.protectedSpans.isEmpty)
+    }
+
+    func testAMultiWordCueDoesNotMatchAcrossALineBreak() {
+        let service = SnippetService()
+        let snippet = Snippet(cue: "תודה רבה", body: "BODY")
+
+        let result = service.protect(in: "תודה\nרבה לך", using: [snippet])
+
+        XCTAssertEqual(result.text, "תודה\nרבה לך")
+    }
+
+    func testAMultiWordCueStillMatchesAcrossOrdinaryWhitespace() {
+        let service = SnippetService()
+        let snippet = Snippet(cue: "תודה רבה", body: "BODY")
+
+        XCTAssertEqual(service.protect(in: "אמרתי תודה רבה לך", using: [snippet]).text, "אמרתי ⟦S0⟧ לך")
+        XCTAssertEqual(service.protect(in: "אמרתי תודה  רבה לך", using: [snippet]).text, "אמרתי ⟦S0⟧ לך")
+    }
+
+    // MARK: - A blank body never mints a placeholder (BLOCKER 1)
+
+    func testASnippetWithABlankBodyIsSkippedEntirely() {
+        let service = SnippetService()
+
+        let result = service.protect(in: "הוסף חתימה כאן", using: [Snippet(cue: "חתימה", body: "   \n")])
+
+        XCTAssertEqual(result.text, "הוסף חתימה כאן")
+        XCTAssertTrue(result.protectedSpans.isEmpty)
+    }
+
+    func testABlankBodiedSnippetDoesNotShadowALaterUsableOne() {
+        let service = SnippetService()
+        let snippets = [
+            Snippet(cue: "חתימה", body: ""),
+            Snippet(cue: "כתובת", body: "ADDRESS")
+        ]
+
+        let result = service.protect(in: "חתימה ואז כתובת", using: snippets)
+
+        XCTAssertEqual(result.text, "חתימה ואז ⟦S0⟧")
+    }
+
+    // MARK: - Placeholder detection (the pipeline's last line of defence)
+
+    func testContainsPlaceholderRecognizesOurOwnTokensAndNothingElse() {
+        XCTAssertTrue(SnippetService.containsPlaceholder("Please add my ⟦S0⟧ here"))
+        XCTAssertTrue(SnippetService.containsPlaceholder("⟦S12⟧"))
+        XCTAssertFalse(SnippetService.containsPlaceholder("Please add my signature here"))
+        XCTAssertFalse(SnippetService.containsPlaceholder("⟦SX⟧"))
+    }
 }

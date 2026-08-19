@@ -55,11 +55,34 @@ struct StageResult: Equatable {
     /// can read the mapping back off the context it receives.
     let protectedSpans: [String: String]
 
-    init(text: String, outcome: StageOutcome, didRun: Bool = true, protectedSpans: [String: String] = [:]) {
+    /// Whether the stage adopted a fallback instead of the result it was
+    /// working towards — it produced usable text, so the outcome is still
+    /// `.applied`, but something the user might want to know about went wrong
+    /// getting there.
+    ///
+    /// `RehydrateStage` is the case this exists for (MAJOR 4): when the LLM
+    /// drops a placeholder it throws the *entire* post-processing result away
+    /// and rehydrates the pre-LLM snapshot instead. That is exactly the
+    /// "cleanup was discarded" event `HistoryRecord.didFallback` is meant to
+    /// surface, yet it reported plain `.applied` — so History showed a full
+    /// post-processing round trip that had in fact been discarded, with no
+    /// indication anywhere. `.failed` cannot express it either: the pipeline
+    /// would then keep the text it had, which is the text *still full of
+    /// placeholders*.
+    let usedFallback: Bool
+
+    init(
+        text: String,
+        outcome: StageOutcome,
+        didRun: Bool = true,
+        protectedSpans: [String: String] = [:],
+        usedFallback: Bool = false
+    ) {
         self.text = text
         self.outcome = outcome
         self.didRun = didRun
         self.protectedSpans = protectedSpans
+        self.usedFallback = usedFallback
     }
 
     /// Convenience for the overwhelmingly common "leave it alone" answer.

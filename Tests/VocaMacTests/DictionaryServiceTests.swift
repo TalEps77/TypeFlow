@@ -22,7 +22,11 @@ final class DictionaryServiceTests: XCTestCase {
 
     // MARK: - Exact match
 
-    func testExactTriggerIsReplacedWithCanonicalForm() {
+    // MINOR 12: this was named `testExactTriggerIsReplacedWithCanonicalForm`
+    // while asserting the exact opposite — the one test whose name a reader
+    // scanning for exact-match coverage would stop at. The real exact-match
+    // case is `testExactTriggerAsAWholeWordIsReplaced` below.
+    func testTriggerCarryingABoundPrefixIsNotReplaced() {
         let service = DictionaryService()
         let entry = DictionaryEntry(canonicalForm: "Kubernetes", triggers: ["קוברנטיס"])
 
@@ -43,10 +47,11 @@ final class DictionaryServiceTests: XCTestCase {
         XCTAssertEqual(result.replacementCount, 1)
     }
 
-    func testExactMatchIsNormalizationTolerant() {
-        // Trigger and spoken word differ only by niqqud + a doubled vav --
-        // HebrewNormalizer.normalize brings both to the same form, so this
-        // is an *exact* match, not merely a near one.
+    func testNiqqudAndSpellingVarianceStillCorrects() {
+        // Trigger and spoken word differ by niqqud (which `normalize` removes,
+        // so it costs nothing) and by a doubled vav — which `normalize`
+        // deliberately preserves (MAJOR 1), leaving the near-match tier to
+        // clear it at 1 edit over 9 characters, similarity 0.889.
         let service = DictionaryService()
         let entry = DictionaryEntry(canonicalForm: "Kubernetes", triggers: ["קווברנטיס"])
 
@@ -68,16 +73,127 @@ final class DictionaryServiceTests: XCTestCase {
         XCTAssertEqual(result.text, "Kubernetes הותקן בהצלחה")
     }
 
-    func testNearMatchExactlyAtThresholdIsReplaced() {
-        // Construct a pair whose similarity lands exactly on the threshold
-        // and assert the boundary is inclusive ("within" the threshold).
+    func testNearMatchExactlyAtThresholdIsNotReplaced() {
+        // MAJOR 2: the boundary is exclusive. It has to be — at the shipped
+        // 0.8 it lands exactly on Hebrew's feminine -ת inflection (see below),
+        // and every four-letter stem in the Dictionary would rewrite its own
+        // five-letter inflected form.
         let service = DictionaryService(similarityThreshold: 0.75)
         // "abcd" vs "abcx": distance 1, length 4 -> similarity 0.75 exactly.
         let entry = DictionaryEntry(canonicalForm: "CANON", triggers: ["abcd"])
 
         let result = service.replace(in: "the word abcx here", using: [entry])
 
-        XCTAssertEqual(result.text, "the word CANON here")
+        XCTAssertEqual(result.text, "the word abcx here")
+    }
+
+    // MARK: - The shipped threshold against real Hebrew inflections (MAJOR 2)
+
+    func testTheShippedThresholdDoesNotFireOnTheFeminineInflection() {
+        // 4-letter stem -> 5-letter feminine form is distance 1 over 5, which
+        // is similarity 0.800 exactly — the value the shipped default is set
+        // to. Every one of these used to be replaced.
+        let service = DictionaryService(similarityThreshold: 0.8)
+        let pairs: [(stem: String, inflected: String, canonical: String)] = [
+            ("עובד", "עובדת", "WORKER"),
+            ("מנהל", "מנהלת", "MANAGER"),
+            ("דוקר", "דוקרת", "Docker"),
+        ]
+        for pair in pairs {
+            let entry = DictionaryEntry(canonicalForm: pair.canonical, triggers: [pair.stem])
+            XCTAssertEqual(
+                service.replace(in: pair.inflected, using: [entry]).text,
+                pair.inflected,
+                "'\(pair.stem)' must not rewrite its own inflected form '\(pair.inflected)'"
+            )
+        }
+    }
+
+    func testTheShippedThresholdLeavesAnOrdinarySentenceAlone() {
+        let service = DictionaryService(similarityThreshold: 0.8)
+        let entry = DictionaryEntry(canonicalForm: "Docker", triggers: ["דוקר"])
+
+        // "she is stabbing me" -- nothing to do with containers.
+        XCTAssertEqual(service.replace(in: "היא דוקרת אותי", using: [entry]).text, "היא דוקרת אותי")
+        // ...and the word the entry actually exists for still corrects.
+        XCTAssertEqual(service.replace(in: "התקנתי דוקר אתמול", using: [entry]).text, "התקנתי Docker אתמול")
+    }
+
+    func testTheShippedThresholdDoesNotMergeDistinctMatresLectionisWords(){
+        // MAJOR 1 seen from the matcher's side: with the collapse gone from
+        // `normalize`, מות is 1 edit over 4 characters from מוות — similarity
+        // 0.75, correctly below the bar.
+        let service = DictionaryService(similarityThreshold: 0.8)
+        let entry = DictionaryEntry(canonicalForm: "DEATH", triggers: ["מות"])
+
+        XCTAssertEqual(service.replace(in: "מוות הוא סוף", using: [entry]).text, "מוות הוא סוף")
+    }
+
+    // MARK: - Triggers containing a non-letter (MAJOR 3)
+
+    func testATriggerWithGershayimMatches() {
+        let service = DictionaryService()
+        let entry = DictionaryEntry(canonicalForm: "CEO", triggers: ["מנכ״ל"])
+
+        XCTAssertEqual(service.replace(in: "מנכ״ל החברה הגיע", using: [entry]).text, "CEO החברה הגיע")
+        // The ASCII double quote an ASR or a keyboard substitutes for the
+        // gershayim is the same trigger.
+        XCTAssertEqual(service.replace(in: "מנכ\"ל החברה הגיע", using: [entry]).text, "CEO החברה הגיע")
+        // ...and so is the run-together spelling, via the near-match tier.
+        XCTAssertEqual(service.replace(in: "מנכל החברה הגיע", using: [entry]).text, "CEO החברה הגיע")
+    }
+
+    func testATriggerWithATrailingGereshTakesItWithIt() {
+        let service = DictionaryService()
+        let entry = DictionaryEntry(canonicalForm: "George", triggers: ["ג׳ורג׳"])
+
+        XCTAssertEqual(service.replace(in: "ג׳ורג׳ הגיע", using: [entry]).text, "George הגיע")
+    }
+
+    func testATriggerWithAFullStopMatches() {
+        let service = DictionaryService()
+        let entry = DictionaryEntry(canonicalForm: "Node.js", triggers: ["node.js"])
+
+        XCTAssertEqual(service.replace(in: "I wrote it in node.js yesterday", using: [entry]).text,
+                       "I wrote it in Node.js yesterday")
+    }
+
+    func testAMultiWordTriggerMatchesAsAPhrase() {
+        let service = DictionaryService()
+        let entry = DictionaryEntry(canonicalForm: "ML", triggers: ["machine learning"])
+
+        XCTAssertEqual(service.replace(in: "we do machine learning here", using: [entry]).text, "we do ML here")
+    }
+
+    func testAMultiWordTriggerDoesNotReachAcrossASentenceBoundary() {
+        let service = DictionaryService()
+        let entry = DictionaryEntry(canonicalForm: "ML", triggers: ["machine learning"])
+
+        XCTAssertEqual(service.replace(in: "we do machine. learning here", using: [entry]).text,
+                       "we do machine. learning here")
+    }
+
+    func testALongerTriggerOutranksAShorterOneAtTheSamePosition() {
+        let service = DictionaryService()
+        let entries = [
+            DictionaryEntry(canonicalForm: "SHORT", triggers: ["node"]),
+            DictionaryEntry(canonicalForm: "Node.js", triggers: ["node.js"])
+        ]
+
+        XCTAssertEqual(service.replace(in: "it runs on node.js today", using: entries).text,
+                       "it runs on Node.js today")
+    }
+
+    // MARK: - Literal placeholder-shaped text in a dictation (MINOR 12)
+
+    func testLiteralPlaceholderTextIsNotTreatedSpecially() {
+        let service = DictionaryService()
+        let entry = DictionaryEntry(canonicalForm: "Kubernetes", triggers: ["קוברנטיס"])
+
+        // The user genuinely dictated the bracket characters. The Dictionary
+        // has no opinion about them and must leave them exactly as they are.
+        let text = "⟦S0⟧ קוברנטיס ⟦S1⟧"
+        XCTAssertEqual(service.replace(in: text, using: [entry]).text, "⟦S0⟧ Kubernetes ⟦S1⟧")
     }
 
     func testNearMatchBelowThresholdIsNotReplaced() {

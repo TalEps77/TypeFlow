@@ -38,7 +38,23 @@ final class CorrectionLearnerTests: XCTestCase {
             contextReader: contextReader,
             dismissedStore: dismissedStore,
             isEnabledProvider: { isEnabled },
-            scheduleReRead: { action in action() } // synchronous for tests
+            scheduleReRead: { workItem in workItem.perform() } // synchronous for tests
+        )
+    }
+
+    /// A learner whose scheduled work item is captured rather than run, so a
+    /// test can decide when — or whether — it fires.
+    private func makeDeferredLearner(
+        contextReader: MockContextReader,
+        dismissedStore: DismissedCorrectionsStore,
+        isEnabled: @escaping () -> Bool,
+        scheduled: @escaping (DispatchWorkItem) -> Void
+    ) -> CorrectionLearner {
+        CorrectionLearner(
+            contextReader: contextReader,
+            dismissedStore: dismissedStore,
+            isEnabledProvider: isEnabled,
+            scheduleReRead: scheduled
         )
     }
 
@@ -51,7 +67,7 @@ final class CorrectionLearnerTests: XCTestCase {
         var proposed: CorrectionCandidate?
         learner.onCandidateProposed = { proposed = $0 }
 
-        learner.observeInjection("please add Kuberentes here", targetProcessIdentifier: nil)
+        learner.observeInjection("please add Kuberentes here", targetProcessIdentifier: 42)
 
         XCTAssertEqual(contextReader.readFocusedElementTextCallCount, 0)
         XCTAssertNil(proposed)
@@ -63,7 +79,7 @@ final class CorrectionLearnerTests: XCTestCase {
         var proposed: CorrectionCandidate?
         learner.onCandidateProposed = { proposed = $0 }
 
-        learner.observeInjection("   ", targetProcessIdentifier: nil)
+        learner.observeInjection("   ", targetProcessIdentifier: 42)
 
         XCTAssertEqual(contextReader.readFocusedElementTextCallCount, 0)
         XCTAssertNil(proposed)
@@ -91,7 +107,7 @@ final class CorrectionLearnerTests: XCTestCase {
         var proposed: CorrectionCandidate?
         learner.onCandidateProposed = { proposed = $0 }
 
-        learner.observeInjection("please add Kuberentes here", targetProcessIdentifier: nil)
+        learner.observeInjection("please add Kuberentes here", targetProcessIdentifier: 42)
 
         XCTAssertNil(proposed)
     }
@@ -103,7 +119,7 @@ final class CorrectionLearnerTests: XCTestCase {
         var proposed: CorrectionCandidate?
         learner.onCandidateProposed = { proposed = $0 }
 
-        learner.observeInjection("please add Kuberentes here", targetProcessIdentifier: nil)
+        learner.observeInjection("please add Kuberentes here", targetProcessIdentifier: 42)
 
         XCTAssertNil(proposed)
     }
@@ -119,8 +135,93 @@ final class CorrectionLearnerTests: XCTestCase {
         var proposed: CorrectionCandidate?
         learner.onCandidateProposed = { proposed = $0 }
 
+        learner.observeInjection("please add Kuberentes here", targetProcessIdentifier: 42)
+
+        XCTAssertNil(proposed)
+    }
+
+    // MARK: - No target process, no read (BLOCKER 3)
+
+    func testAnUnknownTargetProcessNeverReadsAnything() {
+        // Without a process identifier there is nothing to anchor the read to,
+        // and 1.5 seconds after an injection whatever holds focus may be an
+        // entirely different application's field.
+        let contextReader = MockContextReader()
+        contextReader.readFocusedElementTextResult = "please add Kubernetes here"
+        let learner = makeLearner(contextReader: contextReader, dismissedStore: makeDismissedStore(), isEnabled: true)
+        var proposed: CorrectionCandidate?
+        learner.onCandidateProposed = { proposed = $0 }
+
         learner.observeInjection("please add Kuberentes here", targetProcessIdentifier: nil)
 
+        XCTAssertEqual(contextReader.readFocusedElementTextCallCount, 0)
+        XCTAssertNil(proposed)
+    }
+
+    // MARK: - Cancellation and re-checking (MAJOR 8)
+
+    func testCancellingBeforeTheReReadFiresPreventsIt() {
+        let contextReader = MockContextReader()
+        contextReader.readFocusedElementTextResult = "please add Kubernetes here"
+        var scheduled: DispatchWorkItem?
+        let learner = makeDeferredLearner(
+            contextReader: contextReader,
+            dismissedStore: makeDismissedStore(),
+            isEnabled: { true },
+            scheduled: { scheduled = $0 }
+        )
+        var proposed: CorrectionCandidate?
+        learner.onCandidateProposed = { proposed = $0 }
+
+        learner.observeInjection("please add Kuberentes here", targetProcessIdentifier: 42)
+        learner.cancelPendingObservation()
+        scheduled?.perform()
+
+        XCTAssertTrue(scheduled?.isCancelled ?? false, "the work item itself must be cancelled, not merely skipped")
+        XCTAssertEqual(contextReader.readFocusedElementTextCallCount, 0)
+        XCTAssertNil(proposed)
+    }
+
+    func testANewerInjectionCancelsThePreviousPendingReRead() {
+        let contextReader = MockContextReader()
+        contextReader.readFocusedElementTextResult = "please add Kubernetes here"
+        var scheduled: [DispatchWorkItem] = []
+        let learner = makeDeferredLearner(
+            contextReader: contextReader,
+            dismissedStore: makeDismissedStore(),
+            isEnabled: { true },
+            scheduled: { scheduled.append($0) }
+        )
+        learner.onCandidateProposed = { _ in }
+
+        learner.observeInjection("first dictation text", targetProcessIdentifier: 42)
+        learner.observeInjection("please add Kuberentes here", targetProcessIdentifier: 42)
+
+        XCTAssertEqual(scheduled.count, 2)
+        XCTAssertTrue(scheduled[0].isCancelled, "the superseded re-read must not still be live")
+        XCTAssertFalse(scheduled[1].isCancelled)
+    }
+
+    func testTurningTheToggleOffInsideTheDelayStopsTheRead() {
+        let contextReader = MockContextReader()
+        contextReader.readFocusedElementTextResult = "please add Kubernetes here"
+        var isEnabled = true
+        var scheduled: DispatchWorkItem?
+        let learner = makeDeferredLearner(
+            contextReader: contextReader,
+            dismissedStore: makeDismissedStore(),
+            isEnabled: { isEnabled },
+            scheduled: { scheduled = $0 }
+        )
+        var proposed: CorrectionCandidate?
+        learner.onCandidateProposed = { proposed = $0 }
+
+        learner.observeInjection("please add Kuberentes here", targetProcessIdentifier: 42)
+        isEnabled = false
+        scheduled?.perform()
+
+        XCTAssertEqual(contextReader.readFocusedElementTextCallCount, 0,
+                        "a feature the user has just switched off must not perform one last read of their screen")
         XCTAssertNil(proposed)
     }
 }

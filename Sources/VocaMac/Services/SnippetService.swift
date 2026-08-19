@@ -38,6 +38,15 @@ struct SnippetService: SnippetProviding, Sendable {
         "⟦S\(index)⟧"
     }
 
+    /// Whether `text` still carries something shaped like one of our
+    /// placeholders. `TranscriptPipeline` uses this as its last line of
+    /// defence: a placeholder that reaches injection is raw machinery in the
+    /// user's document, and no arrangement of stage outcomes may allow it
+    /// (BLOCKER 1).
+    static func containsPlaceholder(_ text: String) -> Bool {
+        text.range(of: "⟦S[0-9]+⟧", options: .regularExpression) != nil
+    }
+
     func protect(in text: String, using snippets: [Snippet]) -> SnippetProtectionResult {
         guard !snippets.isEmpty else {
             return SnippetProtectionResult(text: text, protectedSpans: [:])
@@ -48,20 +57,29 @@ struct SnippetService: SnippetProviding, Sendable {
             return SnippetProtectionResult(text: text, protectedSpans: [:])
         }
 
-        // Each Cue's own word sequence, normalized once up front rather than
-        // per candidate position.
-        let candidates: [(cueWords: [String], body: String)] = snippets.compactMap { snippet in
-            let cueWords = WordTokenizer.tokenize(snippet.cue).map {
-                HebrewNormalizer.normalize(String($0.text)).lowercased()
+        // Each Cue's own word sequence and separators, normalized once up
+        // front rather than per candidate position.
+        //
+        // A Snippet whose body is blank is skipped outright (BLOCKER 1). Its
+        // placeholder would rehydrate to nothing, and a dictation consisting of
+        // just that Cue would rehydrate to an empty string — which the runner's
+        // AD-2 blank guard then rejects, leaving the raw `⟦S0⟧` as the text to
+        // inject and to write to History. Never minting the placeholder is the
+        // one fix that cannot be undone by a later stage.
+        let candidates: [(cue: WordTokenizer.Phrase, body: String)] = snippets.compactMap { snippet in
+            guard !snippet.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  let cue = WordTokenizer.phrase(snippet.cue, normalizing: HebrewNormalizer.normalize),
+                  !cue.words.contains(where: { $0.isEmpty }) else {
+                return nil
             }
-            guard !cueWords.isEmpty else { return nil }
-            return (cueWords, snippet.body)
+            return (cue, snippet.body)
         }
         guard !candidates.isEmpty else {
             return SnippetProtectionResult(text: text, protectedSpans: [:])
         }
 
         let normalizedTokens = tokens.map { HebrewNormalizer.normalize(String($0.text)).lowercased() }
+        let gaps = WordTokenizer.canonicalGaps(in: text, tokens: tokens)
 
         var result = ""
         var cursor = text.startIndex
@@ -73,10 +91,12 @@ struct SnippetService: SnippetProviding, Sendable {
             // First candidate (in Snippet array order) whose full word
             // sequence matches starting at this position — deterministic,
             // mirroring DictionaryService's overlap resolution (Story 5.2).
+            // The separators between the Cue's words have to match too, so a
+            // multi-word Cue can no longer reach across a full stop or a line
+            // break and swallow it — "תודה. רבה" is two sentences, not the Cue
+            // "תודה רבה" (MINOR 3).
             let match = candidates.first { candidate in
-                let length = candidate.cueWords.count
-                guard tokenIndex + length <= tokens.count else { return false }
-                return Array(normalizedTokens[tokenIndex..<(tokenIndex + length)]) == candidate.cueWords
+                WordTokenizer.matches(candidate.cue, words: normalizedTokens, gaps: gaps, at: tokenIndex)
             }
 
             guard let match else {
@@ -84,9 +104,15 @@ struct SnippetService: SnippetProviding, Sendable {
                 continue
             }
 
-            let length = match.cueWords.count
+            let length = match.cue.words.count
             let matchStart = tokens[tokenIndex].range.lowerBound
-            let matchEnd = tokens[tokenIndex + length - 1].range.upperBound
+            var matchEnd = tokens[tokenIndex + length - 1].range.upperBound
+            // A Cue ending in punctuation takes the text's copy of it with it,
+            // the same way a Dictionary trigger does.
+            let trailing = WordTokenizer.trailingLength(of: match.cue, in: text, from: matchEnd)
+            if trailing > 0 {
+                matchEnd = text.index(matchEnd, offsetBy: trailing)
+            }
 
             // Copy whatever sits before this match (whitespace, punctuation,
             // unmatched words) through byte-for-byte.

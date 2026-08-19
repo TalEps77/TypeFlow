@@ -53,6 +53,17 @@ struct TranscriptContext {
     /// One entry per stage that ran, in order.
     var reports: [StageReport]
 
+    /// True when this run had to fall back on something — a stage failed and
+    /// its work was discarded, a stage adopted a fallback of its own
+    /// (`StageResult.usedFallback`), or the runner's own placeholder guard
+    /// fired. `HistoryRecord.didFallback` is written from this.
+    ///
+    /// `var`, and written only by `TranscriptPipeline` — the sole writer of
+    /// this type — for the same reason the reports are: deriving it in
+    /// `AppState` from outcomes alone missed every fallback that legitimately
+    /// reports `.applied` (MAJOR 4).
+    var didFallback: Bool
+
     init(
         rawTranscript: String,
         targetBundleIdentifier: String? = nil,
@@ -69,6 +80,7 @@ struct TranscriptContext {
         self.protectedSpans = [:]
         self.textBeforePostProcess = nil
         self.reports = []
+        self.didFallback = false
     }
 
     /// Total time spent inside stages for this run.

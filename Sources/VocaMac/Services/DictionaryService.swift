@@ -32,14 +32,35 @@ struct DictionaryReplacementResult: Equatable {
 
 struct DictionaryService: DictionaryProviding, Sendable {
 
-    /// Minimum normalized-form similarity (1.0 == identical) for a near-match
-    /// to be accepted. Chosen conservatively (SM-C2): a miss costs the user
-    /// nothing they didn't already have; a wrong replacement corrupts text
+    /// Similarity (1.0 == identical) a near-match must **exceed** for the
+    /// fuzzy tier to accept it. Chosen conservatively (SM-C2): a miss costs the
+    /// user nothing they didn't already have; a wrong replacement corrupts text
     /// they never said.
+    ///
+    /// The comparison is strict (`>`, not `>=`) because the inclusive boundary
+    /// landed exactly on Hebrew's most productive inflection (MAJOR 2): a
+    /// four-letter stem plus the feminine -ת is distance 1 over five characters
+    /// — similarity 0.800 on the nose — so עובד→עובדת, מנהל→מנהלת and
+    /// דוקר→דוקרת all cleared the shipped 0.8 threshold, turning
+    /// "היא דוקרת אותי" into "היא Docker אותי". Strict comparison also means
+    /// the fuzzy tier cannot fire at all below six characters, where a single
+    /// edit is never distinguishable from a different word.
     let similarityThreshold: Double
 
     init(similarityThreshold: Double = 0.8) {
         self.similarityThreshold = similarityThreshold
+    }
+
+    /// One trigger, prepared once per `replace` call rather than recomputed
+    /// per token × trigger × tier (MINOR 8).
+    private struct PreparedTrigger {
+        /// The trigger's own words and gaps, for the exact tier.
+        let phrase: WordTokenizer.Phrase
+        /// The same words joined letters-only, for the edit-distance tier —
+        /// which is what lets a trigger the ASR ran together (מנכ״ל heard as
+        /// מנכל) still match.
+        let joined: String
+        let canonicalForm: String
     }
 
     func replace(in text: String, using entries: [DictionaryEntry]) -> DictionaryReplacementResult {
@@ -52,22 +73,68 @@ struct DictionaryService: DictionaryProviding, Sendable {
             return DictionaryReplacementResult(text: text, replacementCount: 0)
         }
 
+        // MAJOR 3: a trigger is tokenized the same way the transcript is, and
+        // matched as a contiguous run of tokens. Compared whole against a
+        // single token — as this used to be — every trigger containing a
+        // geresh, gershayim, apostrophe, full stop or space (מנכ״ל, צה״ל,
+        // ג׳ורג׳, node.js, and every multi-word trigger) was unmatchable
+        // forever, with nothing anywhere saying so.
+        let prepared: [PreparedTrigger] = entries.flatMap { entry in
+            entry.triggers.compactMap { trigger -> PreparedTrigger? in
+                guard let phrase = WordTokenizer.phrase(trigger, normalizing: HebrewNormalizer.normalize),
+                      !phrase.words.contains(where: { $0.isEmpty }) else {
+                    return nil
+                }
+                return PreparedTrigger(
+                    phrase: phrase,
+                    joined: phrase.words.joined(),
+                    canonicalForm: entry.canonicalForm
+                )
+            }
+        }
+        guard !prepared.isEmpty else {
+            return DictionaryReplacementResult(text: text, replacementCount: 0)
+        }
+        let longestTrigger = prepared.map { $0.phrase.words.count }.max() ?? 1
+
+        let normalizedWords = tokens.map { HebrewNormalizer.normalize(String($0.text)).lowercased() }
+        let gaps = WordTokenizer.canonicalGaps(in: text, tokens: tokens)
+
         var result = ""
         var cursor = text.startIndex
         var replacementCount = 0
+        var tokenIndex = 0
 
-        for token in tokens {
-            // Copy whatever sits between the previous token and this one
-            // (whitespace, punctuation) through byte-for-byte.
-            result += text[cursor..<token.range.lowerBound]
-
-            if let canonicalForm = Self.match(token: token.text, entries: entries, similarityThreshold: similarityThreshold) {
-                result += canonicalForm
-                replacementCount += 1
-            } else {
-                result += token.text
+        while tokenIndex < tokens.count {
+            guard let match = Self.match(
+                at: tokenIndex,
+                normalizedWords: normalizedWords,
+                gaps: gaps,
+                prepared: prepared,
+                longestTrigger: longestTrigger,
+                similarityThreshold: similarityThreshold
+            ) else {
+                result += text[cursor..<tokens[tokenIndex].range.upperBound]
+                cursor = tokens[tokenIndex].range.upperBound
+                tokenIndex += 1
+                continue
             }
-            cursor = token.range.upperBound
+
+            // Copy whatever sits between the previous match and this one
+            // (whitespace, punctuation, unmatched words) through byte-for-byte.
+            result += text[cursor..<tokens[tokenIndex].range.lowerBound]
+            result += match.trigger.canonicalForm
+            replacementCount += 1
+
+            var matchEnd = tokens[tokenIndex + match.length - 1].range.upperBound
+            // A trigger that ends in punctuation takes the text's copy of it
+            // with it, so replacing ג׳ורג׳ does not leave a stray ׳ behind.
+            let trailing = WordTokenizer.trailingLength(of: match.trigger.phrase, in: text, from: matchEnd)
+            if trailing > 0 {
+                matchEnd = text.index(matchEnd, offsetBy: trailing)
+            }
+            cursor = matchEnd
+            tokenIndex += match.length
         }
         result += text[cursor...]
 
@@ -77,24 +144,42 @@ struct DictionaryService: DictionaryProviding, Sendable {
     // MARK: - Matching
 
     /// Deterministic and ordered (Story 5.2 AC): entries with overlapping
-    /// triggers resolve by array order. Every entry is checked for an exact
-    /// (normalized) match before any entry is checked for a near-match, so an
-    /// exact match anywhere in the Dictionary always outranks a fuzzier one.
-    private static func match(token: Substring, entries: [DictionaryEntry], similarityThreshold: Double) -> String? {
-        let normalizedToken = HebrewNormalizer.normalize(String(token)).lowercased()
-        guard !normalizedToken.isEmpty else { return nil }
+    /// triggers resolve by array order. Every trigger is checked for an exact
+    /// (normalized) match before any is checked for a near-match, so an exact
+    /// match anywhere in the Dictionary always outranks a fuzzier one; within a
+    /// tier, a longer token run outranks a shorter one, so "node.js" is never
+    /// left half-matched by a "node" trigger.
+    private static func match(
+        at index: Int,
+        normalizedWords: [String],
+        gaps: [String?],
+        prepared: [PreparedTrigger],
+        longestTrigger: Int,
+        similarityThreshold: Double
+    ) -> (trigger: PreparedTrigger, length: Int)? {
+        guard !normalizedWords[index].isEmpty else { return nil }
+        let maximumRun = min(longestTrigger, normalizedWords.count - index)
+        guard maximumRun > 0 else { return nil }
 
-        for entry in entries {
-            for trigger in entry.triggers {
-                if HebrewNormalizer.normalize(trigger).lowercased() == normalizedToken {
-                    return entry.canonicalForm
+        // Exact tier.
+        for length in stride(from: maximumRun, through: 1, by: -1) {
+            for trigger in prepared where trigger.phrase.words.count == length {
+                if WordTokenizer.matches(trigger.phrase, words: normalizedWords, gaps: gaps, at: index) {
+                    return (trigger, length)
                 }
             }
         }
 
-        for entry in entries {
-            for trigger in entry.triggers {
-                let normalizedTrigger = HebrewNormalizer.normalize(trigger).lowercased()
+        // Fuzzy tier, over the letters-only joins on both sides — so a trigger
+        // and a transcript that disagree about where the word boundaries are
+        // still compare (MAJOR 3).
+        for length in stride(from: maximumRun, through: 1, by: -1) {
+            guard Self.runIsContiguous(gaps: gaps, at: index, length: length) else { continue }
+            let candidate = normalizedWords[index..<(index + length)].joined()
+            guard !candidate.isEmpty else { continue }
+
+            for trigger in prepared {
+                let normalizedTrigger = trigger.joined
                 guard !normalizedTrigger.isEmpty else { continue }
                 // First-character anchor: Hebrew's bound prefixes (ב/ל/מ/ש/ו/כ/ה,
                 // e.g. "קוברנטיס" -> "בקוברנטיס", "in Kubernetes") add exactly one
@@ -104,18 +189,29 @@ struct DictionaryService: DictionaryProviding, Sendable {
                 // rules out prefixed real words while still catching the
                 // in-place errors (missing/extra internal letter) this stage
                 // exists for (SM-C2: a conservative miss beats a wrong replacement).
-                guard normalizedTrigger.first == normalizedToken.first else { continue }
-                let maxLength = max(normalizedToken.count, normalizedTrigger.count)
+                guard normalizedTrigger.first == candidate.first else { continue }
+                let maxLength = max(candidate.count, normalizedTrigger.count)
                 guard maxLength > 0 else { continue }
-                let distance = levenshteinDistance(normalizedToken, normalizedTrigger)
+                let distance = levenshteinDistance(candidate, normalizedTrigger)
                 let similarity = 1.0 - Double(distance) / Double(maxLength)
-                if similarity >= similarityThreshold {
-                    return entry.canonicalForm
+                if similarity > similarityThreshold {
+                    return (trigger, length)
                 }
             }
         }
 
         return nil
+    }
+
+    /// Whether every gap inside a run of `length` tokens starting at `index` is
+    /// a legal in-phrase separator — the fuzzy tier joins the run's letters, so
+    /// without this it would happily merge two words across a sentence boundary.
+    private static func runIsContiguous(gaps: [String?], at index: Int, length: Int) -> Bool {
+        guard length > 1 else { return true }
+        for offset in 0..<(length - 1) where gaps[index + offset] == nil {
+            return false
+        }
+        return true
     }
 }
 

@@ -21,6 +21,17 @@ struct VocabularySettingsTab: View {
     @State private var editingEntry: DictionaryEntry?
     @State private var editingSnippet: Snippet?
     @State private var importErrorMessage: String?
+    /// Separate from `importErrorMessage` (MINOR 2): a failed *export* was
+    /// reported under an "Import Failed" heading, telling the user their
+    /// import went wrong when they had asked to save a file.
+    @State private var exportErrorMessage: String?
+    @State private var importSummaryMessage: String?
+
+    /// Refuses an import file larger than this before reading a byte of it
+    /// (MAJOR 5). A Dictionary export is kilobytes; anything at this scale is a
+    /// mistaken file, and `Data(contentsOf:)` would otherwise pull all of it
+    /// into memory.
+    private static let maximumImportBytes = 5 * 1024 * 1024
 
     var body: some View {
         Form {
@@ -48,6 +59,25 @@ struct VocabularySettingsTab: View {
                         }
                     }
                 }
+
+                // MAJOR 9: the only place the dismissal list is visible at all,
+                // and the only way to get rid of it. Data VocaMac keeps on the
+                // user's behalf must be something they can clear without
+                // deleting the application support directory by hand.
+                HStack {
+                    Button("Clear Dismissed Corrections") {
+                        appState.dismissedCorrectionsStore.clear()
+                    }
+                    .controlSize(.small)
+                    .disabled(appState.dismissedCorrectionsStore.dismissed.isEmpty)
+                    Text("\(appState.dismissedCorrectionsStore.dismissed.count) remembered")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("Dismissals are stored as one-way hashes — the words themselves are never written to disk — so that saying \"no\" to a suggestion costs less privacy than saying yes.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Manage") {
@@ -55,20 +85,29 @@ struct VocabularySettingsTab: View {
                     ForEach(appState.dictionaryStore.entries) { entry in
                         DictionaryEntryRow(entry: entry) {
                             editingEntry = entry
+                        } onDelete: {
+                            appState.dictionaryStore.delete(entry.id)
                         }
                     }
                     .onDelete { offsets in
-                        for index in offsets {
-                            appState.dictionaryStore.delete(appState.dictionaryStore.entries[index].id)
+                        // BLOCKER 2: resolve every id *before* deleting any of
+                        // them. Deleting inside the loop reindexes the array
+                        // under the offsets still to be visited, so a
+                        // multi-row delete removed the wrong rows — or trapped
+                        // on an index past the end.
+                        let ids = offsets.map { appState.dictionaryStore.entries[$0].id }
+                        for id in ids {
+                            appState.dictionaryStore.delete(id)
                         }
                     }
                 }
                 .frame(minHeight: 180, maxHeight: 260)
 
                 Button {
-                    let new = DictionaryEntry(canonicalForm: "", triggers: [])
-                    appState.dictionaryStore.add(new)
-                    editingEntry = new
+                    // MAJOR 10: a draft, not a persisted row. Nothing reaches
+                    // the store until the editor's Done, so Cancel leaves the
+                    // Dictionary exactly as it was.
+                    editingEntry = DictionaryEntry(canonicalForm: "", triggers: [])
                 } label: {
                     Label("Add Entry", systemImage: "plus")
                 }
@@ -99,20 +138,22 @@ struct VocabularySettingsTab: View {
                     ForEach(appState.snippetStore.snippets) { snippet in
                         SnippetRow(snippet: snippet) {
                             editingSnippet = snippet
+                        } onDelete: {
+                            appState.snippetStore.delete(snippet.id)
                         }
                     }
                     .onDelete { offsets in
-                        for index in offsets {
-                            appState.snippetStore.delete(appState.snippetStore.snippets[index].id)
+                        // BLOCKER 2, same as the Dictionary list above.
+                        let ids = offsets.map { appState.snippetStore.snippets[$0].id }
+                        for id in ids {
+                            appState.snippetStore.delete(id)
                         }
                     }
                 }
                 .frame(minHeight: 180, maxHeight: 260)
 
                 Button {
-                    let new = Snippet(cue: "", body: "")
-                    appState.snippetStore.add(new)
-                    editingSnippet = new
+                    editingSnippet = Snippet(cue: "", body: "")
                 } label: {
                     Label("Add Snippet", systemImage: "plus")
                 }
@@ -133,7 +174,7 @@ struct VocabularySettingsTab: View {
         .formStyle(.grouped)
         .sheet(item: $editingEntry) { entry in
             DictionaryEntryEditorView(entry: entry) { updated in
-                appState.dictionaryStore.update(updated)
+                appState.dictionaryStore.upsert(updated)
             }
         }
         .sheet(item: $editingSnippet) { snippet in
@@ -141,7 +182,7 @@ struct VocabularySettingsTab: View {
                 snippet: snippet,
                 hasCollision: { cue in appState.snippetStore.hasCollision(withCue: cue, excluding: snippet.id) }
             ) { updated in
-                appState.snippetStore.update(updated)
+                appState.snippetStore.upsert(updated)
             }
         }
         .alert("Import Failed", isPresented: Binding(
@@ -151,6 +192,22 @@ struct VocabularySettingsTab: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(importErrorMessage ?? "")
+        }
+        .alert("Export Failed", isPresented: Binding(
+            get: { exportErrorMessage != nil },
+            set: { isPresented in if !isPresented { exportErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportErrorMessage ?? "")
+        }
+        .alert("Import Complete", isPresented: Binding(
+            get: { importSummaryMessage != nil },
+            set: { isPresented in if !isPresented { importSummaryMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(importSummaryMessage ?? "")
         }
     }
 
@@ -170,7 +227,7 @@ struct VocabularySettingsTab: View {
                 try data.write(to: url, options: .atomic)
             } catch {
                 VocaLogger.error(.dictionary, "Dictionary export failed: \(error.localizedDescription)")
-                importErrorMessage = "Could not write the export file: \(error.localizedDescription)"
+                exportErrorMessage = "Could not write the export file: \(error.localizedDescription)"
             }
         }
     }
@@ -183,14 +240,66 @@ struct VocabularySettingsTab: View {
 
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
-            do {
-                let data = try Data(contentsOf: url)
-                let imported = try JSONDecoder().decode([DictionaryEntry].self, from: data)
-                appState.dictionaryStore.replaceAll(with: imported)
-            } catch {
-                importErrorMessage = "That file isn't a valid VocaMac Dictionary export: \(error.localizedDescription)"
+            Self.decodeOffMainThread([DictionaryEntry].self, from: url) { outcome in
+                switch outcome {
+                case .failure(let message):
+                    importErrorMessage = message
+                case .success(let imported):
+                    let sanitized = DictionaryStore.sanitizedForImport(imported)
+                    appState.dictionaryStore.replaceAll(with: sanitized.entries)
+                    importSummaryMessage = Self.summary(
+                        kept: sanitized.entries.count,
+                        dropped: sanitized.dropped,
+                        noun: "Dictionary Entry",
+                        pluralNoun: "Dictionary Entries"
+                    )
+                }
             }
         }
+    }
+
+    // MARK: - Shared import plumbing (MAJOR 5)
+
+    private enum ImportOutcome<Element> {
+        case success([Element])
+        case failure(String)
+    }
+
+    /// Reads and decodes an import file on a background queue, then hands the
+    /// result back on the main actor (MAJOR 5).
+    ///
+    /// `Data(contentsOf:)` plus a JSON decode used to run inside the save
+    /// panel's completion handler, which is the main thread — a large or
+    /// pathological file stalled the whole UI. The size is checked from the
+    /// file's metadata first, so an oversized file is refused without being
+    /// read at all.
+    private static func decodeOffMainThread<Element: Decodable>(
+        _ type: [Element].Type,
+        from url: URL,
+        completion: @escaping @MainActor (ImportOutcome<Element>) -> Void
+    ) {
+        let maximumBytes = maximumImportBytes
+        DispatchQueue.global(qos: .userInitiated).async {
+            let outcome: ImportOutcome<Element>
+            do {
+                let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                if size > maximumBytes {
+                    outcome = .failure("That file is \(size / 1024 / 1024)MB — far larger than any VocaMac export, so it was not opened.")
+                } else {
+                    let data = try Data(contentsOf: url)
+                    outcome = .success(try JSONDecoder().decode([Element].self, from: data))
+                }
+            } catch {
+                outcome = .failure("That file isn't a valid VocaMac export: \(error.localizedDescription)")
+            }
+            Task { @MainActor in completion(outcome) }
+        }
+    }
+
+    private static func summary(kept: Int, dropped: Int, noun: String, pluralNoun: String) -> String {
+        let keptText = "Imported \(kept) \(kept == 1 ? noun : pluralNoun)."
+        guard dropped > 0 else { return keptText }
+        return keptText + " \(dropped) \(dropped == 1 ? "entry was" : "entries were") skipped as incomplete or duplicated."
     }
 
     // MARK: - Export / Import (Story 5.5 AC)
@@ -209,7 +318,7 @@ struct VocabularySettingsTab: View {
                 try data.write(to: url, options: .atomic)
             } catch {
                 VocaLogger.error(.snippets, "Snippet export failed: \(error.localizedDescription)")
-                importErrorMessage = "Could not write the export file: \(error.localizedDescription)"
+                exportErrorMessage = "Could not write the export file: \(error.localizedDescription)"
             }
         }
     }
@@ -222,12 +331,20 @@ struct VocabularySettingsTab: View {
 
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
-            do {
-                let data = try Data(contentsOf: url)
-                let imported = try JSONDecoder().decode([Snippet].self, from: data)
-                appState.snippetStore.replaceAll(with: imported)
-            } catch {
-                importErrorMessage = "That file isn't a valid VocaMac Snippets export: \(error.localizedDescription)"
+            Self.decodeOffMainThread([Snippet].self, from: url) { outcome in
+                switch outcome {
+                case .failure(let message):
+                    importErrorMessage = message
+                case .success(let imported):
+                    let sanitized = SnippetStore.sanitizedForImport(imported)
+                    appState.snippetStore.replaceAll(with: sanitized.snippets)
+                    importSummaryMessage = Self.summary(
+                        kept: sanitized.snippets.count,
+                        dropped: sanitized.dropped,
+                        noun: "Snippet",
+                        pluralNoun: "Snippets"
+                    )
+                }
             }
         }
     }
@@ -238,35 +355,66 @@ struct VocabularySettingsTab: View {
 private struct DictionaryEntryRow: View {
     let entry: DictionaryEntry
     let onTap: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(entry.canonicalForm.isEmpty ? "(untitled)" : entry.canonicalForm)
-                        if entry.learned {
-                            Text("Learned")
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 1)
-                                .background(.secondary.opacity(0.2))
-                                .cornerRadius(4)
+        HStack {
+            Button(action: onTap) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(entry.canonicalForm.isEmpty ? "(untitled)" : entry.canonicalForm)
+                            if entry.learned {
+                                Text("Learned")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 1)
+                                    .background(.secondary.opacity(0.2))
+                                    .cornerRadius(4)
+                            }
                         }
+                        Text(entry.triggers.isEmpty ? "No triggers yet" : entry.triggers.joined(separator: ", "))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
-                    Text(entry.triggers.isEmpty ? "No triggers yet" : entry.triggers.joined(separator: ", "))
+                    Spacer()
+                    Image(systemName: "chevron.right")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .foregroundStyle(.tertiary)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            DeleteRowButton(label: "Delete \(entry.canonicalForm.isEmpty ? "entry" : entry.canonicalForm)", action: onDelete)
+        }
+        .contextMenu {
+            Button("Delete", role: .destructive, action: onDelete)
+        }
+    }
+}
+
+/// BLOCKER 2, secondary: on macOS a `List` with no `selection:` binding gives
+/// `ForEach.onDelete` no user-reachable affordance at all — there is no swipe
+/// gesture and no `EditButton`, and these rows are `Button`s, which would
+/// consume one anyway. The `onDelete` handler was therefore the *only* delete
+/// path in a shipping build that could never fire, leaving Story 5.3/5.5's
+/// "delete an entry" acceptance criterion unmet. This is the affordance that
+/// meets it; `onDelete` is kept (and fixed) for keyboard-driven deletion and
+/// for the day the list gains a selection binding.
+private struct DeleteRowButton: View {
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "minus.circle")
         }
         .buttonStyle(.plain)
+        .foregroundStyle(.red)
+        .help(label)
+        .accessibilityLabel(label)
     }
 }
 
@@ -334,10 +482,20 @@ private struct DictionaryEntryEditorView: View {
                     TextField("Add a mis-transcribed variant", text: $newTrigger)
                         .onSubmit(addTrigger)
                     Button("Add", action: addTrigger)
-                        .disabled(newTrigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(!isTriggerUsable(newTrigger))
                 }
 
-                Text("Each trigger is a spelling Whisper is known to produce for this term — an exact one, or one close enough to auto-correct.")
+                // MAJOR 3: a trigger is matched as a run of word tokens, so one
+                // with no letters or digits in it at all can never match
+                // anything. Saying so here is the difference between a trigger
+                // that does nothing and a trigger the user believes works.
+                if !newTrigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !isTriggerUsable(newTrigger) {
+                    Text("A trigger needs at least one letter or digit — punctuation on its own never matches.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                Text("Each trigger is a spelling Whisper is known to produce for this term — an exact one, or one close enough to auto-correct. Triggers containing a geresh, apostrophe, full stop or space (מנכ״ל, node.js) are matched as the whole phrase.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -358,9 +516,13 @@ private struct DictionaryEntryEditorView: View {
         }
     }
 
+    private func isTriggerUsable(_ trigger: String) -> Bool {
+        WordTokenizer.phrase(trigger, normalizing: HebrewNormalizer.normalize) != nil
+    }
+
     private func addTrigger() {
         let trimmed = newTrigger.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !entry.triggers.contains(trimmed) else { return }
+        guard isTriggerUsable(trimmed), !entry.triggers.contains(trimmed) else { return }
         entry.triggers.append(trimmed)
         newTrigger = ""
     }
@@ -371,6 +533,7 @@ private struct DictionaryEntryEditorView: View {
 private struct SnippetRow: View {
     let snippet: Snippet
     let onTap: () -> Void
+    let onDelete: () -> Void
 
     private var bodyPreview: String {
         let firstLine = snippet.body.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? ""
@@ -378,23 +541,30 @@ private struct SnippetRow: View {
     }
 
     var body: some View {
-        Button(action: onTap) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(snippet.cue.isEmpty ? "(untitled cue)" : snippet.cue)
-                    Text(bodyPreview)
+        HStack {
+            Button(action: onTap) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(snippet.cue.isEmpty ? "(untitled cue)" : snippet.cue)
+                        Text(bodyPreview)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .foregroundStyle(.tertiary)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            DeleteRowButton(label: "Delete \(snippet.cue.isEmpty ? "snippet" : snippet.cue)", action: onDelete)
         }
-        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Delete", role: .destructive, action: onDelete)
+        }
     }
 }
 
@@ -436,6 +606,16 @@ private struct SnippetEditorView: View {
                     .frame(minHeight: 160)
                     .border(Color.secondary.opacity(0.3))
 
+                // BLOCKER 1: a Snippet with a blank body cannot be saved.
+                // Its placeholder rehydrates to nothing, the pipeline's AD-2
+                // blank guard then refuses the empty result, and the raw
+                // `⟦S0⟧` is what gets injected and written to History.
+                if snippet.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("A Snippet needs a body — an empty one has nothing to expand into.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
                 Text("Preserved exactly, including line breaks — never seen or rewritten by post-processing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -458,7 +638,10 @@ private struct SnippetEditorView: View {
                     onSave(snippet)
                     dismiss()
                 }
-                .disabled(snippet.cue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(
+                    SnippetStore.collisionKey(for: snippet.cue) == nil
+                        || snippet.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                )
             }
         }
     }

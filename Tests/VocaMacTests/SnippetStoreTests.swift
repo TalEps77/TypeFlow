@@ -149,4 +149,91 @@ final class SnippetStoreTests: XCTestCase {
 
         XCTAssertTrue(store.hasCollision(withCue: "signature", excluding: second.id))
     }
+
+    // MARK: - Collision detection agrees with the matcher (MAJOR 6)
+
+    func testTwoCuesThatTokenizeIdenticallyCollide() {
+        // `SnippetService` compares token sequences, so these two Cues are
+        // indistinguishable at match time — accepting both leaves the second
+        // one permanently dead, with nothing saying so.
+        let (store, _) = makeStore()
+        store.add(Snippet(cue: "שלום עולם", body: "a"))
+
+        XCTAssertTrue(store.hasCollision(withCue: "שלום  עולם"))
+        XCTAssertTrue(store.hasCollision(withCue: "  שלום עולם  "))
+    }
+
+    func testCuesSeparatedDifferentlyDoNotCollide() {
+        // A comma is a real separator to the matcher too (MINOR 3), so these
+        // genuinely are two different Cues.
+        let (store, _) = makeStore()
+        store.add(Snippet(cue: "שלום עולם", body: "a"))
+
+        XCTAssertFalse(store.hasCollision(withCue: "שלום, עולם"))
+    }
+
+    func testACueWithNoWordCharactersNeverCollides() {
+        let (store, _) = makeStore()
+        store.add(Snippet(cue: "signature", body: "a"))
+
+        XCTAssertFalse(store.hasCollision(withCue: "!!!"))
+        XCTAssertNil(SnippetStore.collisionKey(for: "!!!"))
+    }
+
+    // MARK: - Upsert (MAJOR 10)
+
+    func testUpsertAddsThenUpdates() {
+        let (store, _) = makeStore()
+        var snippet = Snippet(cue: "signature", body: "SIG")
+        store.upsert(snippet)
+        snippet.body = "NEW"
+        store.upsert(snippet)
+
+        XCTAssertEqual(store.snippets.count, 1)
+        XCTAssertEqual(store.snippets.first?.body, "NEW")
+    }
+
+    // MARK: - Import validation (MAJOR 5, BLOCKER 1)
+
+    func testImportDropsSnippetsWithABlankBody() {
+        let sanitized = SnippetStore.sanitizedForImport([
+            Snippet(cue: "signature", body: "  \n "),
+            Snippet(cue: "address", body: "Herzl 1")
+        ])
+
+        XCTAssertEqual(sanitized.snippets.count, 1)
+        XCTAssertEqual(sanitized.dropped, 1)
+        XCTAssertEqual(sanitized.snippets.first?.cue, "address")
+    }
+
+    func testImportDropsSnippetsWithABlankCue() {
+        let sanitized = SnippetStore.sanitizedForImport([Snippet(cue: "   ", body: "BODY")])
+
+        XCTAssertTrue(sanitized.snippets.isEmpty)
+        XCTAssertEqual(sanitized.dropped, 1)
+    }
+
+    func testImportDropsCollidingCuesWithinTheSameFile() {
+        // Import goes straight to `replaceAll`, so `hasCollision` never gets a
+        // chance to see these.
+        let sanitized = SnippetStore.sanitizedForImport([
+            Snippet(cue: "חתימה", body: "FIRST"),
+            Snippet(cue: "חֲתִימָה", body: "SECOND")
+        ])
+
+        XCTAssertEqual(sanitized.snippets.count, 1)
+        XCTAssertEqual(sanitized.snippets.first?.body, "FIRST")
+        XCTAssertEqual(sanitized.dropped, 1)
+    }
+
+    func testImportRegeneratesDuplicateIdentifiers() {
+        let shared = UUID()
+        let sanitized = SnippetStore.sanitizedForImport([
+            Snippet(id: shared, cue: "signature", body: "A"),
+            Snippet(id: shared, cue: "address", body: "B")
+        ])
+
+        XCTAssertEqual(sanitized.snippets.count, 2)
+        XCTAssertNotEqual(sanitized.snippets[0].id, sanitized.snippets[1].id)
+    }
 }
