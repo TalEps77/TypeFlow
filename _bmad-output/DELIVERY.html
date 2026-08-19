@@ -1,0 +1,499 @@
+<title>local-whisper Delivery</title>
+<meta name="description" content="Closing delivery report for local-whisper: a fully local, Hebrew-first Wispr Flow alternative built on VocaMac.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,420;0,9..144,560;0,9..144,680;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --paper:#f6f3ec;
+    --paper-raised:#ffffff;
+    --ink:#1c1f26;
+    --ink-soft:#4a4f5c;
+    --hair:#dcd6c8;
+    --teal:#2f7d68;
+    --teal-deep:#1f5748;
+    --teal-tint:#e3ede9;
+    --amber:#b5772a;
+    --amber-tint:#f3e6d3;
+    --brick:#a83f34;
+    --brick-tint:#f2ded9;
+    --slate:#6b7280;
+    --slate-tint:#e7e6e1;
+    --moss:#4b7f5e;
+    --moss-tint:#e2ede4;
+    --shadow: 0 1px 2px rgba(28,31,38,0.06), 0 8px 24px -12px rgba(28,31,38,0.14);
+  }
+
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#13161c;
+      --paper-raised:#1b1f27;
+      --ink:#e9e6dd;
+      --ink-soft:#a8ade0;
+      --ink-soft:#a9b0bc;
+      --hair:#333a46;
+      --teal:#5fc4a8;
+      --teal-deep:#8fdcc4;
+      --teal-tint:#1a2b27;
+      --amber:#e0aa5e;
+      --amber-tint:#332512;
+      --brick:#e08579;
+      --brick-tint:#331d1a;
+      --slate:#9aa1ac;
+      --slate-tint:#232833;
+      --moss:#8ec9a2;
+      --moss-tint:#1c2b21;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 28px -14px rgba(0,0,0,0.55);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#13161c;
+    --paper-raised:#1b1f27;
+    --ink:#e9e6dd;
+    --ink-soft:#a9b0bc;
+    --hair:#333a46;
+    --teal:#5fc4a8;
+    --teal-deep:#8fdcc4;
+    --teal-tint:#1a2b27;
+    --amber:#e0aa5e;
+    --amber-tint:#332512;
+    --brick:#e08579;
+    --brick-tint:#331d1a;
+    --slate:#9aa1ac;
+    --slate-tint:#232833;
+    --moss:#8ec9a2;
+    --moss-tint:#1c2b21;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 28px -14px rgba(0,0,0,0.55);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  ::selection{ background:var(--teal-tint); color:var(--ink); }
+
+  a{ color:var(--teal-deep); text-decoration-color: var(--hair); text-underline-offset:3px; }
+  a:hover{ color:var(--teal); }
+  a:focus-visible, button:focus-visible, summary:focus-visible{
+    outline:2px solid var(--teal); outline-offset:2px; border-radius:2px;
+  }
+
+  .shell{ max-width:840px; margin:0 auto; padding:0 24px 96px; }
+
+  /* ---------- top nav ---------- */
+  .topnav{
+    position:sticky; top:0; z-index:20;
+    background:color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom:1px solid var(--hair);
+  }
+  .topnav-row{
+    max-width:840px; margin:0 auto; padding:12px 24px;
+    display:flex; align-items:center; gap:18px;
+    overflow-x:auto; scrollbar-width:none;
+  }
+  .topnav-row::-webkit-scrollbar{ display:none; }
+  .topnav-brand{
+    font-family:"Fraunces", Georgia, serif; font-weight:680; font-size:0.95rem;
+    white-space:nowrap; color:var(--ink); flex:none;
+  }
+  .topnav-links{ display:flex; gap:14px; flex:none; }
+  .topnav-links a{
+    font-size:0.8rem; color:var(--ink-soft); white-space:nowrap;
+    text-decoration:none; padding:4px 2px; border-bottom:2px solid transparent;
+  }
+  .topnav-links a:hover{ color:var(--teal-deep); border-bottom-color:var(--teal); }
+
+  /* ---------- hero ---------- */
+  .hero{ padding:56px 0 28px; }
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace; font-size:0.72rem; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--teal-deep); margin:0 0 14px;
+  }
+  h1{
+    font-family:"Fraunces", Georgia, serif; font-weight:560; font-style:normal;
+    font-size:clamp(2rem, 4.2vw, 2.85rem); line-height:1.08; margin:0 0 14px;
+    text-wrap:balance; letter-spacing:-0.01em;
+  }
+  h1 em{ font-style:italic; font-weight:500; color:var(--teal-deep); }
+  .dek{
+    font-size:1.08rem; color:var(--ink-soft); max-width:62ch; margin:0 0 28px;
+    text-wrap:pretty;
+  }
+  .metaline{
+    display:flex; flex-wrap:wrap; gap:8px 22px; font-size:0.82rem; color:var(--ink-soft);
+    border-top:1px solid var(--hair); padding-top:16px;
+  }
+  .metaline b{ color:var(--ink); font-weight:600; }
+
+  .stats{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr));
+    gap:1px; background:var(--hair); border:1px solid var(--hair);
+    border-radius:10px; overflow:hidden; margin:28px 0 8px;
+  }
+  .stat{ background:var(--paper-raised); padding:16px 14px; }
+  .stat .n{
+    font-family:"IBM Plex Mono", monospace; font-variant-numeric:tabular-nums;
+    font-size:1.55rem; font-weight:500; color:var(--teal-deep); display:block;
+  }
+  .stat .l{ font-size:0.72rem; color:var(--ink-soft); margin-top:2px; }
+
+  /* ---------- sections ---------- */
+  section{ padding:44px 0; border-top:1px solid var(--hair); scroll-margin-top:64px; }
+  section:first-of-type{ border-top:none; }
+  .sec-num{
+    font-family:"IBM Plex Mono", monospace; color:var(--teal); font-size:0.85rem;
+    letter-spacing:0.04em;
+  }
+  h2{
+    font-family:"Fraunces", Georgia, serif; font-weight:560; font-size:1.65rem;
+    margin:4px 0 18px; text-wrap:balance;
+  }
+  h3{ font-family:"Fraunces", Georgia, serif; font-weight:560; font-size:1.18rem; margin:28px 0 10px; }
+  p{ margin:0 0 14px; max-width:70ch; }
+  ul, ol{ margin:0 0 16px; padding-left:1.35em; }
+  li{ margin-bottom:7px; max-width:66ch; }
+  strong{ font-weight:600; }
+  code{
+    font-family:"IBM Plex Mono", monospace; font-size:0.86em;
+    background:var(--slate-tint); border-radius:4px; padding:0.1em 0.35em;
+  }
+  pre{
+    font-family:"IBM Plex Mono", monospace; font-size:0.86rem;
+    background:var(--paper-raised); border:1px solid var(--hair); border-radius:8px;
+    padding:14px 16px; overflow-x:auto; box-shadow:var(--shadow);
+  }
+  pre code{ background:none; padding:0; }
+
+  /* ---------- agent table ---------- */
+  .tablewrap{ overflow-x:auto; border:1px solid var(--hair); border-radius:10px; box-shadow:var(--shadow); }
+  table{ width:100%; border-collapse:collapse; background:var(--paper-raised); font-size:0.92rem; }
+  th, td{ text-align:left; padding:9px 14px; border-bottom:1px solid var(--hair); white-space:nowrap; }
+  th{
+    font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-soft);
+    font-weight:600; background:color-mix(in srgb, var(--paper-raised) 70%, var(--paper) 30%);
+  }
+  td.wrap, th.wrap{ white-space:normal; }
+  tr:last-child td{ border-bottom:none; }
+  .num{ font-variant-numeric:tabular-nums; color:var(--ink-soft); }
+
+  .badge{
+    display:inline-block; font-family:"IBM Plex Mono", monospace; font-size:0.72rem;
+    padding:2px 8px; border-radius:99px; font-weight:500; white-space:nowrap;
+  }
+  .badge-opus{ background:var(--teal-tint); color:var(--teal-deep); }
+  .badge-sonnet{ background:var(--slate-tint); color:var(--ink-soft); }
+
+  /* ---------- epic cards ---------- */
+  .epic{
+    border:1px solid var(--hair); border-radius:10px; background:var(--paper-raised);
+    margin-bottom:16px; box-shadow:var(--shadow); overflow:hidden;
+  }
+  .epic > summary{
+    list-style:none; cursor:pointer; padding:16px 18px;
+    display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+  }
+  .epic > summary::-webkit-details-marker{ display:none; }
+  .epic-no{
+    font-family:"IBM Plex Mono", monospace; font-size:0.78rem; color:var(--teal);
+    flex:none; width:2.4em;
+  }
+  .epic-title{ font-family:"Fraunces", Georgia, serif; font-weight:560; font-size:1.05rem; flex:1 1 220px; }
+  .epic-chev{ margin-left:auto; color:var(--ink-soft); font-size:0.8rem; flex:none; transition:transform .15s ease; }
+  .epic[open] .epic-chev{ transform:rotate(90deg); }
+  .epic-body{ padding:0 18px 20px; border-top:1px solid var(--hair); }
+  .epic-body p{ margin-top:14px; }
+  .commits{ display:flex; flex-wrap:wrap; gap:6px; margin:12px 0 4px; }
+  .commit{
+    font-family:"IBM Plex Mono", monospace; font-size:0.74rem; background:var(--slate-tint);
+    color:var(--ink-soft); padding:2px 7px; border-radius:5px;
+  }
+  .callout{
+    margin-top:14px; padding:12px 15px; border-radius:8px; border-left:3px solid var(--brick);
+    background:var(--brick-tint); font-size:0.92rem;
+  }
+  .callout b{ color:var(--brick); }
+
+  /* ---------- severity legend ---------- */
+  .legend{ display:flex; flex-wrap:wrap; gap:10px 18px; margin:6px 0 24px; font-size:0.82rem; color:var(--ink-soft); }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .dot-brick{ background:var(--brick); }
+  .dot-amber{ background:var(--amber); }
+  .dot-moss{ background:var(--moss); }
+
+  /* ---------- action checklist ---------- */
+  .actions{ list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px; }
+  .actions li{
+    display:flex; gap:12px; padding:12px 14px; background:var(--paper-raised);
+    border:1px solid var(--hair); border-radius:8px; max-width:none;
+  }
+  .actions .mark{
+    flex:none; width:20px; height:20px; border-radius:5px; margin-top:2px;
+    background:var(--teal-tint); color:var(--teal-deep); font-size:0.72rem;
+    display:flex; align-items:center; justify-content:center; font-family:"IBM Plex Mono",monospace;
+  }
+
+  .future{ display:flex; flex-direction:column; gap:14px; }
+  .future-item{
+    padding:14px 16px; border:1px solid var(--hair); border-radius:8px; background:var(--paper-raised);
+  }
+  .future-item h4{
+    margin:0 0 6px; font-family:"IBM Plex Mono", monospace; font-size:0.82rem;
+    font-weight:500; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.03em;
+  }
+  .future-item p{ margin:0; max-width:68ch; }
+
+  footer{
+    border-top:1px solid var(--hair); margin-top:20px; padding-top:20px;
+    font-size:0.78rem; color:var(--ink-soft);
+  }
+
+  @media (max-width:640px){
+    .hero{ padding-top:36px; }
+    .metaline{ font-size:0.78rem; }
+    td, th{ padding:8px 10px; }
+  }
+</style>
+
+<div class="topnav">
+  <div class="topnav-row">
+    <span class="topnav-brand">local-whisper — delivery</span>
+    <nav class="topnav-links">
+      <a href="#request">1 Request</a>
+      <a href="#plan">2 Plan</a>
+      <a href="#agents">3 Agents</a>
+      <a href="#built">4 Built</a>
+      <a href="#state">5 State</a>
+      <a href="#todo">6 To-do</a>
+      <a href="#future">7 Future</a>
+    </nav>
+  </div>
+</div>
+
+<div class="shell">
+
+  <div class="hero">
+    <p class="eyebrow">Closing Delivery Report — 20 Aug 2026</p>
+    <h1>local-whisper: a private, <em>Hebrew-first</em> Wispr Flow</h1>
+    <p class="dek">Everything Wispr Flow does — clean, send-ready dictation with app-aware tone — rebuilt on the VocaMac fork already on this Mac, running entirely offline, with an ivrit.ai model that beats the cloud on Hebrew.</p>
+    <div class="metaline">
+      <span><b>Base:</b> VocaMac (AGPL-3.0, Swift/SwiftPM)</span>
+      <span><b>Scope:</b> 3 phases, approved in one sitting</span>
+      <span><b>Method:</b> BMAD, fully subagent-delegated</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="n">7</span><span class="l">epics shipped</span></div>
+      <div class="stat"><span class="n">27</span><span class="l">stories</span></div>
+      <div class="stat"><span class="n">25</span><span class="l">agent runs</span></div>
+      <div class="stat"><span class="n">~13</span><span class="l">blockers found &amp; fixed</span></div>
+      <div class="stat"><span class="n">~47</span><span class="l">majors found &amp; fixed</span></div>
+    </div>
+  </div>
+
+  <section id="request">
+    <p class="sec-num">01</p>
+    <h2>The original request</h2>
+    <p>Tal wanted the Wispr Flow experience — dictate anywhere on the Mac, get clean text — without paying for it, without an account, and without audio, screen contents, or cursor text ever leaving the machine. The vehicle was <code>local-whisper</code>, a fork of the VocaMac app already installed here (Swift/SwiftPM, WhisperKit/CoreML, ~9,500 LOC), with two things layered on its working Whisper-to-cursor pipeline:</p>
+    <ul>
+      <li>A <strong>Hebrew-first</strong> ASR upgrade — an ivrit.ai Whisper fine-tune, expected to beat Wispr Flow's cloud model on Hebrew specifically.</li>
+      <li>A <strong>small local LLM</strong> (Qwen3-4B via LM Studio, loopback only) doing what Wispr Flow's cloud layer does — strip fillers, punctuate, resolve self-corrections, adapt tone per app — with nothing leaving the device.</li>
+    </ul>
+    <p>All three roadmap phases from the pre-existing gap-analysis doc — Hebrew accuracy + LLM cleanup + history; per-app profiles + dictionary + snippets; command mode + better voice detection + streaming — were approved together. Nothing was deferred to "maybe later."</p>
+  </section>
+
+  <section id="plan">
+    <p class="sec-num">02</p>
+    <h2>The plan</h2>
+    <p>Standard BMAD workflow, run end-to-end through subagents, with the orchestrator only routing and synthesizing between them:</p>
+    <ol>
+      <li><strong>Gap-analysis doc</strong> (pre-existing, 26 Jul 2026) — "VocaMac vs Wispr Flow" — the discovery input; settled stay-on-VocaMac, LM Studio + Qwen3-4B, and the ivrit.ai model up front.</li>
+      <li><strong>PRD</strong> — vision, target user, 25 functional requirements across 9 features, non-goals, success metrics, cross-cutting NFRs, settled decisions.</li>
+      <li><strong>Architecture</strong> — 13 binding decisions (AD-1 … AD-13): one pipeline seam in <code>AppState</code>, identity-on-failure as a tested guarantee, stage ordering, protocol + mock per service, cursor context never persisted.</li>
+      <li><strong>Epics &amp; stories</strong> — 7 epics, 27 stories, each with Given/When/Then acceptance criteria and explicit verification steps.</li>
+      <li><strong>Per-epic development</strong> — one dev agent per epic, stories implemented in dependency order.</li>
+      <li><strong>Adversarial review per epic</strong> — a separate reviewer agent, never the one that wrote the code, tested each epic against its own stated acceptance criteria.</li>
+      <li><strong>Fix cycle per epic</strong> — every blocker and major applied, with judgment-call deviations documented rather than hidden.</li>
+    </ol>
+  </section>
+
+  <section id="agents">
+    <p class="sec-num">03</p>
+    <h2>Agents spawned</h2>
+    <p>Every adversarial review ran on Opus 5, deliberately — the harder-to-fool model was reserved for finding what the dev agent missed, regardless of which model wrote the code.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th class="num">#</th><th class="wrap">Task</th><th>Model</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td class="wrap">Planning — PRD, architecture, epics/stories</td><td><span class="badge badge-opus">Opus 5</span></td></tr>
+          <tr><td class="num">2</td><td class="wrap">ivrit.ai Hebrew model acquisition</td><td><span class="badge badge-sonnet">Sonnet 5</span></td></tr>
+          <tr><td class="num">3</td><td class="wrap">Dev — Epic 1 Hebrew ASR Accuracy</td><td><span class="badge badge-sonnet">Sonnet 5</span></td></tr>
+          <tr><td class="num">4</td><td class="wrap">Dev — Epic 2 LLM Post-Processing</td><td><span class="badge badge-opus">Opus 5</span></td></tr>
+          <tr><td class="num">5</td><td class="wrap">Dev — Epic 3 Transcription History</td><td><span class="badge badge-sonnet">Sonnet 5</span></td></tr>
+          <tr><td class="num">6</td><td class="wrap">Dev — Epic 4 Profiles &amp; Cursor Context</td><td><span class="badge badge-sonnet">Sonnet 5</span></td></tr>
+          <tr><td class="num">7</td><td class="wrap">Dev — Epic 5 Dictionary &amp; Snippets</td><td><span class="badge badge-sonnet">Sonnet 5</span></td></tr>
+          <tr><td class="num">8</td><td class="wrap">Dev — Epic 6 Command Mode</td><td><span class="badge badge-opus">Opus 5</span></td></tr>
+          <tr><td class="num">9</td><td class="wrap">Dev — Epic 7 Responsive Capture (VAD)</td><td><span class="badge badge-sonnet">Sonnet 5</span></td></tr>
+          <tr><td class="num">10–16</td><td class="wrap">Adversarial review — Epics 1 through 7</td><td><span class="badge badge-opus">Opus 5</span> ×7</td></tr>
+          <tr><td class="num">17</td><td class="wrap">Fix — Epic 1 findings</td><td><span class="badge badge-sonnet">Sonnet 5</span></td></tr>
+          <tr><td class="num">18</td><td class="wrap">Fix — Epic 2 findings</td><td><span class="badge badge-sonnet">Sonnet 5</span></td></tr>
+          <tr><td class="num">19</td><td class="wrap">Fix — Epic 3 findings</td><td><span class="badge badge-opus">Opus 5</span></td></tr>
+          <tr><td class="num">20</td><td class="wrap">Fix — Epic 4 findings</td><td><span class="badge badge-opus">Opus 5</span></td></tr>
+          <tr><td class="num">21</td><td class="wrap">Fix — Epic 5 findings</td><td><span class="badge badge-opus">Opus 5</span></td></tr>
+          <tr><td class="num">22</td><td class="wrap">Fix — Epic 6 findings</td><td><span class="badge badge-opus">Opus 5</span></td></tr>
+          <tr><td class="num">23</td><td class="wrap">Fix — Epic 7 findings</td><td><span class="badge badge-opus">Opus 5</span></td></tr>
+          <tr><td class="num">24</td><td class="wrap">Build &amp; install to /Applications</td><td><span class="badge badge-sonnet">Sonnet 5</span></td></tr>
+          <tr><td class="num">25</td><td class="wrap">This delivery document</td><td><span class="badge badge-sonnet">Sonnet 5</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="built">
+    <p class="sec-num">04</p>
+    <h2>What was built, and why</h2>
+    <p>Each epic below closes a specific Wispr Flow parity gap. Expand any epic for its commits and the sharpest thing adversarial review caught there.</p>
+    <div class="legend">
+      <span><span class="dot dot-brick"></span> blocker found &amp; fixed</span>
+      <span><span class="dot dot-amber"></span> major found &amp; fixed</span>
+      <span><span class="dot dot-moss"></span> clean / no code change needed</span>
+    </div>
+
+    <details class="epic" open>
+      <summary><span class="epic-no">E1</span><span class="epic-title">Hebrew ASR Accuracy</span><span class="epic-chev">▸</span></summary>
+      <div class="epic-body">
+        <p><strong>Closes:</strong> the single biggest gap-and-win against Wispr Flow — better Hebrew, locally, for free. Registers the side-loaded ivrit.ai CoreML model in the picker without offering a broken download, and records per-stage latency so model choice is measured, not guessed.</p>
+        <div class="commits"><span class="commit">4fffa11</span><span class="commit">f1a4862</span><span class="commit">3ffe21a fixes</span><span class="commit">5bfa235</span></div>
+        <div class="callout"><b>Review caught:</b> onboarding still offered "Try Anyway → Download" for the sideload-only entry — it would fabricate a ~15s progress bar, then fail. The generic startup-fallback logic could also silently switch <em>any</em> user onto the Hebrew model by picking the catalog's last entry, and a removed model could show "Active" and "Not Installed" at once.</div>
+      </div>
+    </details>
+
+    <details class="epic">
+      <summary><span class="epic-no">E2</span><span class="epic-title">LLM Post-Processing</span><span class="epic-chev">▸</span></summary>
+      <div class="epic-body">
+        <p><strong>Closes:</strong> the actual product gap — raw transcript into send-ready text. <code>PostProcessService</code> calls LM Studio over loopback with a hard deadline; any failure falls back to the raw transcript silently, so the worst case is exactly today's behavior.</p>
+        <div class="commits"><span class="commit">ff8e402</span><span class="commit">a545b32</span><span class="commit">ef73508</span><span class="commit">256bc54</span><span class="commit">058d717 fixes</span></div>
+        <div class="callout"><b>Review caught the project's most consequential blocker:</b> the validator decoded <code>finish_reason</code> for nothing — a reply truncated by the server's token cap was accepted and injected as complete, silently deleting up to half a long sentence. Also found: no similarity check at all between input and output, so a model that answered the transcript as a question, or echoed a few-shot example verbatim, passed straight through to the cursor.</div>
+      </div>
+    </details>
+
+    <details class="epic">
+      <summary><span class="epic-no">E3</span><span class="epic-title">Transcription History</span><span class="epic-chev">▸</span></summary>
+      <div class="epic-body">
+        <p><strong>Closes:</strong> nothing was previously recoverable — no re-paste, no undo, no way to see what the LLM changed. Adds a local JSON store, a browsable/searchable history view, re-paste, and best-effort undo.</p>
+        <div class="commits"><span class="commit">5a67158</span><span class="commit">82eecff</span><span class="commit">e4fb4cf</span><span class="commit">741a850</span><span class="commit">5bfa235</span><span class="commit">ce90692 fixes</span></div>
+        <div class="callout"><b>Review caught the sharpest blocker in the project:</b> undo re-read whatever text currently sat before the caret and deleted that many characters, with no check it was still the app's own text — typing three characters after a dictation, then hitting undo, deleted eight characters of the user's own typing. A second blocker: a unit test posted a real system-wide ⌘Z into whatever app the developer's machine had focused, meaning running the test suite could silently undo the developer's own work.</div>
+      </div>
+    </details>
+
+    <details class="epic">
+      <summary><span class="epic-no">E4</span><span class="epic-title">Profiles &amp; Cursor Context</span><span class="epic-chev">▸</span></summary>
+      <div class="epic-body">
+        <p><strong>Closes:</strong> the same utterance shouldn't read the same in Slack and in a legal document. <code>ProfileManager</code> resolves the frontmost app to a Profile; optional Cursor Context feeds surrounding text to the LLM — off by default, as the most privacy-sensitive capability in the product.</p>
+        <div class="commits"><span class="commit">2f33094</span><span class="commit">d02a1e8</span><span class="commit">b14d287</span><span class="commit">43163c2</span><span class="commit">62fee31</span><span class="commit">fa472d0 fixes</span></div>
+        <div class="callout"><b>Review caught the project's most subtle privacy hole:</b> the LLM could "launder" cursor context — echo 80 characters of the surrounding document back into its output — and both safety validators passed it, because the echo was itself plausible-length and similar-enough. That laundered context got typed into the user's document <em>and</em> written to history.json, breaking the "never saved to history" promise. Also found: captured context could sit in memory indefinitely if a headset dropped mid-dictation.</div>
+      </div>
+    </details>
+
+    <details class="epic">
+      <summary><span class="epic-no">E5</span><span class="epic-title">Dictionary &amp; Snippets</span><span class="epic-chev">▸</span></summary>
+      <div class="epic-body">
+        <p><strong>Closes:</strong> a mis-transcribed domain term can be fixed once and stay fixed; a spoken cue expands into boilerplate without the LLM. Requires correct Hebrew normalization first, since edit-distance matching is the whole mechanism.</p>
+        <div class="commits"><span class="commit">3dee1ed</span><span class="commit">02cf78a</span><span class="commit">8d1f4e0</span><span class="commit">a4c529d</span><span class="commit">de654fa</span><span class="commit">a0bd111</span><span class="commit">18e2ae1 fixes</span></div>
+        <div class="callout"><b>Review caught:</b> matres-lectionis normalization (ו/וו, י/יי) collapsed genuinely distinct Hebrew words together — מוות/מות, עוול/עול — so one added trigger silently rewrote the other word everywhere. The shipped fuzzy-match threshold also landed exactly on Hebrew's productive -ת inflection, so pairs like עובד→עובדת ("worker" → "female worker") cleared the fuzzy tier and were silently swapped.</div>
+      </div>
+    </details>
+
+    <details class="epic">
+      <summary><span class="epic-no">E6</span><span class="epic-title">Command Mode</span><span class="epic-chev">▸</span></summary>
+      <div class="epic-body">
+        <p><strong>Closes:</strong> select text, speak an instruction, get a rewrite in place — the one flow that must never fall back, since pasting a raw instruction over a selection would be destructive.</p>
+        <div class="commits"><span class="commit">d564e0c</span><span class="commit">370183e</span><span class="commit">4572a98</span><span class="commit">7d96571</span><span class="commit">593678c fixes</span></div>
+        <div class="callout"><b>Review caught:</b> the second hotkey was never wired up on a normal app launch — only on first-permission-grant and inside settings-change handlers — so enabling Command Mode and relaunching left a toggle reading "ON" over a feature that was completely dead. A second blocker: under a slow-LLM-then-retry sequence, a stale rewrite from an abandoned operation could still land on a freshly re-selected paragraph, while the app told the user "nothing was changed."</div>
+      </div>
+    </details>
+
+    <details class="epic">
+      <summary><span class="epic-no">E7</span><span class="epic-title">Responsive Capture (VAD)</span><span class="epic-chev">▸</span></summary>
+      <div class="epic-body">
+        <p><strong>Closes:</strong> the fixed RMS amplitude threshold cut off quiet speech and natural Hebrew pauses as if they were silence. Replaces it with WhisperKit's <code>EnergyVAD</code> and enables <code>.vad</code> chunking for parallel long-recording transcription. Streaming partial results, the third item here, was spiked and explicitly cut — see §7.</p>
+        <div class="commits"><span class="commit">cd223b9</span><span class="commit">f2d826c</span><span class="commit">908f08c</span><span class="commit">226040e fixes</span></div>
+        <div class="callout"><b>Review caught the epic's headline bug:</b> the VAD's 100ms frame length never actually engaged, because the audio tap's buffer size at real hardware sample rates converts to fewer samples than one frame needs — the "voice activity detector" was silently degenerating to whole-buffer RMS the entire time. The dev agent's own verification harness missed this because it replayed audio in differently-sized chunks than the real tap ever produces — the class of bug that only shows up by reasoning about the real buffer math, not a convenient synthetic test.</div>
+      </div>
+    </details>
+
+    <p style="margin-top:20px;">A few findings across all epics were resolved as documented, deliberate deviations rather than code changes — where a protocol lives, or that translate/rewrite-style Profile prompts get rejected by the safety validator by design. Those are recorded in <code>epics.md</code>, not swept under the rug.</p>
+  </section>
+
+  <section id="state">
+    <p class="sec-num">05</p>
+    <h2>Delivered state</h2>
+    <ul>
+      <li><strong>/Applications/VocaMac.app</strong>, version <code>0.8.0-local-hebrew</code>, installed and running.</li>
+      <li><strong>ivrit.ai Hebrew ASR</strong> (~1.5GB), side-loaded, selectable from the model picker — meaningfully better Hebrew accuracy than Wispr Flow's cloud model.</li>
+      <li><strong>LLM cleanup</strong> via LM Studio running <code>qwen3-4b</code> — off by default, enable it in the Post-Processing settings tab. Degrades to today's raw-transcript behavior whenever LM Studio isn't reachable.</li>
+      <li><strong>History</strong> — every dictation saved locally; browse, search, re-paste, and best-effort undo, from the menu bar and the history view.</li>
+      <li><strong>Per-app Profiles</strong> with optional Cursor Context (off by default) — casual tone in chat apps, formal in mail, identifier-shaped in code editors, out of the box.</li>
+      <li><strong>Hebrew-aware Dictionary + Snippets + correction learning</strong> — Dictionary and Snippets on by default and mechanical (no LLM needed); correction learning is off by default.</li>
+      <li><strong>Command Mode</strong> — select text, speak an instruction, get a rewrite in place. Off by default; needs enabling and a second hotkey in settings.</li>
+      <li><strong>EnergyVAD auto-stop + <code>.vad</code> chunking</strong> — fixes cutting off quiet speech and natural pauses; speeds up long recordings.</li>
+    </ul>
+    <p>Everything above is local and offline-capable. With every new feature off, the app behaves byte-for-byte identically to the pre-project baseline — this "identity guarantee" was a first-class, tested architectural requirement, not an afterthought.</p>
+  </section>
+
+  <section id="todo">
+    <p class="sec-num">06</p>
+    <h2>What Tal must do</h2>
+    <ul class="actions">
+      <li><span class="mark">1</span><span>Answer the microphone permission prompt if/when it appears on next launch.</span></li>
+      <li><span class="mark">2</span><span>Re-grant <strong>Accessibility</strong> and <strong>Input Monitoring</strong> permissions to VocaMac in System Settings — these reset on rebuild/reinstall.</span></li>
+      <li><span class="mark">3</span><span>Restart VocaMac so the above takes effect cleanly.</span></li>
+      <li><span class="mark">4</span><span>Keep <strong>LM Studio</strong> running with <code>qwen3-4b-instruct-2507-mlx</code> loaded, server on at <code>localhost:1234</code>, for cleanup, Profiles, Cursor Context, and Command Mode to run. Without it, dictation still works — it just skips straight to the raw transcript.</span></li>
+      <li><span class="mark">5</span><span>Optional cleanup — an unrelated, much larger model appears to have been pulled into LM Studio by accident during setup. If unwanted:
+        <pre><code>lms rm qwen3-30b-a3b-instruct-2507-mlx</code></pre>
+        (roughly 17GB freed).</span></li>
+      <li><span class="mark">6</span><span>Install <strong>Xcode</strong> if you want the written test suite to actually execute. Every story's unit tests were written and type-checked against the real Swift toolchain, but this machine has no <code>XCTest</code> runner, so <code>make test</code> has never actually run end-to-end on this codebase. Review findings were caught by careful reading, not a red test run.</span></li>
+      <li><span class="mark">7</span><span>Note: one adversarial-review probe left a TextEdit window open on this Mac, used to exercise a blocked injection/undo path. Safe to close; nothing else was affected.</span></li>
+    </ul>
+  </section>
+
+  <section id="future">
+    <p class="sec-num">07</p>
+    <h2>Left out / future</h2>
+    <div class="future">
+      <div class="future-item">
+        <h4>Streaming partial results — cut, not missed</h4>
+        <p>Spiked, then explicitly cut. WhisperKit's <code>AudioStreamTranscriber</code> constructs and owns its own <code>AVAudioEngine</code>, input node, and tap — in direct conflict with the app's existing <code>AudioEngine</code>, which the rest of the app depends on for Bluetooth handling, device selection, and VAD. Using it would mean either an architecture-violating rewrite of audio capture, or reimplementing WhisperKit's segment logic from scratch. Documented as a spike result in <code>epics.md</code>, not silently dropped.</p>
+      </div>
+      <div class="future-item">
+        <h4>Mobile, sync, teams</h4>
+        <p>Out of scope by explicit PRD decision, not time pressure. Multi-machine needs are served by JSON export/import of Profiles, Dictionary, and Snippets.</p>
+      </div>
+      <div class="future-item">
+        <h4>A smaller int8 ivrit.ai model</h4>
+        <p>Available on Hugging Face if the ~1.5GB footprint alongside a loaded LLM ever becomes a memory concern on this 24GB machine.</p>
+      </div>
+      <div class="future-item">
+        <h4>Translate/expand-style Profile prompts — rejected by design</h4>
+        <p>The safety validator that stops the LLM going off the rails is tuned for cleanup-style prompts. A Profile asking for translation or heavy rewriting will reliably get its output rejected and fall back to the raw transcript. Known, documented limitation — the UI states the constraint rather than pretending those Profile styles work.</p>
+      </div>
+      <div class="future-item">
+        <h4><code>.vad</code> chunking tail-drop</h4>
+        <p>Can drop up to ~1 second off the tail of recordings over 30 seconds. In push-to-talk use, releasing the key right after the last word can lose the final syllable. Documented, not fixed — no code fix short of pre-padding the chunk window.</p>
+      </div>
+      <div class="future-item">
+        <h4>Licensing — AGPL-3.0</h4>
+        <p>Inherited from VocaMac. Personal/internal use on this machine is fine as-is. If a modified build is ever distributed, or run as a network-accessible service for others, AGPL's source-availability obligations attach — worth confirming with the relevant party before that happens.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>local-whisper delivery report · generated 20 Aug 2026 · source: <code>_bmad-output/DELIVERY.md</code></footer>
+</div>

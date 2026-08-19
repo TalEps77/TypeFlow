@@ -29,57 +29,57 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 17:29
-last_updated: 08-20-2026 03:30
+last_updated: 08-20-2026 04:10
 project: local-whisper
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts/stories
 development_status:
-  epic-1: in-progress
+  epic-1: done
   1-1-register-the-side-loaded-ivrit-ai-hebrew-model: done
   1-2-handle-an-absent-side-loaded-model-and-restore-hebrew-to-the: done
-  1-3-record-per-stage-latency-on-the-history-record: review
+  1-3-record-per-stage-latency-on-the-history-record: done
   epic-1-retrospective: optional
 
-  epic-2: in-progress
-  2-1-transcript-pipeline-scaffolding-with-a-proven-identity-guara: review
-  2-2-postprocessservice-llm-client-with-a-hard-deadline-and-trans: review
-  2-3-wire-post-processing-into-the-pipeline-behind-a-master-toggl: review
-  2-4-post-processing-settings-tab: review
+  epic-2: done
+  2-1-transcript-pipeline-scaffolding-with-a-proven-identity-guara: done
+  2-2-postprocessservice-llm-client-with-a-hard-deadline-and-trans: done
+  2-3-wire-post-processing-into-the-pipeline-behind-a-master-toggl: done
+  2-4-post-processing-settings-tab: done
   epic-2-retrospective: optional
 
-  epic-3: in-progress
-  3-1-persist-every-dictation-via-a-shared-json-file-store: review
-  3-2-browse-search-and-clear-history: review
-  3-3-re-paste-a-previous-transcription: review
-  3-4-undo-the-last-injection: review
+  epic-3: done
+  3-1-persist-every-dictation-via-a-shared-json-file-store: done
+  3-2-browse-search-and-clear-history: done
+  3-3-re-paste-a-previous-transcription: done
+  3-4-undo-the-last-injection: done
   epic-3-retrospective: optional
 
-  epic-4: in-progress
-  4-1-capture-the-frontmost-application-at-recording-start: review
-  4-2-resolve-a-profile-from-the-bundle-identifier: review
-  4-3-profiles-settings-tab-with-starter-profiles-and-json-export: review
-  4-4-supply-cursor-context-to-the-llm-off-by-default: review
+  epic-4: done
+  4-1-capture-the-frontmost-application-at-recording-start: done
+  4-2-resolve-a-profile-from-the-bundle-identifier: done
+  4-3-profiles-settings-tab-with-starter-profiles-and-json-export: done
+  4-4-supply-cursor-context-to-the-llm-off-by-default: done
   epic-4-retrospective: optional
 
-  epic-5: in-progress
-  5-1-hebrew-normalization: review
-  5-2-post-asr-dictionary-replacement: review
-  5-3-dictionary-settings-ui-and-persistence: review
-  5-4-snippet-expansion-with-placeholder-protection: review
-  5-5-snippets-settings-ui: review
-  5-6-propose-dictionary-entries-from-user-corrections: review
+  epic-5: done
+  5-1-hebrew-normalization: done
+  5-2-post-asr-dictionary-replacement: done
+  5-3-dictionary-settings-ui-and-persistence: done
+  5-4-snippet-expansion-with-placeholder-protection: done
+  5-5-snippets-settings-ui: done
+  5-6-propose-dictionary-entries-from-user-corrections: done
   epic-5-retrospective: optional
 
-  epic-6: in-progress
-  6-1-add-a-second-hotkey-binding: review
-  6-2-read-and-replace-the-selection-via-accessibility: review
-  6-3-rewrite-the-selection-by-voice: review
+  epic-6: done
+  6-1-add-a-second-hotkey-binding: done
+  6-2-read-and-replace-the-selection-via-accessibility: done
+  6-3-rewrite-the-selection-by-voice: done
   epic-6-retrospective: optional
 
-  epic-7: in-progress
-  7-1-replace-the-rms-threshold-with-voice-activity-detection: review
-  7-2-parallelize-long-recordings-with-vad-chunking: review
+  epic-7: done
+  7-1-replace-the-rms-threshold-with-voice-activity-detection: done
+  7-2-parallelize-long-recordings-with-vad-chunking: done
   # Story 7.3 spike verdict: CUT. AudioStreamTranscriber.startStreamTranscription()
   # calls audioProcessor.startRecordingLive(), which (WhisperKit
   # Core/Audio/AudioProcessor.swift:975-1019, setupEngine()) constructs its own

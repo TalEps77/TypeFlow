@@ -1097,3 +1097,5 @@ The spike did not clear, so the implementation phase was never entered. The crit
 - Manual: transcribe identical audio with streaming on and off; compare final text and timings.
 
 Only the spike bullet was performed; the remaining bullets were not, because the implementation phase was cut (see **Outcome** above).
+
+<!-- checkpoint: all 7 epics dev+review+fix complete; app installed as 0.8.0-local-hebrew; tracker synced all-done 2026-08-20; next: retrospectives / real XCTest run on an Xcode machine -->

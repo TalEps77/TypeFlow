@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>PRD — local-whisper</title>
+  <style>
+
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+  <style type="text/css">:root {
+--bg: #fbfaf8;
+--panel: #ffffff;
+--ink: #1b1a18;
+--ink-soft: #55524d;
+--ink-faint: #8a857e;
+--rule: #e3ded6;
+--rule-soft: #efeae2;
+--accent: #9a3412;
+--accent-soft: #fdf1e7;
+--code-bg: #f4f1ec;
+--mark: #fff3cd;
+--shadow: 0 1px 2px rgba(27,26,24,.04), 0 8px 28px rgba(27,26,24,.06);
+}
+@media (prefers-color-scheme: dark) {
+:root {
+--bg: #16150f;
+--panel: #1d1c17;
+--ink: #eceae4;
+--ink-soft: #b3aea4;
+--ink-faint: #837d73;
+--rule: #35322a;
+--rule-soft: #2a2721;
+--accent: #f0a071;
+--accent-soft: #2b1f16;
+--code-bg: #24221c;
+--mark: #3d3418;
+--shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.35);
+}
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+margin: 0;
+background: var(--bg);
+color: var(--ink);
+font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Charter, Georgia, serif;
+font-size: 17px;
+line-height: 1.62;
+padding: 0 1.25rem 6rem;
+}
+#doc-wrap { max-width: 62rem; margin: 0 auto; }
+
+header#title-block-header {
+padding: 4.5rem 0 2rem;
+border-bottom: 3px double var(--rule);
+margin-bottom: 2.5rem;
+}
+header#title-block-header h1.title {
+font-size: clamp(2rem, 5vw, 3rem);
+line-height: 1.1;
+margin: 0 0 .5rem;
+letter-spacing: -.02em;
+border: 0;
+padding: 0;
+}
+header#title-block-header p.subtitle {
+margin: 0;
+color: var(--ink-soft);
+font-style: italic;
+font-size: 1.1rem;
+}
+
+h1, h2, h3, h4, h5, h6 {
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+line-height: 1.22;
+letter-spacing: -.015em;
+color: var(--ink);
+scroll-margin-top: 1.5rem;
+}
+h1 {
+font-size: 1.95rem;
+margin: 3.5rem 0 1.2rem;
+padding-bottom: .45rem;
+border-bottom: 2px solid var(--rule);
+}
+h2 {
+font-size: 1.45rem;
+margin: 2.75rem 0 .9rem;
+padding-bottom: .3rem;
+border-bottom: 1px solid var(--rule-soft);
+}
+h3 { font-size: 1.15rem; margin: 2rem 0 .6rem; }
+h4 {
+font-size: .82rem;
+margin: 1.6rem 0 .5rem;
+text-transform: uppercase;
+letter-spacing: .09em;
+color: var(--accent);
+}
+h5, h6 { font-size: .95rem; margin: 1.2rem 0 .4rem; color: var(--ink-soft); }
+p { margin: 0 0 1rem; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+ul, ol { margin: 0 0 1rem; padding-left: 1.4rem; }
+li { margin: .28rem 0; }
+li > ul, li > ol { margin: .28rem 0; }
+
+hr { border: 0; border-top: 1px solid var(--rule); margin: 3rem 0; }
+blockquote {
+margin: 1.2rem 0;
+padding: .1rem 0 .1rem 1.1rem;
+border-left: 3px solid var(--accent);
+color: var(--ink-soft);
+font-style: italic;
+}
+blockquote p:last-child { margin-bottom: 0; }
+
+code, pre, tt, kbd, samp {
+font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+font-size: .86em;
+font-style: normal;
+}
+:not(pre) > code {
+background: var(--code-bg);
+padding: .1em .38em;
+border-radius: 4px;
+border: 1px solid var(--rule-soft);
+
+overflow-wrap: anywhere;
+word-break: break-word;
+}
+pre {
+background: var(--code-bg);
+border: 1px solid var(--rule);
+border-radius: 8px;
+padding: 1rem 1.1rem;
+overflow-x: auto;
+line-height: 1.5;
+margin: 1.2rem 0;
+}
+pre code { background: none; border: 0; padding: 0; white-space: pre; }
+
+.table-scroll { overflow-x: auto; margin: 1.4rem 0; }
+table {
+border-collapse: collapse;
+width: 100%;
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+font-size: .88rem;
+background: var(--panel);
+border: 1px solid var(--rule);
+border-radius: 8px;
+overflow: hidden;
+box-shadow: var(--shadow);
+}
+caption { caption-side: top; text-align: left; font-size: .82rem; color: var(--ink-faint); padding-bottom: .5rem; }
+th, td {
+border-bottom: 1px solid var(--rule-soft);
+padding: .6rem .8rem;
+text-align: left;
+vertical-align: top;
+line-height: 1.45;
+}
+thead th {
+background: var(--accent-soft);
+color: var(--ink);
+font-weight: 650;
+font-size: .74rem;
+text-transform: uppercase;
+letter-spacing: .07em;
+border-bottom: 2px solid var(--rule);
+white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--accent-soft); }
+
+strong { font-weight: 680; }
+mark { background: var(--mark); color: inherit; padding: .05em .2em; border-radius: 3px; }
+
+nav#TOC {
+background: var(--panel);
+border: 1px solid var(--rule);
+border-radius: 10px;
+padding: 1.2rem 1.5rem;
+margin: 0 0 3rem;
+box-shadow: var(--shadow);
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+font-size: .85rem;
+line-height: 1.5;
+}
+nav#TOC::before {
+content: "Contents";
+display: block;
+font-size: .7rem;
+text-transform: uppercase;
+letter-spacing: .12em;
+color: var(--ink-faint);
+margin-bottom: .7rem;
+font-weight: 650;
+}
+nav#TOC ul { list-style: none; padding-left: 0; margin: 0; }
+nav#TOC ul ul { padding-left: 1rem; margin: .15rem 0; font-size: .95em; }
+nav#TOC ul ul ul { display: none; }
+nav#TOC li { margin: .12rem 0; }
+nav#TOC a { text-decoration: none; color: var(--ink-soft); }
+nav#TOC a:hover { color: var(--accent); text-decoration: underline; }
+nav#TOC > ul > li > a { color: var(--ink); font-weight: 600; }
+
+footer.doc-footer {
+margin-top: 4rem;
+padding-top: 1.2rem;
+border-top: 1px solid var(--rule);
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+font-size: .76rem;
+color: var(--ink-faint);
+display: flex;
+flex-wrap: wrap;
+gap: .5rem 1.5rem;
+}
+@media print {
+body { background: #fff; color: #000; font-size: 11pt; }
+nav#TOC { break-after: page; box-shadow: none; }
+h1 { break-before: page; }
+header#title-block-header h1.title { break-before: avoid; }
+table { box-shadow: none; font-size: 9pt; }
+}
+@media (max-width: 640px) {
+body { font-size: 16px; padding: 0 1rem 4rem; }
+header#title-block-header { padding-top: 2.5rem; }
+}
+</style>
+</head>
+<body>
+<div id="doc-wrap">
+<header id="title-block-header">
+<h1 class="title">PRD — local-whisper</h1>
+<p class="subtitle">Private local dictation: requirements for Phases
+1-3</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#document-purpose" id="toc-document-purpose">0. Document
+Purpose</a></li>
+<li><a href="#vision" id="toc-vision">1. Vision</a></li>
+<li><a href="#target-user" id="toc-target-user">2. Target User</a></li>
+<li><a href="#glossary" id="toc-glossary">3. Glossary</a></li>
+<li><a href="#features" id="toc-features">4. Features</a></li>
+<li><a href="#non-goals-explicit" id="toc-non-goals-explicit">5.
+Non-Goals (Explicit)</a></li>
+<li><a href="#mvp-scope" id="toc-mvp-scope">6. MVP Scope</a></li>
+<li><a href="#success-metrics" id="toc-success-metrics">7. Success
+Metrics</a></li>
+<li><a href="#cross-cutting-nfrs" id="toc-cross-cutting-nfrs">8.
+Cross-Cutting NFRs</a></li>
+<li><a href="#open-questions" id="toc-open-questions">9. Open
+Questions</a></li>
+<li><a href="#settled-decisions-do-not-re-litigate" id="toc-settled-decisions-do-not-re-litigate">10. Settled Decisions (Do
+Not Re-Litigate)</a></li>
+<li><a href="#assumptions-index" id="toc-assumptions-index">11.
+Assumptions Index</a></li>
+</ul>
+</nav>
+<p><em>A private, fully-local Wispr Flow alternative for Hebrew
+dictation on macOS.</em></p>
+<h2 id="document-purpose">0. Document Purpose</h2>
+<p>This PRD is the requirements contract for evolving
+<code>local-whisper</code> — a fork of <a href="https://github.com/jatinkrmalik/vocamac">VocaMac</a> (AGPL-3.0,
+Swift/SwiftPM, WhisperKit/CoreML, ~9,500 LOC) — from a raw
+speech-to-text menu-bar utility into a context-aware dictation product
+that matches or beats Wispr Flow for Hebrew, while remaining 100%
+offline.</p>
+<p>It is written for the downstream BMAD workflows:
+<code>bmad-architecture</code> (which turns §4 Features into services),
+<code>bmad-create-epics-and-stories</code> (which turns FRs into
+stories), and <code>bmad-dev-story</code> (which implements them).
+Discovery is complete — the gap analysis “VocaMac vs Wispr Flow” (26 Jul
+2026) is the input, and the strategic decisions listed in §10 are
+<strong>settled and not open for re-litigation</strong>.</p>
+<p>Structure: vocabulary is anchored in §3 Glossary and used verbatim
+everywhere else. Features in §4 are grouped by delivery phase, with
+globally-numbered FRs nested underneath. Assumptions are tagged inline
+and indexed in §11.</p>
+<h2 id="vision">1. Vision</h2>
+<p>Today <code>local-whisper</code> does one thing well: you hold Right
+Option, speak Hebrew, and Whisper’s raw output lands at your cursor in
+any app. That output is a faithful transcript — and a faithful
+transcript is not what anyone actually wants to send. It carries filler
+words, has no punctuation beyond what Whisper guessed, formats nothing,
+and preserves mid-sentence self-corrections verbatim (“let’s meet at 2…
+actually at 3” arrives with both times intact).</p>
+<p>Wispr Flow solves this with a cloud LLM layer that sits after the
+ASR, plus context awareness — it knows which app you are dictating into
+and adapts tone accordingly. It costs $15/month, requires an account,
+and ships your audio, your screen contents, and the text around your
+cursor to someone else’s servers. For this user, in this environment,
+that is disqualifying.</p>
+<p>The bet here is that the entire value-add above raw transcription is
+reproducible locally. An LLM running in LM Studio on the same machine
+can strip fillers, punctuate, format, and resolve self-corrections.
+<code>NSWorkspace</code> and the Accessibility APIs — for which the app
+already holds permission — supply the same app-and-cursor context Wispr
+Flow harvests, without a single byte leaving the device. And on the one
+axis that matters most here, Hebrew accuracy, a locally-run ivrit.ai
+fine-tune should beat a general-purpose cloud model outright. The goal
+is not to clone Wispr Flow. It is to reach parity on what actually adds
+value, win on Hebrew, and never give up the privacy advantage.</p>
+<h2 id="target-user">2. Target User</h2>
+<h3 id="jobs-to-be-done">2.1 Jobs To Be Done</h3>
+<ul>
+<li><strong>Functional</strong> — Dictate Hebrew (and mixed
+Hebrew/English technical) prose into any macOS app and have
+<em>send-ready</em> text appear, not a raw transcript needing
+cleanup.</li>
+<li><strong>Functional</strong> — Dictate into a terminal or code editor
+and get identifier-shaped output (camelCase preserved, no trailing
+punctuation) rather than prose.</li>
+<li><strong>Functional</strong> — Fix a recurring mis-transcription
+<strong>once</strong> and never see it again.</li>
+<li><strong>Contextual</strong> — Operate in an environment where cloud
+dictation is not permissible. Offline capability is a hard constraint,
+not a preference.</li>
+<li><strong>Emotional</strong> — Trust the tool enough to dictate
+anything, because nothing is transmitted anywhere.</li>
+<li><strong>Social</strong> — Produce output whose register matches the
+channel: a Slack message should not read like a formal email.</li>
+</ul>
+<h3 id="non-users-v1">2.2 Non-Users (v1)</h3>
+<ul>
+<li>Teams wanting a shared dictionary, shared snippets, or adoption
+dashboards.</li>
+<li>Users on Intel Macs, Windows, or mobile. Apple Silicon + macOS 13+
+only.</li>
+<li>Users who want cross-device sync of settings, history, or
+vocabulary.</li>
+<li>Users dictating primarily in languages other than Hebrew and
+English. The pipeline is not language-locked by design, but only Hebrew
+is tuned and tested.</li>
+</ul>
+<h3 id="key-user-journeys">2.3 Key User Journeys</h3>
+<ul>
+<li><p><strong>UJ-1. Tal sends a Slack message that reads like he wrote
+it, not like he dictated it.</strong> Tal is mid-conversation in Slack
+and holds Right Option. He speaks a rambling Hebrew sentence with two
+“אה”s and a self-correction. On release, the ASR produces the raw
+transcript; PostProcessService sends it to the local LLM with the Slack
+Profile’s casual-tone prompt; ~600ms later the cleaned, punctuated,
+correction-resolved text is pasted at his cursor. He hits Enter. He
+never saw the raw transcript, and never had to. <strong>Edge
+case:</strong> if LM Studio is not running, the raw transcript is pasted
+instead with no error dialog and no delay beyond the timeout — the tool
+degrades to exactly what it does today.</p></li>
+<li><p><strong>UJ-2. Tal dictates a variable name into VS Code and it
+comes out as an identifier.</strong> Tal is in VS Code with the cursor
+inside a function body. He dictates a Hebrew-accented English phrase
+describing a variable. ProfileManager resolves the frontmost bundle id
+to the Code Profile, whose prompt instructs the LLM to emit
+<code>camelCase</code>, no terminal punctuation, and to preserve
+structure. The result is injected as a valid identifier.</p></li>
+<li><p><strong>UJ-3. Tal corrects a mis-transcribed term once and it
+sticks.</strong> A domain term keeps coming out wrong. Tal opens
+Settings → Dictionary, adds the correct spelling with the wrong variant
+as a trigger. The next time the ASR emits any near-match — after Hebrew
+normalization strips niqqud and reconciles matres lectionis —
+DictionaryService replaces it before injection. <strong>Edge
+case:</strong> rather than adding it manually, Tal simply retypes the
+correct word in-place within seconds of injection; the learning path
+detects the edit via the history record and offers to add the
+mapping.</p></li>
+<li><p><strong>UJ-4. Tal rewrites a paragraph he already wrote, by
+talking to it.</strong> Tal selects a clumsy Hebrew paragraph in a
+document, presses the Command Mode hotkey, and says “make this shorter
+and more formal.” The selection plus the spoken instruction go to the
+local LLM; the rewritten text replaces the selection in place.
+<strong>Edge case:</strong> if no text is selected, the app plays the
+error sound and does nothing rather than injecting the instruction as
+literal text.</p></li>
+<li><p><strong>UJ-5. Tal dictates a long, pausy paragraph without
+getting cut off mid-thought.</strong> Tal dictates a 90-second passage
+with natural Hebrew pauses, occasionally dropping to near-whisper
+volume. The VAD distinguishes speech from silence on signal
+characteristics rather than raw amplitude, so neither the pauses nor the
+quiet passages trigger the auto-stop. Partial results appear as he
+speaks, so he can see it is working.</p></li>
+</ul>
+<h2 id="glossary">3. Glossary</h2>
+<ul>
+<li><strong>ASR</strong> — Automatic Speech Recognition. Here: Whisper,
+executed via WhisperKit on the Neural Engine. Produces a <strong>Raw
+Transcript</strong>. Does not interpret, reformat, or follow
+instructions.</li>
+<li><strong>Raw Transcript</strong> — The verbatim <code>String</code>
+output of the ASR after existing hallucination filtering, before any
+other transformation. The current end-product of the pipeline; after
+this PRD, an intermediate value.</li>
+<li><strong>Final Text</strong> — The string actually delivered to the
+target application. Equals the Raw Transcript when every post-ASR stage
+is disabled or has fallen back.</li>
+<li><strong>Post-Processing</strong> — The LLM stage that transforms a
+Raw Transcript into cleaner prose: filler removal, punctuation, list
+formatting, self-correction resolution. Owned by
+<strong>PostProcessService</strong>.</li>
+<li><strong>LLM Backend</strong> — Qwen3-4B-Instruct (Q4) served by LM
+Studio over an OpenAI-compatible HTTP API at
+<code>http://localhost:1234</code>. Always local. Never bundled with the
+app; the user runs it.</li>
+<li><strong>Fallback</strong> — Returning the input of a stage unchanged
+when that stage fails, times out, or produces an unusable result. Always
+silent to the user in the dictation path.</li>
+<li><strong>Profile</strong> — A named bundle of dictation settings (LLM
+prompt, tone, post-processing on/off, context capture on/off) bound to
+one or more application bundle identifiers. Exactly one Profile is
+active per dictation, resolved from the frontmost application. A
+<strong>Default Profile</strong> always exists and cannot be
+deleted.</li>
+<li><strong>Cursor Context</strong> — Text surrounding the insertion
+point in the target application, read via the Accessibility API,
+supplied to the LLM as grounding. Never persisted, never transmitted
+off-device.</li>
+<li><strong>Dictionary Entry</strong> — A mapping from one or more
+trigger variants to a canonical replacement, applied to the transcript
+after ASR. Distinct from the existing <strong>Vocabulary</strong>.</li>
+<li><strong>Vocabulary</strong> — The pre-existing list of terms sent to
+WhisperKit as <code>promptTokens</code> (“Glossary: …”) to bias the
+decoder. Operates <em>before</em> transcription; retained unchanged. Not
+a Dictionary Entry.</li>
+<li><strong>Hebrew Normalization</strong> — The canonicalization applied
+before fuzzy matching: strip niqqud and cantillation, unify matres
+lectionis (ו/וו, י/יי), normalize final letters and
+geresh/gershayim.</li>
+<li><strong>Snippet</strong> — A mapping from a spoken
+<strong>Cue</strong> phrase to a fixed block of text, expanded before
+injection.</li>
+<li><strong>Command Mode</strong> — A second hotkey flow that reads the
+current selection, treats the dictated utterance as an instruction
+rather than content, and replaces the selection with the LLM’s
+rewrite.</li>
+<li><strong>Dictation Mode</strong> — The existing default flow, where
+the dictated utterance is content to be inserted.</li>
+<li><strong>History Record</strong> — A persisted record of one
+dictation: Raw Transcript, Final Text, timestamp, target bundle id,
+Profile, model, and per-stage latency.</li>
+<li><strong>VAD</strong> — Voice Activity Detection. Speech/non-speech
+classification on signal characteristics, replacing the current fixed
+RMS amplitude threshold.</li>
+<li><strong>Injection</strong> — Delivery of Final Text to the target
+app via <code>TextInjector</code> (Accessibility attribute write, or
+clipboard + ⌘V with pasteboard restore).</li>
+</ul>
+<h2 id="features">4. Features</h2>
+<p>Features are grouped by delivery phase. All three phases are in
+scope; phases order the work, they do not gate it.</p>
+<hr />
+<h3 id="phase-1-the-big-win">Phase 1 — The Big Win</h3>
+<h3 id="hebrew-asr-accuracy-ivrit.ai-model">4.1 Hebrew ASR Accuracy
+(ivrit.ai Model)</h3>
+<p><strong>Description:</strong> The single highest-leverage change, and
+the one place <code>local-whisper</code> can beat Wispr Flow outright
+rather than catching up to it. An ivrit.ai Whisper fine-tune, converted
+to WhisperKit CoreML format, is registered as a selectable model
+alongside the existing catalog. Unlike existing entries, this model is
+<strong>side-loaded</strong>: it is placed on disk out-of-band (a
+parallel effort is producing it), not downloaded from Hugging Face by
+the app. The registry must therefore tolerate an entry whose files may
+be absent, presenting it as unavailable rather than crashing or offering
+a broken download. Realizes UJ-1 through UJ-5 indirectly — every
+downstream stage is only as good as its input.</p>
+<p><strong>Functional Requirements:</strong></p>
+<h4 id="fr-1-register-a-side-loaded-local-model">FR-1: Register a
+side-loaded local model</h4>
+<p>The user can select an ivrit.ai Hebrew model from the model picker,
+alongside the existing WhisperKit models.</p>
+<p><strong>Consequences (testable):</strong> - A new case exists in the
+model enumeration with a display name, an on-disk folder name, and an
+approximate size and RAM estimate. - The model resolves from
+<code>~/Library/Application Support/VocaMac/models/&lt;folder&gt;</code>
+using the same path convention as downloaded models. - Selecting it and
+dictating produces a transcript through the unchanged WhisperKit code
+path. - Existing model entries, their download behavior, and the
+chip/RAM-based recommendation logic are unaffected.</p>
+<p><strong>Out of Scope:</strong> - Performing the Hugging Face → CoreML
+conversion inside the app. - Bundling model weights in the app
+binary.</p>
+<h4 id="fr-2-present-an-absent-side-loaded-model-as-unavailable">FR-2:
+Present an absent side-loaded model as unavailable</h4>
+<p>When the side-loaded model’s folder is missing or incomplete, the app
+communicates this rather than failing opaquely.</p>
+<p><strong>Consequences (testable):</strong> - The picker marks the
+entry “Not installed” and prevents selection. - The UI states the
+expected on-disk path so the user can place the files. - No download is
+attempted for this entry, and no crash or unhandled error occurs. - If
+the model is selected and its files are later removed, the app falls
+back to a known-good model and surfaces one clear message.</p>
+<h4 id="fr-3-record-per-stage-latency">FR-3: Record per-stage
+latency</h4>
+<p>Each dictation records how long each stage took, so model choice can
+be evaluated on evidence rather than impression.</p>
+<p><strong>Consequences (testable):</strong> - Recording duration, ASR
+duration, and post-processing duration are captured per dictation and
+stored on the History Record (FR-8). - ASR duration is measurable per
+model, enabling the large-model-vs-small-model-plus-LLM comparison the
+gap analysis calls for.</p>
+<hr />
+<h3 id="llm-post-processing">4.2 LLM Post-Processing</h3>
+<p><strong>Description:</strong> The heart of the product gap. A new
+<code>PostProcessService</code> sits between the ASR and
+<code>TextInjector</code>. It sends the Raw Transcript to the LLM
+Backend with a system prompt instructing it to remove fillers, add
+punctuation, format enumerations as lists, and resolve mid-utterance
+self-corrections — while changing nothing else and never answering the
+content as though it were a question. The design constraint that
+dominates everything: <strong>this stage must never make the product
+worse than it is today.</strong> If LM Studio is not running, is slow,
+or returns something unusable, the user gets the Raw Transcript,
+silently, on a bounded deadline. Realizes UJ-1, UJ-2.</p>
+<p><strong>Functional Requirements:</strong></p>
+<h4 id="fr-4-clean-the-transcript-via-the-local-llm">FR-4: Clean the
+transcript via the local LLM</h4>
+<p>When Post-Processing is enabled, the Raw Transcript is transformed
+into Final Text by the LLM Backend before Injection. Realizes UJ-1.</p>
+<p><strong>Consequences (testable):</strong> - A single HTTP request is
+issued to the OpenAI-compatible chat-completions endpoint; the response
+content becomes the Final Text. - Filler words are removed;
+sentence-final punctuation is present; spoken enumerations become
+formatted lists. - Given “נפגש בשתיים… בעצם בשלוש”, the Final Text
+contains only the corrected time. - Given a transcript that is a
+question, the output is the cleaned question — not an answer to it. -
+The Raw Transcript is preserved alongside the Final Text on the History
+Record.</p>
+<h4 id="fr-5-fall-back-transparently-on-any-failure">FR-5: Fall back
+transparently on any failure</h4>
+<p>Any post-processing failure yields the Raw Transcript with no
+user-visible interruption of the dictation flow. Realizes UJ-1 (edge
+case).</p>
+<p><strong>Consequences (testable):</strong> - Connection refused (LM
+Studio not running) → Raw Transcript injected; no modal, no dialog. -
+Elapsed time exceeds the configured timeout → the request is cancelled
+and the Raw Transcript is injected; total added latency is bounded by
+the timeout. - Non-2xx status, malformed JSON, or empty content → Raw
+Transcript injected. - A response that is degenerate — empty, or wildly
+disproportionate in length to the input — is rejected in favor of the
+Raw Transcript.
+<code>[ASSUMPTION: a length-ratio guard is a sufficient proxy for &quot;the model went off the rails&quot;; the exact bounds are tunable and will be calibrated during implementation.]</code>
+- Every fallback is logged with its reason and reflected on the History
+Record, so silence to the user is not silence to diagnosis.</p>
+<h4 id="fr-6-configure-post-processing">FR-6: Configure
+post-processing</h4>
+<p>The user controls whether post-processing runs and how it
+connects.</p>
+<p><strong>Consequences (testable):</strong> - A master on/off toggle
+exists; when off, no HTTP request is made and behavior is byte-identical
+to today’s. - Endpoint base URL, model identifier, timeout, and
+temperature are user-editable and persisted, with working defaults
+(<code>http://localhost:1234</code>, Qwen3-4B-Instruct, a low
+single-digit-second timeout, temperature 0). - The system prompt is
+user-editable, with a documented default and a one-click
+restore-to-default.</p>
+<h4 id="fr-7-verify-the-llm-connection-on-demand">FR-7: Verify the LLM
+connection on demand</h4>
+<p>The user can confirm the LLM Backend is reachable without having to
+dictate.</p>
+<p><strong>Consequences (testable):</strong> - A “Test connection”
+control issues a real request and reports success with the responding
+model’s identifier, or failure with an actionable reason (refused /
+timed out / HTTP status). - The test never blocks the UI and cannot
+leave the settings screen in a stuck state.</p>
+<p><strong>Feature-specific NFRs:</strong> - Post-processing adds no
+more than the configured timeout to end-to-end latency under any failure
+mode. - All traffic targets a loopback address. The app must function
+with no network route to the internet.</p>
+<hr />
+<h3 id="transcription-history">4.3 Transcription History</h3>
+<p><strong>Description:</strong> Nothing is currently persisted except
+aggregate statistics — there is no way to recover a transcript the app
+produced 30 seconds ago. History is the cheapest feature in this PRD and
+a precondition for two others: correction-learning (§4.5) needs to know
+what was injected and where, and latency evaluation (FR-3) needs
+somewhere to record. It also delivers immediate standalone value:
+re-paste when an injection lands in the wrong window, and undo when it
+lands in the right one but shouldn’t have. Realizes UJ-3.</p>
+<p><strong>Functional Requirements:</strong></p>
+<h4 id="fr-8-persist-every-dictation">FR-8: Persist every dictation</h4>
+<p>Each completed dictation is recorded locally.</p>
+<p><strong>Consequences (testable):</strong> - A History Record captures
+Raw Transcript, Final Text, timestamp, target bundle id, Profile name,
+model, per-stage latencies, and whether a Fallback occurred. - Records
+persist across app restarts. - Records are stored unencrypted on the
+local disk only, are never transmitted, and are excluded from any
+diagnostic upload.</p>
+<h4 id="fr-9-re-paste-a-previous-transcription">FR-9: Re-paste a
+previous transcription</h4>
+<p>The user can re-inject any recent dictation at the current
+cursor.</p>
+<p><strong>Consequences (testable):</strong> - A menu-bar action
+re-injects the most recent Final Text. - The history list allows
+re-injecting any listed entry, using the same <code>TextInjector</code>
+path as a live dictation. - Re-pasting does not create a duplicate
+History Record.</p>
+<h4 id="fr-10-undo-the-last-injection">FR-10: Undo the last
+injection</h4>
+<p>The user can retract an injection immediately after it lands.</p>
+<p><strong>Consequences (testable):</strong> - An undo action removes
+the just-injected text from the target application. - Undo is offered
+only while it is plausibly safe — within a short window, with the same
+application still frontmost. - When undo cannot be performed safely, the
+action is unavailable rather than destructive.
+<code>[ASSUMPTION: undo is best-effort. The AX write path can retract precisely; the clipboard/⌘V path will synthesize ⌘Z, which some applications handle differently. This limitation is acceptable and will be stated in the UI.]</code></p>
+<h4 id="fr-11-browse-search-and-clear-history">FR-11: Browse, search,
+and clear history</h4>
+<p>The user can review and manage what has been recorded.</p>
+<p><strong>Consequences (testable):</strong> - A history view lists
+records newest-first with timestamp, target app, and a text preview. -
+Selecting a record reveals both the Raw Transcript and the Final Text,
+making the LLM’s edit visible. - Text search filters the list. -
+Individual delete, delete-all, and a configurable retention limit are
+available; retention is enforced automatically.</p>
+<hr />
+<h3 id="phase-2-personalization">Phase 2 — Personalization</h3>
+<h3 id="per-app-profiles-and-cursor-context">4.4 Per-App Profiles and
+Cursor Context</h3>
+<p><strong>Description:</strong> The same utterance should not produce
+the same text in Slack and in a legal document.
+<code>ProfileManager</code> resolves the frontmost application’s bundle
+identifier to a Profile, and that Profile’s prompt steers the LLM.
+Optionally — and separately toggleable, because it is the most
+privacy-sensitive capability in this PRD — the text immediately around
+the cursor is read via Accessibility and supplied to the LLM as
+grounding, so the model can match the surrounding register, language,
+and formatting. This is the local, opt-in equivalent of Wispr Flow’s
+context harvesting: same benefit, nothing transmitted. Realizes UJ-1,
+UJ-2.</p>
+<p><strong>Functional Requirements:</strong></p>
+<h4 id="fr-12-resolve-a-profile-from-the-frontmost-application">FR-12:
+Resolve a Profile from the frontmost application</h4>
+<p>The active Profile is determined automatically at the start of each
+dictation.</p>
+<p><strong>Consequences (testable):</strong> - The frontmost
+application’s bundle identifier is captured when recording begins, not
+when it ends — so switching windows mid-dictation does not change the
+resolved Profile. - The bundle identifier maps to a Profile; when no
+Profile matches, the Default Profile is used. - The resolved Profile
+name is recorded on the History Record. - When Profiles are disabled
+entirely, the Default Profile always applies.</p>
+<h4 id="fr-13-create-and-manage-profiles">FR-13: Create and manage
+Profiles</h4>
+<p>The user can define Profiles for the applications they use.</p>
+<p><strong>Consequences (testable):</strong> - A Profile has a name, a
+set of bundle identifiers, a prompt override, and per-Profile toggles
+for post-processing and context capture. - Profiles can be created,
+edited, reordered, and deleted; the Default Profile can be edited but
+not deleted. - Bundle identifiers can be picked from running
+applications rather than typed by hand. - Sensible starter Profiles ship
+for a chat app, a mail app, and a code editor, illustrating casual,
+formal, and identifier-shaped output. - Profiles persist across restarts
+and are exportable as a single JSON file.
+<code>[ASSUMPTION: file-based export satisfies the multi-machine sync need identified in the gap analysis; no sync service is built.]</code></p>
+<h4 id="fr-14-supply-cursor-context-to-the-llm">FR-14: Supply Cursor
+Context to the LLM</h4>
+<p>When enabled, text around the insertion point grounds the
+post-processing prompt. Realizes UJ-2.</p>
+<p><strong>Consequences (testable):</strong> - Text before and after the
+insertion point is read via the Accessibility API and truncated to a
+bounded character budget. - Context is included in the LLM request only
+when both the global toggle and the active Profile’s toggle are on. It
+is <strong>off by default</strong>. - Context is never written to the
+History Record, never logged, and never persisted anywhere. - When the
+target application exposes no readable context, post-processing proceeds
+without it rather than failing. - Reading context adds negligible
+latency and never blocks Injection.</p>
+<p><strong>Feature-specific NFRs:</strong> - Cursor Context lives in
+memory for the duration of a single request and is released immediately
+after.</p>
+<hr />
+<h3 id="learning-dictionary">4.5 Learning Dictionary</h3>
+<p><strong>Description:</strong> The existing Vocabulary biases the
+decoder <em>before</em> transcription and cannot repair what Whisper got
+wrong. A Dictionary Entry corrects the transcript <em>after</em>, by
+fuzzy-matching against a canonical list. Hebrew makes this genuinely
+hard: no ready-made phonetic algorithm exists, so matching runs on top
+of Hebrew Normalization (niqqud stripping, matres lectionis unification)
+with edit-distance over the normalized forms. The learning half closes
+the loop — when the user retypes a word shortly after injection, the app
+can infer a correction and offer to remember it. Realizes UJ-3.</p>
+<p><strong>Functional Requirements:</strong></p>
+<h4 id="fr-15-replace-transcript-terms-from-the-dictionary">FR-15:
+Replace transcript terms from the Dictionary</h4>
+<p>Dictionary Entries are applied to the transcript before
+Injection.</p>
+<p><strong>Consequences (testable):</strong> - Exact matches are
+replaced. - Near-matches within a configured edit-distance threshold,
+compared over Hebrew-Normalized forms, are replaced. - Replacement
+preserves surrounding whitespace and punctuation, and does not match
+inside longer unrelated words. - Below-threshold candidates are left
+untouched — a conservative miss is preferred to a wrong replacement. -
+Replacement is deterministic and ordered, so overlapping entries resolve
+predictably.</p>
+<h4 id="fr-16-normalize-hebrew-for-matching">FR-16: Normalize Hebrew for
+matching</h4>
+<p>Hebrew Normalization is applied consistently to both sides of every
+comparison.</p>
+<p><strong>Consequences (testable):</strong> - Niqqud and cantillation
+marks are stripped. - Matres lectionis variants (ו/וו, י/יי) are
+unified. - Final-form letters are normalized to their base forms; geresh
+and gershayim are handled. - Normalization is pure, side-effect free,
+and unit-tested against a table of Hebrew variant pairs. - Latin text
+passes through unchanged, so mixed Hebrew/English technical terms still
+match.</p>
+<h4 id="fr-17-manage-dictionary-entries">FR-17: Manage Dictionary
+Entries</h4>
+<p>The user can curate the Dictionary.</p>
+<p><strong>Consequences (testable):</strong> - Entries are created,
+edited, and deleted through a settings screen, each with a canonical
+form and one or more trigger variants. - The Dictionary persists across
+restarts and exports as JSON alongside Profiles. - The Dictionary is
+distinct from, and does not modify, the existing Vocabulary.</p>
+<h4 id="fr-18-learn-from-user-corrections">FR-18: Learn from user
+corrections</h4>
+<p>The app proposes new Dictionary Entries by observing in-place
+corrections. Realizes UJ-3 (edge case).</p>
+<p><strong>Consequences (testable):</strong> - After Injection, the text
+field’s content is re-read after a short delay; a small, localized
+difference against the injected text is treated as a candidate
+correction. - Candidates are <strong>proposed for confirmation</strong>,
+never added silently. - Candidates are dismissible, and a dismissed
+candidate is not proposed again for the same pair. - The entire learning
+capability is toggleable and <strong>off by default</strong>. -
+Unrelated user typing does not generate a flood of candidates; the
+difference heuristic is bounded to word-level, single-token edits.
+<code>[ASSUMPTION: word-level diffing within a short window is precise enough to be useful without being noisy. If it proves noisy in practice, the feature stays off and is revisited rather than shipped loud.]</code></p>
+<hr />
+<h3 id="snippets">4.6 Snippets</h3>
+<p><strong>Description:</strong> The simplest feature in the PRD. A
+spoken Cue expands into a fixed block of text — a signature, a calendar
+link, a standard reply — before Injection. Purely mechanical string
+substitution with no LLM involvement, which makes it fast and completely
+reliable.</p>
+<p><strong>Functional Requirements:</strong></p>
+<h4 id="fr-19-expand-a-spoken-cue-into-a-text-block">FR-19: Expand a
+spoken Cue into a text block</h4>
+<p>Recognized Cues in the transcript are replaced with their Snippet
+body.</p>
+<p><strong>Consequences (testable):</strong> - A Cue matched in the
+transcript is replaced by its body, with multi-line bodies preserved
+verbatim. - Cue matching is case-insensitive and uses Hebrew
+Normalization (FR-16), so a Cue matches despite niqqud or spelling
+variance. - Multiple distinct Cues in one transcript all expand. -
+Expansion runs on the transcript and does not require the LLM Backend;
+Snippets work with post-processing disabled.</p>
+<h4 id="fr-20-manage-snippets">FR-20: Manage Snippets</h4>
+<p>The user can curate Cue → body mappings.</p>
+<p><strong>Consequences (testable):</strong> - Snippets are created,
+edited, and deleted in settings, with a multi-line body editor. -
+Snippets persist across restarts and export as JSON alongside Profiles
+and the Dictionary. - A Cue that collides with an existing Cue is
+rejected with a clear message.</p>
+<hr />
+<h3 id="phase-3-polish">Phase 3 — Polish</h3>
+<h3 id="command-mode">4.7 Command Mode</h3>
+<p><strong>Description:</strong> Instead of inserting what you say, act
+on what you’ve selected. A second global hotkey reads the current
+selection, interprets the dictated utterance as an <em>instruction</em>
+(“summarize this”, “translate to English”, “make it more concise”),
+sends both to the LLM, and writes the rewrite back over the selection.
+Architecturally this is a second route through the same pipeline with a
+different prompt and a different terminal write — and unlike Dictation
+Mode, it hard-depends on the LLM Backend. Realizes UJ-4.</p>
+<p><strong>Functional Requirements:</strong></p>
+<h4 id="fr-21-rewrite-the-selection-by-voice">FR-21: Rewrite the
+selection by voice</h4>
+<p>Pressing the Command Mode hotkey and speaking an instruction rewrites
+the selected text in place. Realizes UJ-4.</p>
+<p><strong>Consequences (testable):</strong> - A second,
+separately-configurable global hotkey activates Command Mode, using the
+same push-to-talk and double-tap conventions as the existing hotkey. -
+The current selection is read via the Accessibility API at activation. -
+The utterance is transcribed and sent to the LLM as an instruction,
+together with the selection as the subject. - The response replaces the
+selection in the target application. - The instruction text itself is
+never injected into the document. - The operation is recorded as a
+History Record distinguishable from a Dictation Mode record.</p>
+<h4 id="fr-22-fail-safely-when-preconditions-are-unmet">FR-22: Fail
+safely when preconditions are unmet</h4>
+<p>Command Mode does nothing destructive when it cannot proceed.
+Realizes UJ-4 (edge case).</p>
+<p><strong>Consequences (testable):</strong> - No selection → the
+operation aborts with the existing error sound; nothing is injected and
+nothing is overwritten. - LLM Backend unreachable or timed out → the
+operation aborts and the selection is left untouched. There is no
+Fallback here: unlike Dictation Mode, injecting the raw transcript would
+be actively wrong. - The target application does not expose a writable
+selection → the operation aborts with one clear message. - The default
+Command Mode hotkey does not conflict with the Dictation Mode hotkey,
+and the UI rejects assigning the same hotkey to both.</p>
+<hr />
+<h3 id="voice-activity-detection">4.8 Voice Activity Detection</h3>
+<p><strong>Description:</strong> The current auto-stop is a fixed RMS
+amplitude threshold (0.01 for 1.2s). Amplitude is a poor proxy for
+speech: it cuts off quiet or whispered passages as though they were
+silence, and it fires during natural Hebrew pauses. Replacing it with
+real VAD — WhisperKit ships <code>EnergyVAD</code>, and a Silero-class
+ML model is available as a reference — fixes both. The same change
+unlocks <code>chunkingStrategy: .vad</code>, which lets WhisperKit split
+long recordings on speech boundaries and transcribe windows in parallel
+instead of sequentially. Realizes UJ-5.</p>
+<p><strong>Functional Requirements:</strong></p>
+<h4 id="fr-23-detect-speech-instead-of-amplitude">FR-23: Detect speech
+instead of amplitude</h4>
+<p>Auto-stop is driven by speech/non-speech classification, not by a raw
+amplitude threshold. Realizes UJ-5.</p>
+<p><strong>Consequences (testable):</strong> - Recording auto-stops
+after a configured duration of detected non-speech, replacing the RMS
+threshold check. - Whispered and low-volume speech is classified as
+speech and does not trigger auto-stop. - Natural mid-sentence pauses do
+not trigger auto-stop at the default setting. - The audio-level UI
+indicator continues to update at its current rate and remains visually
+smooth. - VAD sensitivity and the silence duration are
+user-configurable, and the previous RMS behavior remains selectable as a
+fallback if VAD regresses in practice.</p>
+<h4 id="fr-24-parallelize-long-recording-transcription">FR-24:
+Parallelize long-recording transcription</h4>
+<p>Long recordings are chunked on speech boundaries and transcribed
+concurrently.</p>
+<p><strong>Consequences (testable):</strong> -
+<code>chunkingStrategy</code> is set to <code>.vad</code> rather than
+left <code>nil</code>. - A recording substantially longer than Whisper’s
+30-second window transcribes measurably faster than with sequential
+chunking, at equal or better accuracy. - Short recordings show no
+regression in latency or accuracy.</p>
+<hr />
+<h3 id="streaming-partial-results">4.9 Streaming Partial Results</h3>
+<p><strong>Description:</strong> The last and most architecturally
+invasive item, and deliberately so — its benefit is largely perceptual.
+Today transcription begins only after the key is released. WhisperKit
+ships <code>AudioStreamTranscriber</code>, currently unused, which emits
+partial hypotheses during speech. Showing them turns dead air into
+visible progress. The hard constraint is that partial results are
+<em>display only</em>: they are unstable and revise themselves, so
+nothing partial may ever reach the target application. Realizes
+UJ-5.</p>
+<p><strong>Functional Requirements:</strong></p>
+<h4 id="fr-25-show-partial-results-while-speaking">FR-25: Show partial
+results while speaking</h4>
+<p>In-progress transcription is visible during dictation. Realizes
+UJ-5.</p>
+<p><strong>Consequences (testable):</strong> - Partial hypotheses appear
+in the cursor overlay or menu bar while recording. - Partial text is
+<strong>never</strong> injected into the target application; only the
+final result passes through the post-ASR stages and reaches
+<code>TextInjector</code>. - The final result is identical to what the
+non-streaming path would have produced for the same audio. - Streaming
+is toggleable and off by default; with it off, the pipeline behaves
+exactly as before. - Enabling streaming does not degrade final accuracy
+or increase end-to-end latency.</p>
+<p><strong>Feature-specific NFRs:</strong> - Streaming must not increase
+peak memory enough to threaten the working set of the largest supported
+model on a 24 GB machine.</p>
+<h2 id="non-goals-explicit">5. Non-Goals (Explicit)</h2>
+<ul>
+<li><strong>No cloud, ever.</strong> No cloud ASR, no cloud LLM, no
+telemetry, no crash reporting, no remote configuration. Any feature that
+cannot be built locally is not built.</li>
+<li><strong>Not a Wispr Flow clone.</strong> Screenshot-based context,
+open-application enumeration, and conversation history are explicitly
+rejected — they are the parts of Wispr Flow’s context harvesting whose
+privacy cost exceeds their value.</li>
+<li><strong>No mobile, no sync, no teams.</strong> No iOS/Android
+client, no cross-device sync service, no shared dictionaries, no
+adoption dashboards. Multi-machine needs are served by JSON
+export/import.</li>
+<li><strong>Not migrating to VoiceInk.</strong> Settled — see §10.
+VoiceInk’s GPL-3 source is a permitted <em>design reference</em>; no
+code is copied, and the license mismatch with AGPL-3 is not to be
+tested.</li>
+<li><strong>Not shipping an LLM.</strong> The app does not bundle,
+download, or manage model weights for the LLM Backend. LM Studio is the
+user’s responsibility, and the app must be fully usable without it.</li>
+<li><strong>No IDE-specific integrations.</strong> Cursor/Windsurf-style
+file-name tagging requires per-editor work that the gap analysis judged
+not worth it. Profiles cover the general case.</li>
+<li><strong>No multi-language auto-detection.</strong> Hebrew stays the
+configured language. The architecture must not hard-code Hebrew, but no
+other language is tuned or tested.</li>
+<li><strong>Not re-architecting what works.</strong>
+<code>TextInjector</code>, <code>HotKeyManager</code>,
+<code>AudioEngine</code>, the Vocabulary/<code>promptTokens</code>
+mechanism, and the existing model download manager are load-bearing and
+stay. New capability plugs in; it does not replace.</li>
+</ul>
+<h2 id="mvp-scope">6. MVP Scope</h2>
+<h3 id="in-scope">6.1 In Scope</h3>
+<p>All three phases. Phase 1 is the minimum coherent release:</p>
+<ul>
+<li><strong>Phase 1</strong> — ivrit.ai model registration (FR-1–FR-3);
+PostProcessService with transparent fallback and configuration
+(FR-4–FR-7); transcription history with re-paste and undo
+(FR-8–FR-11).</li>
+<li><strong>Phase 2</strong> — Per-app Profiles with opt-in Cursor
+Context (FR-12–FR-14); learning Dictionary with Hebrew normalization
+(FR-15–FR-18); Snippets (FR-19–FR-20).</li>
+<li><strong>Phase 3</strong> — Command Mode (FR-21–FR-22); VAD and
+<code>.vad</code> chunking (FR-23–FR-24); streaming partial results
+(FR-25).</li>
+</ul>
+<h3 id="out-of-scope-for-mvp">6.2 Out of Scope for MVP</h3>
+<ul>
+<li>Automated Hugging Face → CoreML model conversion in-app — one-time
+out-of-band task; a separate effort owns it.</li>
+<li>Multiple simultaneous LLM backends (Ollama, llama.cpp, cloud) — LM
+Studio’s OpenAI-compatible endpoint is the only target. The HTTP client
+should not make a second backend <em>hard</em> to add later, but no
+second backend is built.
+<code>[NOTE FOR PM: Ollama support is a plausible v2 ask and costs little once the endpoint is abstracted.]</code></li>
+<li>Per-Profile ASR model selection — one model per session; switching
+models mid-session is a model-load cost not worth paying.</li>
+<li>Streaming <em>injection</em> of partial results into the target app
+— display only, permanently.</li>
+<li>Encrypted history storage — deferred; the machine’s own disk
+encryption is the boundary.
+<code>[NOTE FOR PM: revisit if history is ever extended to capture Cursor Context, which it currently must not.]</code></li>
+<li>Sound-alike phonetic matching for Hebrew — no soundex-equivalent
+exists; edit distance over normalized forms is the v1 approach.</li>
+</ul>
+<h2 id="success-metrics">7. Success Metrics</h2>
+<p><strong>Primary</strong></p>
+<ul>
+<li><strong>SM-1</strong>: <strong>Hebrew accuracy beats the current
+baseline.</strong> Word error rate on a fixed held-out set of Hebrew
+dictations is lower with the ivrit.ai model than with
+<code>large-v3-v20240930_626MB</code>. Validates FR-1.</li>
+<li><strong>SM-2</strong>: <strong>Post-processed output is
+send-ready.</strong> Across a sample of everyday dictations, the
+majority need no manual editing before sending. Validates FR-4.</li>
+<li><strong>SM-3</strong>: <strong>Daily use is sustained.</strong> The
+tool is still in daily use one month after Phase 1 ships, without
+reverting to typing for messages of consequence. Validates the product
+as a whole.</li>
+</ul>
+<p><strong>Secondary</strong></p>
+<ul>
+<li><strong>SM-4</strong>: <strong>Bounded added latency.</strong>
+Median end-to-end time from key release to injected text stays within a
+comfortable interactive budget with post-processing enabled. Validates
+FR-4, FR-5.</li>
+<li><strong>SM-5</strong>: <strong>Fallback is invisible and
+cheap.</strong> With LM Studio stopped, dictation still works and the
+added delay is bounded by the timeout. Validates FR-5.</li>
+<li><strong>SM-6</strong>: <strong>Corrections stop recurring.</strong>
+Terms added to the Dictionary do not reappear mis-transcribed. Validates
+FR-15, FR-16.</li>
+</ul>
+<p><strong>Counter-metrics (do not optimize)</strong></p>
+<ul>
+<li><strong>SM-C1</strong>: <strong>Do not maximize LLM edit
+aggressiveness.</strong> A model that rewrites meaning rather than
+cleaning delivery is a regression, however fluent the output.
+Counterbalances SM-2. If the user finds themselves <em>checking</em>
+what the LLM did, the prompt is too aggressive.</li>
+<li><strong>SM-C2</strong>: <strong>Do not maximize Dictionary match
+rate.</strong> A wrong replacement is worse than a missed one, because
+it is silent. Counterbalances SM-6.</li>
+<li><strong>SM-C3</strong>: <strong>Do not optimize perceived latency at
+the cost of correctness.</strong> Streaming partial results must never
+leak into the target application to make the tool feel faster.
+Counterbalances SM-4.</li>
+</ul>
+<h2 id="cross-cutting-nfrs">8. Cross-Cutting NFRs</h2>
+<ul>
+<li><strong>Offline-first</strong> — Every feature functions with no
+internet route. The only network traffic is loopback HTTP to LM
+Studio.</li>
+<li><strong>Graceful degradation</strong> — Each post-ASR stage is
+independently disableable, and every stage failing yields the previous
+stage’s output. With all new features off, behavior is byte-identical to
+today’s.</li>
+<li><strong>Resource ceiling</strong> — The app plus the largest
+supported ASR model plus a Q4 4B LLM must coexist on a 24 GB M4 without
+memory pressure. ASR and LLM inference must not run concurrently in a
+way that spikes peak resident memory.</li>
+<li><strong>Concurrency safety</strong> — New services must not
+introduce data races or main-thread stalls. UI-observable state is
+updated on the main actor; network and file I/O never block it.</li>
+<li><strong>Backwards compatibility</strong> — Existing settings, the
+Vocabulary, and accumulated statistics survive upgrade. New settings
+have working defaults; a fresh install behaves sensibly with everything
+unconfigured.</li>
+<li><strong>Testability</strong> — Post-ASR text transformations
+(normalization, dictionary matching, snippet expansion, prompt
+construction, response validation) are pure and unit-testable without
+audio, without the LLM, and without the Accessibility API.</li>
+<li><strong>Licensing</strong> — The project remains AGPL-3.0. VoiceInk
+(GPL-3) is a design reference only; no code is copied.
+<code>[ASSUMPTION: use remains personal/internal. If a modified build is ever distributed or run as a network-accessible service, AGPL source-availability obligations attach — flagged in §9.]</code></li>
+</ul>
+<h2 id="open-questions">9. Open Questions</h2>
+<ol type="1">
+<li><strong>Prompt tuning is empirical.</strong> The default
+post-processing prompt for Hebrew will need iteration against real
+dictations. Qwen3-4B’s Hebrew instruction-following quality is
+unverified at Q4; if it proves weak, DictaLM 2.0 is the fallback
+candidate. This is a tuning risk, not an architectural one — the service
+contract is unchanged either way.</li>
+<li><strong>Undo fidelity varies by application.</strong> Synthesized ⌘Z
+behaves inconsistently across apps. How far to go beyond best-effort is
+unresolved; FR-10 deliberately scopes it as best-effort.</li>
+<li><strong>Correction-learning precision is unproven.</strong> FR-18’s
+diff heuristic may generate noise in real editing sessions. It ships off
+by default; if the noise floor is too high it stays off pending a better
+signal.</li>
+<li><strong>Model-load memory interaction.</strong> Whether the ivrit.ai
+model’s resident footprint plus a loaded Q4 4B LLM leaves comfortable
+headroom on 24 GB needs measurement before Phase 1 closes (FR-3 provides
+the instrumentation).</li>
+<li><strong>AGPL distribution.</strong> If any modified build is shared
+beyond this machine, source-availability obligations attach. Worth
+confirming with the relevant party before significant investment.</li>
+<li><strong>VAD library choice.</strong> WhisperKit’s built-in
+<code>EnergyVAD</code> versus a Silero-class ML model is an
+implementation-time call — <code>EnergyVAD</code> first, escalate only
+if whisper detection is still inadequate.</li>
+</ol>
+<h2 id="settled-decisions-do-not-re-litigate">10. Settled Decisions (Do
+Not Re-Litigate)</h2>
+<div class="table-scroll"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Resolution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Scope</td>
+<td>All three phases are in scope.</td>
+</tr>
+<tr>
+<td>Base codebase</td>
+<td>Stay on VocaMac. Do not migrate to VoiceInk.</td>
+</tr>
+<tr>
+<td>VoiceInk</td>
+<td>Permitted as a <strong>design reference only</strong>. No code
+copying — GPL-3 vs AGPL-3 mismatch.</td>
+</tr>
+<tr>
+<td>LLM Backend</td>
+<td>Qwen3-4B-Instruct Q4 via LM Studio,
+<code>http://localhost:1234</code>, OpenAI-compatible HTTP.</td>
+</tr>
+<tr>
+<td>Hebrew ASR model</td>
+<td>ivrit.ai fine-tune converted to WhisperKit CoreML. Acquired by a
+parallel effort; lands in
+<code>~/Library/Application Support/VocaMac/models</code> as a new model
+entry.</td>
+</tr>
+<tr>
+<td>Target hardware</td>
+<td>Apple Silicon M4, 24 GB RAM, macOS 13+.</td>
+</tr>
+<tr>
+<td>Privacy posture</td>
+<td>100% local and offline. Non-negotiable.</td>
+</tr>
+<tr>
+<td>Mobile / sync / teams</td>
+<td>Out of scope, permanently.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="assumptions-index">11. Assumptions Index</h2>
+<ul>
+<li><strong>§4.2 / FR-5</strong> — A length-ratio guard is a sufficient
+proxy for detecting a degenerate LLM response; exact bounds calibrated
+during implementation.</li>
+<li><strong>§4.3 / FR-10</strong> — Undo is best-effort. The AX path
+retracts precisely; the clipboard path synthesizes ⌘Z, whose behavior
+varies by application. Stated in the UI.</li>
+<li><strong>§4.4 / FR-13</strong> — JSON export/import satisfies the
+multi-machine need identified in the gap analysis; no sync service is
+built.</li>
+<li><strong>§4.5 / FR-18</strong> — Word-level diffing within a short
+window is precise enough to propose corrections without excessive noise.
+If not, the feature stays off rather than shipping loud.</li>
+<li><strong>§8</strong> — Use remains personal/internal, so AGPL
+source-availability obligations do not currently attach.</li>
+<li><strong>§4.1</strong> — The parallel ivrit.ai effort delivers a
+WhisperKit-compatible CoreML model directory matching the layout
+WhisperKit expects for a local model. If the layout differs, FR-1
+absorbs a conversion-shim cost.</li>
+</ul>
+<footer class="doc-footer"><span>PRD — local-whisper</span><span>BMAD planning artifact &middot; local-whisper</span><span>Companion to <code>PRD.md</code> &mdash; the .md is the source of truth</span></footer>
+</div>
+</body>
+</html>
