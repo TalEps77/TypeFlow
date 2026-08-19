@@ -21,9 +21,31 @@ struct DictionaryEntry: Codable, Identifiable, Equatable, Sendable {
     /// over `HebrewNormalizer`-normalized forms.
     var triggers: [String]
 
-    init(id: UUID = UUID(), canonicalForm: String, triggers: [String] = []) {
+    /// True for an entry that originated from a confirmed correction-learning
+    /// candidate (Story 5.6) rather than being typed in by hand — lets the
+    /// settings UI show which entries the user authored versus which ones
+    /// VocaMac proposed and they approved.
+    var learned: Bool
+
+    init(id: UUID = UUID(), canonicalForm: String, triggers: [String] = [], learned: Bool = false) {
         self.id = id
         self.canonicalForm = canonicalForm
         self.triggers = triggers
+        self.learned = learned
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, canonicalForm, triggers, learned
+    }
+
+    /// Custom so a `dictionary.json` written before Story 5.6 (no `learned`
+    /// key) still decodes — absent means "typed in by hand", never a
+    /// decode failure that would quarantine an otherwise-valid file.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        canonicalForm = try container.decode(String.self, forKey: .canonicalForm)
+        triggers = try container.decode([String].self, forKey: .triggers)
+        learned = try container.decodeIfPresent(Bool.self, forKey: .learned) ?? false
     }
 }

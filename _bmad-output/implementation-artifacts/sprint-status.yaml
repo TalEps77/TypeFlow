@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 17:29
-last_updated: 08-19-2026 21:55
+last_updated: 08-19-2026 22:13
 project: local-whisper
 project_key: NOKEY
 tracking_system: file-system
@@ -68,7 +68,7 @@ development_status:
   5-3-dictionary-settings-ui-and-persistence: review
   5-4-snippet-expansion-with-placeholder-protection: review
   5-5-snippets-settings-ui: review
-  5-6-propose-dictionary-entries-from-user-corrections: backlog
+  5-6-propose-dictionary-entries-from-user-corrections: review
   epic-5-retrospective: optional
 
   epic-6: backlog

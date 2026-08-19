@@ -141,6 +141,12 @@ final class AppState: ObservableObject {
     /// pair is already an identity operation (AD-2).
     @AppStorage(SnippetSettings.Key.enabled) var snippetsEnabled: Bool = SnippetSettings.Default.enabled
 
+    /// Master switch for correction learning (Story 5.6, FR-18, AD-9). Ships
+    /// **off** — this is the highest-noise-risk capability in this epic
+    /// (R-6): it re-reads a text field the user is actively editing, and a
+    /// stream of bad suggestions would make dictation worse, not better.
+    @AppStorage(CorrectionLearningSettings.Key.enabled) var correctionLearningEnabled: Bool = CorrectionLearningSettings.Default.enabled
+
     private var hotKeySafetyTimeout: Double {
         Double(maxRecordingDuration) + 5.0
     }
@@ -176,6 +182,24 @@ final class AppState: ObservableObject {
     /// Same shape as `dictionaryStore`, behind SnippetStage's Cues
     /// (Story 5.4) and the Snippets settings UI's CRUD (Story 5.5).
     let snippetStore: SnippetStore
+
+    /// Watches injections for a hand-typed correction and proposes a
+    /// Dictionary Entry for it (Story 5.6) — never adds one silently.
+    let correctionLearner: CorrectionLearning
+
+    /// What the user has dismissed, so the same pair is never proposed
+    /// again. Exposed directly (like `profileStore`/`dictionaryStore`
+    /// above) so `dismissCorrectionCandidate` can record a dismissal.
+    let dismissedCorrectionsStore: DismissedCorrectionsStore
+
+    /// Candidates awaiting the user's confirmation or dismissal (Story 5.6
+    /// AC: "proposed for confirmation, never added silently"). In-memory
+    /// only and deliberately not `@AppStorage`/JSON-backed — unlike a
+    /// dismissal, an unconfirmed candidate is not data worth persisting
+    /// across a relaunch, and it holds only the two words involved, never
+    /// the field contents it was detected from (AD-5).
+    @Published var pendingCorrectionCandidates: [CorrectionCandidate] = []
+
     let updateChecker = UpdateChecker()
     let permissionManager: any PermissionManaging
 
@@ -270,6 +294,8 @@ final class AppState: ObservableObject {
         profileStore: ProfileStore,
         dictionaryStore: DictionaryStore,
         snippetStore: SnippetStore,
+        correctionLearner: CorrectionLearning,
+        dismissedCorrectionsStore: DismissedCorrectionsStore,
         permissionManager: (any PermissionManaging)? = nil,
         skipSystemIntegration: Bool = false
     ) {
@@ -284,6 +310,8 @@ final class AppState: ObservableObject {
         self.historyStore = historyStore
         self.dictionaryStore = dictionaryStore
         self.snippetStore = snippetStore
+        self.correctionLearner = correctionLearner
+        self.dismissedCorrectionsStore = dismissedCorrectionsStore
         self.transcriptPipeline = transcriptPipeline ?? TranscriptPipeline.production(dictionaryStore: dictionaryStore, snippetStore: snippetStore)
         self.axContextReader = axContextReader
         self.profileManager = profileManager
@@ -344,6 +372,12 @@ final class AppState: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Story 5.6: a candidate is proposed, never added silently — it
+        // waits here for the user to confirm or dismiss via the settings UI.
+        correctionLearner.onCandidateProposed = { [weak self] candidate in
+            self?.pendingCorrectionCandidates.append(candidate)
+        }
+
         if !skipSystemIntegration {
             observeFrontmostApplication()
         }
@@ -376,15 +410,21 @@ final class AppState: ObservableObject {
         // and the Profiles settings tab must see the same Profiles, not two
         // independently-loaded copies.
         let profileStore = ProfileStore()
+        // Shared with `correctionLearner` below, for the same reason as
+        // `profileStore` above.
+        let axContextReader = AXContextReader()
+        let dismissedCorrectionsStore = DismissedCorrectionsStore()
         return AppState(
             cursorOverlay: CursorOverlayManager(),
             statsManager: StatsManager(),
             historyStore: HistoryStore(),
-            axContextReader: AXContextReader(),
+            axContextReader: axContextReader,
             profileManager: ProfileManager(store: profileStore),
             profileStore: profileStore,
             dictionaryStore: DictionaryStore(),
-            snippetStore: SnippetStore()
+            snippetStore: SnippetStore(),
+            correctionLearner: CorrectionLearner(contextReader: axContextReader, dismissedStore: dismissedCorrectionsStore),
+            dismissedCorrectionsStore: dismissedCorrectionsStore
         )
     }()
 
@@ -862,6 +902,15 @@ final class AppState: ObservableObject {
                     text: finalText,
                     preserveClipboard: preserveClipboard
                 )
+                // Story 5.6: off by default, and a no-op call when it is —
+                // observeInjection checks the toggle itself, mirroring every
+                // other feature gate in this epic.
+                if correctionLearningEnabled {
+                    correctionLearner.observeInjection(
+                        finalText,
+                        targetProcessIdentifier: NSWorkspace.shared.frontmostApplication?.processIdentifier
+                    )
+                }
             } else {
                 VocaLogger.info(.appState, "Transcription produced no usable text (silence or blank audio)")
             }
@@ -902,6 +951,27 @@ final class AppState: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - Correction Learning (Story 5.6)
+
+    /// The user approved a proposed correction: it becomes a Dictionary
+    /// Entry, marked `learned` so it's distinguishable from one typed in by
+    /// hand, and the candidate leaves the pending list.
+    func confirmCorrectionCandidate(_ candidate: CorrectionCandidate) {
+        dictionaryStore.add(DictionaryEntry(
+            canonicalForm: candidate.corrected,
+            triggers: [candidate.original],
+            learned: true
+        ))
+        pendingCorrectionCandidates.removeAll { $0 == candidate }
+    }
+
+    /// The user dismissed a proposed correction: recorded so the same pair
+    /// is never proposed again (Story 5.6 AC), and it leaves the pending list.
+    func dismissCorrectionCandidate(_ candidate: CorrectionCandidate) {
+        dismissedCorrectionsStore.dismiss(candidate)
+        pendingCorrectionCandidates.removeAll { $0 == candidate }
     }
 
     // MARK: - Re-paste (FR-9)

@@ -32,6 +32,24 @@ struct VocabularySettingsTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Correction Learning") {
+                Toggle("Notice when I hand-correct a word and suggest a Dictionary Entry", isOn: $appState.correctionLearningEnabled)
+
+                Text("Off by default. When on, VocaMac briefly re-reads the text field you just dictated into to see if you retyped a single word — nothing else about that field is ever saved, logged, or sent anywhere. A correction is only ever suggested below for you to approve or dismiss; it never adds itself to the Dictionary silently.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if !appState.pendingCorrectionCandidates.isEmpty {
+                    ForEach(appState.pendingCorrectionCandidates, id: \.self) { candidate in
+                        CorrectionCandidateRow(candidate: candidate) {
+                            appState.confirmCorrectionCandidate(candidate)
+                        } onDismiss: {
+                            appState.dismissCorrectionCandidate(candidate)
+                        }
+                    }
+                }
+            }
+
             Section("Manage") {
                 List {
                     ForEach(appState.dictionaryStore.entries) { entry in
@@ -225,7 +243,17 @@ private struct DictionaryEntryRow: View {
         Button(action: onTap) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.canonicalForm.isEmpty ? "(untitled)" : entry.canonicalForm)
+                    HStack(spacing: 6) {
+                        Text(entry.canonicalForm.isEmpty ? "(untitled)" : entry.canonicalForm)
+                        if entry.learned {
+                            Text("Learned")
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(.secondary.opacity(0.2))
+                                .cornerRadius(4)
+                        }
+                    }
                     Text(entry.triggers.isEmpty ? "No triggers yet" : entry.triggers.joined(separator: ", "))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -239,6 +267,31 @@ private struct DictionaryEntryRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Correction candidate row
+
+private struct CorrectionCandidateRow: View {
+    let candidate: CorrectionCandidate
+    let onConfirm: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\"\(candidate.original)\" → \"\(candidate.corrected)\"")
+                Text("Add to Dictionary?")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Dismiss", action: onDismiss)
+                .controlSize(.small)
+            Button("Add", action: onConfirm)
+                .controlSize(.small)
+                .buttonStyle(.borderedProminent)
+        }
     }
 }
 

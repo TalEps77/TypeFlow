@@ -186,6 +186,14 @@ protocol TextInjecting: AnyObject {
 // opaque placeholder (Story 5.4). Not @MainActor-bound, same reason as
 // DictionaryProviding.
 
+// MARK: - CorrectionLearning
+//
+// Declared in Services/CorrectionLearner.swift, alongside its vocabulary
+// (CorrectionCandidate). Watches for the user hand-correcting an injected
+// word and proposes a Dictionary Entry for it — never adds one silently
+// (Story 5.6). @MainActor-bound: it schedules work via GCD and calls back
+// into AppState.
+
 // MARK: - TranscriptPipelining
 
 /// The ordered post-ASR transform chain (AD-1). Runs on the main actor because

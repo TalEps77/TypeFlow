@@ -44,6 +44,17 @@ protocol ContextReading: AnyObject {
     /// is not privacy-sensitive, and Story 4.1 needs it regardless of any
     /// Cursor Context toggle.
     func capture(shouldReadCursorContext: (String?) -> Bool) -> CapturedContext
+
+    /// Reads the focused element's current full text value via the same
+    /// Accessibility path `capture` uses — but, unlike `capture`, at
+    /// whatever later moment the caller asks, not tied to recording start.
+    ///
+    /// This carries no AD-5 obligation of its own; it exists for Story 5.6's
+    /// correction-learning re-read, and it is that caller's responsibility
+    /// (upheld by `CorrectionLearner`) to treat the returned text as
+    /// transient — used for one local, in-memory diff and never logged or
+    /// persisted.
+    func readFocusedElementText(processIdentifier: pid_t?) -> String?
 }
 
 @MainActor
@@ -78,6 +89,10 @@ final class AXContextReader: ContextReading {
             budget: Self.contextCharacterBudget
         )
         return CapturedContext(bundleIdentifier: bundleIdentifier, cursorContextBefore: before, cursorContextAfter: after)
+    }
+
+    func readFocusedElementText(processIdentifier: pid_t?) -> String? {
+        focusedElementTextAndCaretLocation(frontmostProcessIdentifier: processIdentifier)?.text
     }
 
     /// Slices out up to `budget` UTF-16 units on each side of the caret.

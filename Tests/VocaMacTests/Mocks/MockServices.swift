@@ -560,6 +560,17 @@ final class MockContextReader: ContextReading {
         lastShouldReadCursorContextAnswer = shouldReadCursorContext(captureResult.bundleIdentifier)
         return captureResult
     }
+
+    /// Story 5.6: what `CorrectionLearner`'s re-read sees.
+    var readFocusedElementTextResult: String?
+    var readFocusedElementTextCallCount = 0
+    var lastReadProcessIdentifier: pid_t?
+
+    func readFocusedElementText(processIdentifier: pid_t?) -> String? {
+        readFocusedElementTextCallCount += 1
+        lastReadProcessIdentifier = processIdentifier
+        return readFocusedElementTextResult
+    }
 }
 
 // MARK: - MockProfileManager
@@ -619,6 +630,27 @@ final class MockSnippetService: SnippetProviding {
         lastText = text
         lastSnippets = snippets
         return protectResult ?? SnippetProtectionResult(text: text, protectedSpans: [:])
+    }
+}
+
+// MARK: - MockCorrectionLearner
+
+/// A no-op by default (Story 5.6, AD-2): `observeInjection` just records
+/// what it was called with, so a test proves the *seam* (AppState calls it
+/// only when the toggle is on, with the right text) without exercising the
+/// real AX re-read or timer.
+@MainActor
+final class MockCorrectionLearner: CorrectionLearning {
+    var onCandidateProposed: ((CorrectionCandidate) -> Void)?
+
+    var observeInjectionCallCount = 0
+    var lastText: String?
+    var lastProcessIdentifier: pid_t?
+
+    func observeInjection(_ text: String, targetProcessIdentifier: pid_t?) {
+        observeInjectionCallCount += 1
+        lastText = text
+        lastProcessIdentifier = targetProcessIdentifier
     }
 }
 
@@ -713,6 +745,13 @@ extension AppState {
             defaultValue: [],
             directoryURL: FileManager.default.temporaryDirectory
                 .appendingPathComponent("vocamac_test_snippets_\(UUID().uuidString)", isDirectory: true)
+        )),
+        correctionLearner: MockCorrectionLearner = MockCorrectionLearner(),
+        dismissedCorrectionsStore: DismissedCorrectionsStore = DismissedCorrectionsStore(store: JSONFileStore(
+            fileName: "dismissed-corrections.json",
+            defaultValue: [],
+            directoryURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("vocamac_test_dismissed_corrections_\(UUID().uuidString)", isDirectory: true)
         ))
     ) -> (appState: AppState, mocks: TestMocks) {
         // AppState.hasPerformedStartupGlobally is a process-level static that
@@ -747,7 +786,8 @@ extension AppState {
             transcriptPipeline: transcriptPipeline,
             postProcessService: postProcessService,
             contextReader: contextReader,
-            profileManager: profileManager
+            profileManager: profileManager,
+            correctionLearner: correctionLearner
         )
         let appState = AppState(
             audioEngine: audioEngine,
@@ -765,6 +805,8 @@ extension AppState {
             profileStore: profileStore,
             dictionaryStore: dictionaryStore,
             snippetStore: snippetStore,
+            correctionLearner: correctionLearner,
+            dismissedCorrectionsStore: dismissedCorrectionsStore,
             permissionManager: permissionManager,
             skipSystemIntegration: true
         )
@@ -787,4 +829,5 @@ struct TestMocks {
     let postProcessService: MockPostProcessService
     let contextReader: MockContextReader
     let profileManager: MockProfileManager
+    let correctionLearner: MockCorrectionLearner
 }
