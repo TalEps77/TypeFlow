@@ -435,6 +435,50 @@ final class MockStatsManager: StatsManaging, ObservableObject {
     }
 }
 
+// MARK: - MockTranscriptPipeline
+
+/// Identity by default (AD-2): unless a test sets `transform`, it returns its
+/// input unchanged, so every existing AppState test keeps its old behavior.
+@MainActor
+final class MockTranscriptPipeline: TranscriptPipelining {
+    var runCallCount = 0
+    var lastContext: TranscriptContext?
+    var transform: ((String) -> String)?
+
+    func run(_ context: TranscriptContext) async -> TranscriptContext {
+        runCallCount += 1
+        lastContext = context
+        guard let transform else { return context }
+        var result = context
+        result.currentText = transform(context.currentText)
+        result.reports.append(
+            StageReport(stageName: "MockStage", outcome: .applied, duration: 0)
+        )
+        return result
+    }
+}
+
+// MARK: - StubTranscriptStage
+
+/// A stage whose answer a test dictates outright, including the "failed"
+/// answer used to prove pass-through.
+@MainActor
+final class StubTranscriptStage: TranscriptStage {
+    let name: String
+    var result: StageResult
+    var runCallCount = 0
+
+    init(name: String = "Stub", result: StageResult) {
+        self.name = name
+        self.result = result
+    }
+
+    func run(_ context: TranscriptContext) async -> StageResult {
+        runCallCount += 1
+        return result
+    }
+}
+
 // MARK: - Test Helper
 
 extension AppState {
@@ -453,6 +497,7 @@ extension AppState {
         let cursorOverlay = MockCursorOverlay()
         let textInjector = MockTextInjector()
         let statsManager = MockStatsManager()
+        let transcriptPipeline = MockTranscriptPipeline()
 
         let mocks = TestMocks(
             audioEngine: audioEngine,
@@ -463,7 +508,8 @@ extension AppState {
             modelManager: modelManager,
             whisperService: whisperService,
             textInjector: textInjector,
-            statsManager: statsManager
+            statsManager: statsManager,
+            transcriptPipeline: transcriptPipeline
         )
         let appState = AppState(
             audioEngine: audioEngine,
@@ -474,6 +520,7 @@ extension AppState {
             soundManager: soundManager,
             cursorOverlay: cursorOverlay,
             statsManager: statsManager,
+            transcriptPipeline: transcriptPipeline,
             permissionManager: permissionManager,
             skipSystemIntegration: true
         )
@@ -491,4 +538,5 @@ struct TestMocks {
     let whisperService: MockWhisperService
     let textInjector: MockTextInjector
     let statsManager: MockStatsManager
+    let transcriptPipeline: MockTranscriptPipeline
 }

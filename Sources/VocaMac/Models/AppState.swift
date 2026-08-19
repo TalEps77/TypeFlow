@@ -125,6 +125,7 @@ final class AppState: ObservableObject {
     let soundManager: SoundPlaying
     let cursorOverlay: CursorOverlayManaging
     let statsManager: StatsManaging
+    let transcriptPipeline: TranscriptPipelining
     let updateChecker = UpdateChecker()
     let permissionManager: any PermissionManaging
 
@@ -181,6 +182,7 @@ final class AppState: ObservableObject {
         soundManager: SoundPlaying = SoundManager(),
         cursorOverlay: CursorOverlayManaging,
         statsManager: StatsManaging,
+        transcriptPipeline: TranscriptPipelining? = nil,
         permissionManager: (any PermissionManaging)? = nil,
         skipSystemIntegration: Bool = false
     ) {
@@ -192,6 +194,7 @@ final class AppState: ObservableObject {
         self.soundManager = soundManager
         self.cursorOverlay = cursorOverlay
         self.statsManager = statsManager
+        self.transcriptPipeline = transcriptPipeline ?? TranscriptPipeline.production()
         self.permissionManager = permissionManager ?? PermissionManager(audioEngine: audioEngine, hotKeyManager: hotKeyManager)
         self.skipSystemIntegration = skipSystemIntegration
 
@@ -631,9 +634,12 @@ final class AppState: ObservableObject {
             // Inject text at cursor position
             // by WhisperService to remove hallucination tokens like [BLANK_AUDIO])
             let trimmedText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedText.isEmpty {
+            // AD-1: the single seam for every post-ASR text transformation.
+            // With no stages enabled this returns trimmedText unchanged (AD-2).
+            let finalText = await transcriptPipeline.run(TranscriptContext(rawTranscript: trimmedText)).currentText
+            if !finalText.isEmpty {
                 textInjector.inject(
-                    text: trimmedText,
+                    text: finalText,
                     preserveClipboard: preserveClipboard
                 )
             } else {

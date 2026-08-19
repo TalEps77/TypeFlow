@@ -19,6 +19,7 @@ enum LogCategory: String {
     case cursorOverlay = "CursorOverlay"
     case updateChecker = "UpdateChecker"
     case onboarding = "Onboarding"
+    case pipeline = "Pipeline"
     case general = "General"
 }
 

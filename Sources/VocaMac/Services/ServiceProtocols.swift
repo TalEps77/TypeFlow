@@ -146,6 +146,17 @@ protocol TextInjecting: AnyObject {
     func inject(text: String, preserveClipboard: Bool)
 }
 
+// MARK: - TranscriptPipelining
+
+/// The ordered post-ASR transform chain (AD-1). Runs on the main actor because
+/// `AppState` already does; stages await their own work off it.
+@MainActor
+protocol TranscriptPipelining: AnyObject {
+    /// Never throws and never fails: with no stages, or with every stage
+    /// disabled or erroring, it returns its input unchanged (AD-2).
+    func run(_ context: TranscriptContext) async -> TranscriptContext
+}
+
 // MARK: - StatsManaging
 
 @MainActor
