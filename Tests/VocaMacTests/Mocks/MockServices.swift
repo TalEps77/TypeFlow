@@ -6,6 +6,7 @@
 
 import Foundation
 import Combine
+import AppKit
 @testable import VocaMac
 
 // MARK: - MockAudioEngine
@@ -555,8 +556,16 @@ final class MockContextReader: ContextReading {
     /// tests actually assert on.
     var lastShouldReadCursorContextAnswer: Bool?
 
-    func capture(shouldReadCursorContext: (String?) -> Bool) -> CapturedContext {
+    /// What the caller offered as the target to use when VocaMac itself is
+    /// frontmost (MINOR 9).
+    var lastFallbackApplication: NSRunningApplication?
+
+    func capture(
+        fallbackApplication: NSRunningApplication?,
+        shouldReadCursorContext: (String?) -> Bool
+    ) -> CapturedContext {
         captureCallCount += 1
+        lastFallbackApplication = fallbackApplication
         lastShouldReadCursorContextAnswer = shouldReadCursorContext(captureResult.bundleIdentifier)
         return captureResult
     }
@@ -646,11 +655,18 @@ final class MockCorrectionLearner: CorrectionLearning {
     var observeInjectionCallCount = 0
     var lastText: String?
     var lastProcessIdentifier: pid_t?
+    /// BLOCKER 1: every abort path must drop a scheduled re-read along with
+    /// the captured Cursor Context.
+    var cancelPendingObservationCallCount = 0
 
     func observeInjection(_ text: String, targetProcessIdentifier: pid_t?) {
         observeInjectionCallCount += 1
         lastText = text
         lastProcessIdentifier = targetProcessIdentifier
+    }
+
+    func cancelPendingObservation() {
+        cancelPendingObservationCallCount += 1
     }
 }
 
@@ -713,6 +729,34 @@ final class StubTranscriptStage: TranscriptStage {
 
 // MARK: - Test Helper
 
+/// One directory per test *process*, holding every throwaway JSON store any
+/// test creates, and swept when the process exits (MINOR 12).
+///
+/// `makeTestState` mints five stores per call and there are hundreds of calls
+/// in a run; each used to get its own `FileManager.temporaryDirectory`
+/// subdirectory and nothing ever removed any of them, so a test run left a
+/// few thousand directories behind in `/var/folders` every time. Keeping the
+/// per-call directories (tests must not share a `profiles.json`) but rooting
+/// them under one parent makes a single `removeItem` at exit enough.
+let vocaMacTestStorageRoot: URL = FileManager.default.temporaryDirectory
+    .appendingPathComponent("vocamac_tests_\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+
+/// Registering the sweep is a side effect of first use. The closure captures
+/// nothing — it reads the global above — which is what lets it be passed to
+/// `atexit`'s C function pointer at all.
+private let vocaMacTestStorageCleanupRegistered: Bool = {
+    atexit {
+        try? FileManager.default.removeItem(at: vocaMacTestStorageRoot)
+    }
+    return true
+}()
+
+/// A fresh, uniquely-named directory under the swept root.
+func makeTestStorageDirectory(_ name: String) -> URL {
+    _ = vocaMacTestStorageCleanupRegistered
+    return vocaMacTestStorageRoot.appendingPathComponent("\(name)_\(UUID().uuidString)", isDirectory: true)
+}
+
 extension AppState {
     @MainActor
     static func makeTestState(
@@ -731,27 +775,23 @@ extension AppState {
         profileStore: ProfileStore = ProfileStore(store: JSONFileStore(
             fileName: "profiles.json",
             defaultValue: [],
-            directoryURL: FileManager.default.temporaryDirectory
-                .appendingPathComponent("vocamac_test_profiles_\(UUID().uuidString)", isDirectory: true)
+            directoryURL: makeTestStorageDirectory("profiles")
         )),
         dictionaryStore: DictionaryStore = DictionaryStore(store: JSONFileStore(
             fileName: "dictionary.json",
             defaultValue: [],
-            directoryURL: FileManager.default.temporaryDirectory
-                .appendingPathComponent("vocamac_test_dictionary_\(UUID().uuidString)", isDirectory: true)
+            directoryURL: makeTestStorageDirectory("dictionary")
         )),
         snippetStore: SnippetStore = SnippetStore(store: JSONFileStore(
             fileName: "snippets.json",
             defaultValue: [],
-            directoryURL: FileManager.default.temporaryDirectory
-                .appendingPathComponent("vocamac_test_snippets_\(UUID().uuidString)", isDirectory: true)
+            directoryURL: makeTestStorageDirectory("snippets")
         )),
         correctionLearner: MockCorrectionLearner = MockCorrectionLearner(),
         dismissedCorrectionsStore: DismissedCorrectionsStore = DismissedCorrectionsStore(store: JSONFileStore(
             fileName: "dismissed-corrections.json",
             defaultValue: [],
-            directoryURL: FileManager.default.temporaryDirectory
-                .appendingPathComponent("vocamac_test_dismissed_corrections_\(UUID().uuidString)", isDirectory: true)
+            directoryURL: makeTestStorageDirectory("dismissed_corrections")
         ))
     ) -> (appState: AppState, mocks: TestMocks) {
         // AppState.hasPerformedStartupGlobally is a process-level static that
@@ -759,8 +799,8 @@ extension AppState {
         // per-test-class setUp) so every test built through makeTestState —
         // across all test files — gets a fresh startup run.
         AppState.hasPerformedStartupGlobally = false
-        UserDefaults.standard.removeObject(forKey: "vocamac.selectedAudioDeviceID")
-        UserDefaults.standard.removeObject(forKey: "vocamac.selectedAudioDeviceName")
+        VocaDefaults.store.removeObject(forKey: "vocamac.selectedAudioDeviceID")
+        VocaDefaults.store.removeObject(forKey: "vocamac.selectedAudioDeviceName")
 
         let audioEngine = MockAudioEngine()
         let soundManager = MockSoundManager()

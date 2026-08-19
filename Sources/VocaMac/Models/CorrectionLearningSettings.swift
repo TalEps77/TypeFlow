@@ -30,7 +30,7 @@ struct CorrectionLearningSettings: Equatable {
         self.isEnabled = isEnabled
     }
 
-    static func current(from defaults: UserDefaults = .standard) -> CorrectionLearningSettings {
+    static func current(from defaults: UserDefaults = VocaDefaults.store) -> CorrectionLearningSettings {
         guard defaults.object(forKey: Key.enabled) != nil else {
             return CorrectionLearningSettings(isEnabled: Default.enabled)
         }

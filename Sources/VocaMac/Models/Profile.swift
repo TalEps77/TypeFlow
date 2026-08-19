@@ -68,6 +68,73 @@ struct Profile: Codable, Identifiable, Equatable {
         )
     }
 
+    /// What `sanitizedForImport` produced, and what it had to change.
+    struct SanitizedImport: Equatable {
+        let profiles: [Profile]
+        /// Names of imported Profiles that asked for Cursor Context. The
+        /// request is always denied (see below); these are surfaced so the
+        /// user is told which Profiles wanted it rather than silently
+        /// losing a setting they may have meant to keep.
+        let contextCaptureRequestedBy: [String]
+    }
+
+    /// Hardens a decoded Profiles file before it is allowed anywhere near the
+    /// store (MAJOR 5). A Profiles export is a plain JSON file people mail
+    /// each other and paste from the internet; `Codable` proves only that the
+    /// *shape* is right, and every invariant the rest of the app relies on is
+    /// trivially violated by hand-editing one:
+    ///
+    /// - **Cursor Context is forced off.** `contextCaptureEnabled` is one half
+    ///   of the two-key gate on the highest-privacy-cost capability in the app
+    ///   (AD-5, R-8). A file must never be able to arm it — otherwise
+    ///   importing a shared Profile set silently pre-authorizes reading the
+    ///   user's documents the moment they turn the global toggle on for some
+    ///   unrelated reason.
+    /// - **Exactly one Default Profile** — the one carrying `defaultProfileID`
+    ///   when the file has it, otherwise the first that claims the flag, and a
+    ///   freshly made one when it claims none. Several
+    ///   `isDefault: true` Profiles would all be undeletable (`delete` refuses
+    ///   them), and whichever landed first would become the fallback for every
+    ///   unmatched app — an imported Default carrying a prompt override that
+    ///   the UI offers no way to remove.
+    /// - **The Default Profile is unbound.** `bundleIdentifiers` on it breaks
+    ///   the "fallback, not a match target" invariant resolution assumes.
+    /// - **Ids are unique.** Duplicates make `update` edit only the first and
+    ///   `delete` remove all of them at once.
+    static func sanitizedForImport(_ profiles: [Profile]) -> SanitizedImport {
+        var seenIDs = Set<UUID>()
+        var deduped: [Profile] = []
+        for profile in profiles where seenIDs.insert(profile.id).inserted {
+            deduped.append(profile)
+        }
+
+        let contextCaptureRequestedBy = deduped.filter { $0.contextCaptureEnabled }.map { $0.name }
+
+        // The Profile that gets to be Default: the one carrying the canonical
+        // id if the file has it, otherwise the first that claims the flag.
+        let defaultCandidate = deduped.first { $0.id == Profile.defaultProfileID }
+            ?? deduped.first { $0.isDefault }
+
+        var sanitized = deduped.map { profile -> Profile in
+            let isDefault = profile.id == defaultCandidate?.id
+            return Profile(
+                id: profile.id,
+                name: profile.name,
+                bundleIdentifiers: isDefault ? [] : profile.bundleIdentifiers,
+                promptOverride: profile.promptOverride,
+                postProcessEnabled: profile.postProcessEnabled,
+                contextCaptureEnabled: false,
+                isDefault: isDefault
+            )
+        }
+
+        if defaultCandidate == nil {
+            sanitized.insert(Profile.makeDefault(), at: 0)
+        }
+
+        return SanitizedImport(profiles: sanitized, contextCaptureRequestedBy: contextCaptureRequestedBy)
+    }
+
     /// Ships on a fresh install alongside the Default Profile (Story 4.3 AC),
     /// illustrating casual, formal, and identifier-shaped output for a chat
     /// app, a mail app, and a code editor respectively. Bundle identifiers

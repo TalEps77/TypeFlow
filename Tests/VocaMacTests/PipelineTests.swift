@@ -46,7 +46,7 @@ final class PipelineTests: XCTestCase {
 
     func testPipelineIsIdentityWithPostProcessDisabled() async {
         // Was `TranscriptPipeline.production()`, which builds a real
-        // PostProcessStage reading UserDefaults.standard through
+        // PostProcessStage reading VocaDefaults.store through
         // PostProcessSettings.current(). If a crashed test run elsewhere
         // leaves vocamac.postProcess.enabled=true persisted, that turned this
         // identity test into a live network test against localhost:1234 for
@@ -174,6 +174,44 @@ final class PipelineTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(report.duration, 0)
         }
         XCTAssertEqual(result.totalStageDuration, result.reports.reduce(0) { $0 + $1.duration }, accuracy: 0.0001)
+    }
+
+    // MARK: - AD-5: the runner never hands Cursor Context back (MINOR 1)
+
+    /// The clear inside the loop is keyed on `PostProcessStage` having run.
+    /// A pipeline that does not contain one — a test's stage list, or any
+    /// future assembly that drops it — therefore returned the context to
+    /// `AppState` still populated, which is the one place AD-5 said it would
+    /// never be. The runner now clears unconditionally after the loop too.
+    func testCursorContextIsClearedEvenWhenNoPostProcessStageExists() async {
+        let observer = StubTranscriptStage(name: "Observer", result: .unchanged("raw", outcome: .skipped(reason: "observing")))
+        let pipeline = TranscriptPipeline(stages: [observer])
+
+        let result = await pipeline.run(TranscriptContext(
+            rawTranscript: "raw",
+            cursorContextBefore: "document text before",
+            cursorContextAfter: "document text after"
+        ))
+
+        // The stage that ran did see it — the pipeline is not simply
+        // dropping context on the floor before anything can use it.
+        XCTAssertEqual(observer.lastContext?.cursorContextBefore, "document text before")
+        XCTAssertNil(result.cursorContextBefore)
+        XCTAssertNil(result.cursorContextAfter)
+    }
+
+    /// An empty stage list is the identity pipeline (AD-2/AD-13) — and must
+    /// still not carry context out the other side.
+    func testCursorContextIsClearedByAnEmptyPipeline() async {
+        let result = await TranscriptPipeline(stages: []).run(TranscriptContext(
+            rawTranscript: "raw",
+            cursorContextBefore: "document text before",
+            cursorContextAfter: "document text after"
+        ))
+
+        XCTAssertEqual(result.currentText, "raw")
+        XCTAssertNil(result.cursorContextBefore)
+        XCTAssertNil(result.cursorContextAfter)
     }
 }
 

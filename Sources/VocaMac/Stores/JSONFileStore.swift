@@ -14,6 +14,13 @@ final class JSONFileStore<T: Codable & Sendable>: @unchecked Sendable {
     private let fileURL: URL
     private let defaultValue: T
     private let saveQueue: DispatchQueue
+    /// Which `LogCategory` this store's own failures are filed under. The
+    /// store is shared by History, Profiles, the Dictionary, Snippets, and
+    /// dismissed corrections; hard-coding `.history` meant a Profiles file
+    /// failing to load, or being quarantined, was logged as a History problem
+    /// — misleading in exactly the moment someone is reading the log to find
+    /// out what happened (MINOR 17).
+    private let logCategory: LogCategory
 
     /// Owner-only permissions for the directory and every file in it. These
     /// payloads are verbatim transcripts of everything the user has ever
@@ -29,11 +36,15 @@ final class JSONFileStore<T: Codable & Sendable>: @unchecked Sendable {
     ///     incompatible future version).
     ///   - directoryURL: Override for tests; defaults to
     ///     `~/Library/Application Support/VocaMac/`.
+    ///   - logCategory: Which category this store's own failures are logged
+    ///     under. Defaults to `.history`, the original caller.
     init(
         fileName: String,
         defaultValue: T,
-        directoryURL: URL? = nil
+        directoryURL: URL? = nil,
+        logCategory: LogCategory = .history
     ) {
+        self.logCategory = logCategory
         let baseDirectory = directoryURL ?? JSONFileStore.applicationSupportDirectory()
         if !FileManager.default.fileExists(atPath: baseDirectory.path) {
             try? FileManager.default.createDirectory(
@@ -72,7 +83,7 @@ final class JSONFileStore<T: Codable & Sendable>: @unchecked Sendable {
             // (MAJOR 2). `quarantinedFileURL` is left behind as the record of
             // what happened.
             quarantineCorruptFile()
-            VocaLogger.error(.history, "JSONFileStore: failed to load \(fileURL.lastPathComponent) — \(error.localizedDescription). Using default value.")
+            VocaLogger.error(logCategory, "JSONFileStore: failed to load \(fileURL.lastPathComponent) — \(error.localizedDescription). Using default value.")
             return defaultValue
         }
     }
@@ -87,9 +98,9 @@ final class JSONFileStore<T: Codable & Sendable>: @unchecked Sendable {
         do {
             try FileManager.default.moveItem(at: fileURL, to: destination)
             quarantinedFileURL = destination
-            VocaLogger.warning(.history, "JSONFileStore: preserved the unreadable \(fileURL.lastPathComponent) as \(destination.lastPathComponent)")
+            VocaLogger.warning(logCategory, "JSONFileStore: preserved the unreadable \(fileURL.lastPathComponent) as \(destination.lastPathComponent)")
         } catch {
-            VocaLogger.error(.history, "JSONFileStore: could not preserve the unreadable \(fileURL.lastPathComponent) — \(error.localizedDescription)")
+            VocaLogger.error(logCategory, "JSONFileStore: could not preserve the unreadable \(fileURL.lastPathComponent) — \(error.localizedDescription)")
         }
     }
 
@@ -104,12 +115,16 @@ final class JSONFileStore<T: Codable & Sendable>: @unchecked Sendable {
     /// across the queue boundary safe rather than merely convenient.
     func save(_ value: T) {
         let url = fileURL
+        // Copied out alongside `url` rather than captured through `self`,
+        // for the same reason `url` is: this closure must not retain the
+        // store (MINOR 17).
+        let category = logCategory
         saveQueue.async {
             let data: Data
             do {
                 data = try JSONEncoder().encode(value)
             } catch {
-                VocaLogger.error(.history, "JSONFileStore: failed to encode \(url.lastPathComponent) — \(error.localizedDescription)")
+                VocaLogger.error(category, "JSONFileStore: failed to encode \(url.lastPathComponent) — \(error.localizedDescription)")
                 return
             }
             do {
@@ -121,7 +136,7 @@ final class JSONFileStore<T: Codable & Sendable>: @unchecked Sendable {
                     ofItemAtPath: url.path
                 )
             } catch {
-                VocaLogger.error(.history, "JSONFileStore: failed to write \(url.lastPathComponent) — \(error.localizedDescription)")
+                VocaLogger.error(category, "JSONFileStore: failed to write \(url.lastPathComponent) — \(error.localizedDescription)")
             }
         }
     }

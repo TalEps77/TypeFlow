@@ -538,6 +538,22 @@ So that my text is shaped for the app I was actually aiming at.
 - Unit: capture-at-start semantics with a mock reader; the nil path.
 - Manual: start dictating in TextEdit, switch to Safari mid-utterance, release; confirm the history record names TextEdit.
 
+**Accepted deviation — protocol placement (Stories 4.1, 4.2):**
+The first acceptance criterion asks for `AXContextReader`'s protocol in
+`ServiceProtocols.swift` (AD-7). `ContextReading` is instead declared in
+`AXContextReader.swift`, alongside the vocabulary it is written in terms of
+(`CapturedContext`); `ProfileResolving` is declared the same way in
+`ProfileManager.swift`. Both are registered in `ServiceProtocols.swift` with a
+pointer comment, and both are mocked and threaded through `TestMocks` /
+`AppState.makeTestState` exactly as AD-7 requires. This follows the precedent
+set by `PostProcessing` in Epic 2, which was placed in
+`PostProcessService.swift` for the same reason and reviewed as acceptable
+there: splitting a protocol from the types in its own signatures makes both
+files harder to read, and AD-7's substance — every service is behind a
+protocol, and every protocol has a mock — is fully met. Deliberate, consistent
+across the three services that have done it, and not to be "fixed" by a later
+pass without also moving `PostProcessing`.
+
 ### Story 4.2: Resolve a Profile from the bundle identifier
 
 As a user,

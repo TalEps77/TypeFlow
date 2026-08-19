@@ -14,8 +14,14 @@ import SwiftUI
 final class ProfileStore: ObservableObject {
 
     /// In list order — Story 4.3's reorder AC operates on this array
-    /// directly. The Default Profile can sit anywhere the user puts it;
-    /// resolution never depends on position, only on `isDefault`.
+    /// directly. The Default Profile can sit anywhere the user puts it: the
+    /// *fallback* is found by `isDefault`, never by position.
+    ///
+    /// Order does matter in one case, though (MINOR 3): `ProfileManager`
+    /// matches with `.first`, so when two Profiles claim the same bundle
+    /// identifier the one earlier in this array wins. That is what makes
+    /// reordering a meaningful action rather than cosmetic, and the Profiles
+    /// tab says so.
     @Published private(set) var profiles: [Profile]
 
     var objectWillChangePublisher: AnyPublisher<Void, Never> {
@@ -25,7 +31,7 @@ final class ProfileStore: ObservableObject {
     private let store: JSONFileStore<[Profile]>
 
     init(store: JSONFileStore<[Profile]>? = nil) {
-        self.store = store ?? JSONFileStore(fileName: "profiles.json", defaultValue: [])
+        self.store = store ?? JSONFileStore(fileName: "profiles.json", defaultValue: [], logCategory: .profiles)
         let loaded = self.store.load()
 
         if loaded.isEmpty {
@@ -75,16 +81,22 @@ final class ProfileStore: ObservableObject {
         persist()
     }
 
-    /// Used by import (Story 4.3 AC): replaces the whole set, but always
-    /// keeps exactly one Default Profile so a malformed or Default-less
-    /// export cannot leave dictation without a fallback.
-    func replaceAll(with newProfiles: [Profile]) {
-        if newProfiles.contains(where: { $0.isDefault }) {
-            profiles = newProfiles
-        } else {
-            profiles = [Profile.makeDefault()] + newProfiles
-        }
+    /// Used by import (Story 4.3 AC): replaces the whole set with a sanitized
+    /// version of it.
+    ///
+    /// Sanitizing here rather than only in the settings tab is deliberate
+    /// (MAJOR 5): this is the single door every import goes through, so the
+    /// invariants — exactly one unbound Default Profile, unique ids, Cursor
+    /// Context never armed by a file — hold no matter which caller opened it.
+    /// `Profile.sanitizedForImport` is idempotent, so a caller that already
+    /// sanitized in order to show the user what changed loses nothing by
+    /// passing the result back through.
+    @discardableResult
+    func replaceAll(with newProfiles: [Profile]) -> Profile.SanitizedImport {
+        let sanitized = Profile.sanitizedForImport(newProfiles)
+        profiles = sanitized.profiles
         persist()
+        return sanitized
     }
 
     private func persist() {

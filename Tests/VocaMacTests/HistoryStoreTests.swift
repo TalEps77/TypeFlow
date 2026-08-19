@@ -93,12 +93,12 @@ final class HistoryStoreTests: XCTestCase {
         super.setUp()
         tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("history_store_test_\(UUID().uuidString)", isDirectory: true)
-        UserDefaults.standard.removeObject(forKey: "vocamac.history.retentionLimit")
+        VocaDefaults.store.removeObject(forKey: "vocamac.history.retentionLimit")
     }
 
     override func tearDown() {
         try? FileManager.default.removeItem(at: tempDirectory)
-        UserDefaults.standard.removeObject(forKey: "vocamac.history.retentionLimit")
+        VocaDefaults.store.removeObject(forKey: "vocamac.history.retentionLimit")
         super.tearDown()
     }
 
@@ -279,7 +279,7 @@ final class HistoryStoreTests: XCTestCase {
         writer.save(seeded)
         writer.flush()
 
-        UserDefaults.standard.set(3, forKey: "vocamac.history.retentionLimit")
+        VocaDefaults.store.set(3, forKey: "vocamac.history.retentionLimit")
 
         let reader = JSONFileStore<[HistoryRecord]>(fileName: "history.json", defaultValue: [], directoryURL: tempDirectory)
         let restarted = HistoryStore(store: reader)
@@ -403,8 +403,8 @@ final class AppStateHistoryTests: XCTestCase {
     /// microseconds then surfaced in the History detail as "Post-process 0ms".
     /// This drives `TranscriptPipeline.production()` for real.
     func testRealPipelineWithPostProcessingOffReportsNoPostProcessLatency() async {
-        UserDefaults.standard.set(false, forKey: PostProcessSettings.Key.enabled)
-        defer { UserDefaults.standard.removeObject(forKey: PostProcessSettings.Key.enabled) }
+        VocaDefaults.store.set(false, forKey: PostProcessSettings.Key.enabled)
+        defer { VocaDefaults.store.removeObject(forKey: PostProcessSettings.Key.enabled) }
 
         let dictionaryStore = DictionaryStore(store: JSONFileStore(
             fileName: "dictionary.json",

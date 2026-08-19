@@ -26,7 +26,7 @@ struct SnippetSettings: Equatable {
         self.isEnabled = isEnabled
     }
 
-    static func current(from defaults: UserDefaults = .standard) -> SnippetSettings {
+    static func current(from defaults: UserDefaults = VocaDefaults.store) -> SnippetSettings {
         guard defaults.object(forKey: Key.enabled) != nil else {
             return SnippetSettings(isEnabled: Default.enabled)
         }

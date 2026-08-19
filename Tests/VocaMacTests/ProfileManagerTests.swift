@@ -87,6 +87,26 @@ final class ProfileManagerTests: XCTestCase {
         XCTAssertEqual(resolved.id, defaultProfile.id)
     }
 
+    /// The one case where order genuinely decides the answer (MINOR 4):
+    /// `resolve` matches with `.first`, so two Profiles bound to the same
+    /// bundle identifier are resolved by list position. Nothing stops a user
+    /// from creating that — the editor does not check other Profiles' bindings
+    /// — so the behavior is pinned here and stated in the Profiles tab rather
+    /// than left to be discovered.
+    func testTheFirstOfTwoProfilesClaimingTheSameBundleIdentifierWins() {
+        let first = Profile(name: "Mail (work)", bundleIdentifiers: ["com.apple.mail"], promptOverride: "formal")
+        let second = Profile(name: "Mail (personal)", bundleIdentifiers: ["com.apple.mail"], promptOverride: "casual")
+        let (manager, store) = makeManager(profiles: [Profile.makeDefault(), first, second])
+
+        XCTAssertEqual(manager.resolve(bundleIdentifier: "com.apple.mail", profilesEnabled: true).id, first.id)
+
+        // And reordering is what changes it — which is what makes drag-to-
+        // reorder in the Profiles tab a meaningful action rather than cosmetic.
+        store.move(fromOffsets: IndexSet(integer: 2), toOffset: 1)
+        XCTAssertEqual(store.profiles[1].id, second.id, "sanity check: the move landed where the assertion assumes")
+        XCTAssertEqual(manager.resolve(bundleIdentifier: "com.apple.mail", profilesEnabled: true).id, second.id)
+    }
+
     func testResolutionIsIndependentOfProfileOrder() {
         let bound = Profile(name: "Mail", bundleIdentifiers: ["com.apple.mail"])
         let (manager, store) = makeManager(profiles: [bound, Profile.makeDefault()])

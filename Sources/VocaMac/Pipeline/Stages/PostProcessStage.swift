@@ -55,8 +55,13 @@ final class PostProcessStage: TranscriptStage {
         }
 
         // An empty override means "use the global prompt unchanged" — how the
-        // Default Profile stays identical to Epic 2/3's behavior.
-        let systemPrompt = (profile?.promptOverride.isEmpty == false) ? profile!.promptOverride : settings.systemPrompt
+        // Default Profile stays identical to Epic 2/3's behavior. Trimmed
+        // first: a Profile whose override is a stray space or newline reads
+        // as empty to the user but as a real override here, and would send
+        // the LLM a blank system prompt for every dictation into that app
+        // (MINOR 15).
+        let promptOverride = profile?.promptOverride.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let systemPrompt = promptOverride.isEmpty ? settings.systemPrompt : promptOverride
 
         // Story 4.4: whatever is here was already gated by both the global
         // and Profile Cursor Context toggles at capture time (AppState) —

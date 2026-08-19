@@ -12,8 +12,27 @@ import UniformTypeIdentifiers
 struct ProfilesSettingsTab: View {
     @EnvironmentObject var appState: AppState
 
-    @State private var editingProfile: Profile?
+    /// What the editor sheet is currently editing, and whether it is a
+    /// Profile that exists yet. A brand-new Profile is *not* added to the
+    /// store until Done is pressed (MINOR 5) — the old flow added it first
+    /// and opened the editor on it, so cancelling left an orphan "New
+    /// Profile" behind that the user then had to delete by hand.
+    private struct EditorRequest: Identifiable {
+        let profile: Profile
+        let isNew: Bool
+        var id: UUID { profile.id }
+    }
+
+    @State private var editorRequest: EditorRequest?
     @State private var importErrorMessage: String?
+    /// Separate from `importErrorMessage` (MINOR 6): an export that failed to
+    /// write used to be reported under an "Import Failed" alert, which is
+    /// both wrong and alarming — it reads as though the file being exported
+    /// to had damaged something.
+    @State private var exportErrorMessage: String?
+    /// Set when an import turned Cursor Context off on Profiles that asked
+    /// for it, so the user is told rather than silently overridden (MAJOR 5).
+    @State private var importNoticeMessage: String?
 
     var body: some View {
         Form {
@@ -39,26 +58,38 @@ struct ProfilesSettingsTab: View {
                 List {
                     ForEach(appState.profileStore.profiles) { profile in
                         ProfileRow(profile: profile) {
-                            editingProfile = profile
+                            editorRequest = EditorRequest(profile: profile, isNew: false)
                         }
                     }
                     .onMove { offsets, destination in
                         appState.profileStore.move(fromOffsets: offsets, toOffset: destination)
                     }
                     .onDelete { offsets in
-                        for index in offsets {
-                            // A no-op for the Default Profile — ProfileStore
-                            // refuses to delete it (Story 4.2 AC).
-                            appState.profileStore.delete(appState.profileStore.profiles[index].id)
+                        // Resolve every id *before* deleting any of them
+                        // (BLOCKER 2): `delete` mutates the same array these
+                        // offsets index into, so deleting inside the loop
+                        // makes each later offset point at the wrong Profile
+                        // — or past the end of the array entirely, which
+                        // traps. Multi-row deletion is reachable from a
+                        // normal Edit-mode selection, not an exotic path.
+                        let ids = offsets.compactMap { index -> UUID? in
+                            guard appState.profileStore.profiles.indices.contains(index) else { return nil }
+                            return appState.profileStore.profiles[index].id
                         }
+                        // A no-op for the Default Profile — ProfileStore
+                        // refuses to delete it (Story 4.2 AC).
+                        ids.forEach { appState.profileStore.delete($0) }
                     }
                 }
                 .frame(minHeight: 180, maxHeight: 260)
 
+                Text("When two Profiles claim the same app, the one higher in this list wins — drag to reorder.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Button {
-                    let new = Profile(name: "New Profile")
-                    appState.profileStore.add(new)
-                    editingProfile = new
+                    // Not added to the store until Done (MINOR 5).
+                    editorRequest = EditorRequest(profile: Profile(name: "New Profile"), isNew: true)
                 } label: {
                     Label("Add Profile", systemImage: "plus")
                 }
@@ -77,9 +108,13 @@ struct ProfilesSettingsTab: View {
             }
         }
         .formStyle(.grouped)
-        .sheet(item: $editingProfile) { profile in
-            ProfileEditorView(profile: profile) { updated in
-                appState.profileStore.update(updated)
+        .sheet(item: $editorRequest) { request in
+            ProfileEditorView(profile: request.profile) { updated in
+                if request.isNew {
+                    appState.profileStore.add(updated)
+                } else {
+                    appState.profileStore.update(updated)
+                }
             }
         }
         .alert("Import Failed", isPresented: Binding(
@@ -89,6 +124,22 @@ struct ProfilesSettingsTab: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(importErrorMessage ?? "")
+        }
+        .alert("Export Failed", isPresented: Binding(
+            get: { exportErrorMessage != nil },
+            set: { isPresented in if !isPresented { exportErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportErrorMessage ?? "")
+        }
+        .alert("Profiles Imported", isPresented: Binding(
+            get: { importNoticeMessage != nil },
+            set: { isPresented in if !isPresented { importNoticeMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(importNoticeMessage ?? "")
         }
     }
 
@@ -108,10 +159,16 @@ struct ProfilesSettingsTab: View {
                 try data.write(to: url, options: .atomic)
             } catch {
                 VocaLogger.error(.profiles, "Profile export failed: \(error.localizedDescription)")
-                importErrorMessage = "Could not write the export file: \(error.localizedDescription)"
+                exportErrorMessage = "Could not write the export file: \(error.localizedDescription)"
             }
         }
     }
+
+    /// A Profiles export of any realistic size is a few kilobytes. Reading a
+    /// user-chosen file with `Data(contentsOf:)` is otherwise unbounded — a
+    /// mis-picked disk image or video would be pulled into memory whole
+    /// before `JSONDecoder` ever got the chance to reject it (MAJOR 5).
+    private static let maximumImportBytes = 5_000_000
 
     private func importProfiles() {
         let panel = NSOpenPanel()
@@ -122,17 +179,37 @@ struct ProfilesSettingsTab: View {
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             do {
+                let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                guard fileSize <= Self.maximumImportBytes else {
+                    importErrorMessage = "That file is too large to be a VocaMac Profiles export."
+                    return
+                }
+
                 let data = try Data(contentsOf: url)
                 let imported = try JSONDecoder().decode([Profile].self, from: data)
                 guard !imported.isEmpty else {
                     importErrorMessage = "That file contains no Profiles."
                     return
                 }
-                // ProfileStore.replaceAll always keeps exactly one Default
-                // Profile, even if the imported file omitted or duplicated
-                // it — existing Profiles are only touched once decoding has
-                // fully succeeded, never on a partial or malformed read.
-                appState.profileStore.replaceAll(with: imported)
+
+                // A Profiles file is user-editable and routinely shared, so
+                // it is treated as untrusted input rather than as data this
+                // app wrote (MAJOR 5): `sanitizedForImport` coerces exactly
+                // one unbound Default Profile, drops duplicate ids, and — the
+                // load-bearing part — refuses to let a file arm Cursor
+                // Context on any Profile. Existing Profiles are still only
+                // touched once decoding has fully succeeded, never on a
+                // partial or malformed read.
+                let sanitized = appState.profileStore.replaceAll(with: imported)
+
+                if !sanitized.contextCaptureRequestedBy.isEmpty {
+                    let names = sanitized.contextCaptureRequestedBy.joined(separator: ", ")
+                    importNoticeMessage = """
+                    \(sanitized.profiles.count) Profiles were imported.
+
+                    "Read text around the cursor" was turned off on every imported Profile that asked for it (\(names)). Reading your documents is never something an imported file can switch on — turn it back on yourself, per Profile, if that is what you want.
+                    """
+                }
             } catch {
                 importErrorMessage = "That file isn't a valid VocaMac Profiles export: \(error.localizedDescription)"
             }
@@ -261,6 +338,18 @@ private struct ProfileEditorView: View {
                 }
 
                 Text("When set, this replaces the global system prompt entirely for dictations resolved to this Profile.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                // MAJOR 7: the safety check that keeps the LLM from answering
+                // a transcript instead of cleaning it is tuned for cleanup —
+                // it compares the answer's length and character overlap
+                // against the transcript. A prompt that asks for a genuine
+                // transformation fails it every single time, and the user
+                // sees their raw transcript with nothing to explain why. Say
+                // so here, where the prompt is written, rather than leaving
+                // it to be discovered.
+                Text("Only cleanup-style prompts take effect. A safety check compares the model's answer against the transcript and rejects anything that is not recognizably the same text — so an override that asks to translate, summarize, expand, or rewrite will be rejected every time and you will get the raw transcript instead. Tone, punctuation, formatting, and filler removal are what this is for. Rejections are visible in History: the dictation is marked as having fallen back.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

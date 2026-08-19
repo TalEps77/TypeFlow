@@ -97,6 +97,19 @@ final class TranscriptPipeline: TranscriptPipelining {
             }
         }
 
+        // AD-5 again, now unconditionally. The clear inside the loop fires as
+        // soon as the one consuming stage has run, which is what keeps every
+        // *later* stage from seeing Cursor Context; this one covers the case
+        // the loop cannot — a pipeline with no `PostProcessStage` in it at
+        // all, whether because post-processing was compiled out of a test's
+        // stage list or because a future assembly drops it. Without it that
+        // pipeline hands the context straight back to `AppState`, still
+        // populated, inside the returned value (MINOR 1). Clearing twice
+        // costs nothing and makes the guarantee a property of the runner
+        // rather than of the stage list it happens to be given.
+        context.cursorContextBefore = nil
+        context.cursorContextAfter = nil
+
         return context
     }
 }

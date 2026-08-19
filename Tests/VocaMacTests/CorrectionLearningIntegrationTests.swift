@@ -15,22 +15,22 @@ final class CorrectionLearningIntegrationTests: XCTestCase {
 
     // MINOR 8-style precaution (see PostProcessStageTests): these tests
     // write `appState.correctionLearningEnabled`, which is backed by
-    // UserDefaults.standard directly (AD-9) — save/restore so a mutation
+    // VocaDefaults.store directly (AD-9) — save/restore so a mutation
     // here can't bleed into a different test file's assumptions about the
     // default.
     private var previousEnabledValue: Any?
 
     override func setUp() {
         super.setUp()
-        previousEnabledValue = UserDefaults.standard.object(forKey: CorrectionLearningSettings.Key.enabled)
-        UserDefaults.standard.removeObject(forKey: CorrectionLearningSettings.Key.enabled)
+        previousEnabledValue = VocaDefaults.store.object(forKey: CorrectionLearningSettings.Key.enabled)
+        VocaDefaults.store.removeObject(forKey: CorrectionLearningSettings.Key.enabled)
     }
 
     override func tearDown() {
         if let previousEnabledValue {
-            UserDefaults.standard.set(previousEnabledValue, forKey: CorrectionLearningSettings.Key.enabled)
+            VocaDefaults.store.set(previousEnabledValue, forKey: CorrectionLearningSettings.Key.enabled)
         } else {
-            UserDefaults.standard.removeObject(forKey: CorrectionLearningSettings.Key.enabled)
+            VocaDefaults.store.removeObject(forKey: CorrectionLearningSettings.Key.enabled)
         }
         super.tearDown()
     }

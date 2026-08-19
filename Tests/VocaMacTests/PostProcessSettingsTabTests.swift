@@ -22,11 +22,11 @@ final class PostProcessSettingsTabTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        keys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
+        keys.forEach { VocaDefaults.store.removeObject(forKey: $0) }
     }
 
     override func tearDown() {
-        keys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
+        keys.forEach { VocaDefaults.store.removeObject(forKey: $0) }
         super.tearDown()
     }
 
@@ -100,7 +100,7 @@ final class PostProcessSettingsTabTests: XCTestCase {
         appState.postProcessModel = "written through AppState"
 
         XCTAssertEqual(
-            UserDefaults.standard.string(forKey: PostProcessSettings.Key.model),
+            VocaDefaults.store.string(forKey: PostProcessSettings.Key.model),
             "written through AppState",
             "The tab and the stage must not drift onto different keys"
         )

@@ -39,12 +39,33 @@ final class AXContextReaderTests: XCTestCase {
         XCTAssertEqual(mocks.contextReader.captureCallCount, 1)
     }
 
-    func testStoppingWithoutStartingCapturesNothing() async {
-        let (_, mocks) = makeRecordingState(bundleIdentifier: "com.apple.TextEdit")
+    /// AD-5: capture happens at recording *start* and nowhere else. The
+    /// original version of this test never called `stopRecordingAndTranscribe`
+    /// at all, so it asserted only that constructing an AppState does not
+    /// capture — true by inspection, and green no matter what stop did
+    /// (MINOR 11). It now actually drives the stop path.
+    func testStoppingWithoutHavingStartedNeverCaptures() async {
+        let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.TextEdit")
 
-        // No startRecording() call — mirrors the existing HistoryStoreTests
-        // seam tests that drive stopRecordingAndTranscribe() directly.
-        XCTAssertEqual(mocks.contextReader.captureCallCount, 0)
+        await appState.stopRecordingAndTranscribe()
+
+        XCTAssertEqual(mocks.contextReader.captureCallCount, 0, "capture belongs to recording start, never to stop")
+        XCTAssertEqual(mocks.historyStore.recordCallCount, 0, "a stop with no recording behind it records nothing")
+    }
+
+    /// MINOR 9: the hotkey can be pressed while VocaMac's own settings or
+    /// History window is frontmost. Resolving a Profile for *us* — and
+    /// AX-reading our own text fields — is never what the user meant, so the
+    /// last non-self frontmost application is offered as the target instead.
+    func testTheLastNonSelfFrontmostApplicationIsOfferedAsTheCaptureTarget() async {
+        let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.TextEdit")
+
+        await appState.startRecording()
+
+        XCTAssertEqual(
+            mocks.contextReader.lastFallbackApplication?.processIdentifier,
+            appState.lastNonSelfFrontmostApp?.processIdentifier
+        )
     }
 
     // MARK: - The captured bundle identifier reaches the History Record
@@ -105,7 +126,7 @@ final class AXContextReaderTests: XCTestCase {
     }
 
     func testCursorContextTurnsOnOnlyWhenBothGlobalAndProfileToggleAreOn() async {
-        defer { UserDefaults.standard.removeObject(forKey: "vocamac.contextCapture.enabled") }
+        defer { VocaDefaults.store.removeObject(forKey: "vocamac.contextCapture.enabled") }
         let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.TextEdit")
         appState.contextCaptureEnabled = true
         mocks.profileManager.resolvedProfile = Profile(name: "Editor", contextCaptureEnabled: true)
@@ -116,7 +137,7 @@ final class AXContextReaderTests: XCTestCase {
     }
 
     func testCursorContextStaysOffWhenOnlyTheGlobalToggleIsOn() async {
-        defer { UserDefaults.standard.removeObject(forKey: "vocamac.contextCapture.enabled") }
+        defer { VocaDefaults.store.removeObject(forKey: "vocamac.contextCapture.enabled") }
         let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.TextEdit")
         appState.contextCaptureEnabled = true
         mocks.profileManager.resolvedProfile = Profile(name: "Editor", contextCaptureEnabled: false)
@@ -139,7 +160,7 @@ final class AXContextReaderTests: XCTestCase {
     // MARK: - Story 4.4: captured Cursor Context reaches the LLM request
 
     func testCapturedCursorContextReachesThePostProcessRequest() async {
-        defer { UserDefaults.standard.removeObject(forKey: "vocamac.contextCapture.enabled") }
+        defer { VocaDefaults.store.removeObject(forKey: "vocamac.contextCapture.enabled") }
 
         let postProcessService = MockPostProcessService()
         let stage = PostProcessStage(service: postProcessService, settingsProvider: {
@@ -176,7 +197,7 @@ final class AXContextReaderTests: XCTestCase {
     /// `TranscriptContext` the mock pipeline stage actually saw versus what
     /// a *second*, no-op stage placed after it would see.
     func testCursorContextIsClearedFromTheContextAfterPostProcessRuns() async {
-        defer { UserDefaults.standard.removeObject(forKey: "vocamac.contextCapture.enabled") }
+        defer { VocaDefaults.store.removeObject(forKey: "vocamac.contextCapture.enabled") }
 
         let postProcessService = MockPostProcessService()
         let postProcessStage = PostProcessStage(service: postProcessService, settingsProvider: {
@@ -237,7 +258,7 @@ final class AXContextReaderTests: XCTestCase {
     }
 
     func testProfilesEnabledSettingIsPassedThroughToResolution() async {
-        defer { UserDefaults.standard.removeObject(forKey: "vocamac.profiles.enabled") }
+        defer { VocaDefaults.store.removeObject(forKey: "vocamac.profiles.enabled") }
         let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.mail")
         appState.profilesEnabled = false
 

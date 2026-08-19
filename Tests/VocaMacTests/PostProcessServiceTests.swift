@@ -401,6 +401,183 @@ final class PostProcessResponseValidatorTests: XCTestCase {
         let result = PostProcessResponseValidator.validate(data: payload(content: answer), statusCode: 200, input: input)
         XCTAssertEqual(result.failureError, .malformedResponse("output unrelated to input"))
     }
+
+    // MARK: - Cursor Context echo (MAJOR 4, AD-5)
+
+    /// A document sentence long enough to build precise-length windows out of.
+    private static let documentText =
+        "the quarterly board pack is confidential and must not be shared outside the finance team"
+
+    func testCursorContextEchoDetection() {
+        struct Case {
+            let name: String
+            let output: String
+            let contextBefore: String?
+            let contextAfter: String?
+            let isEcho: Bool
+        }
+
+        let document = Self.documentText
+        let window40 = String(document.prefix(40))
+        let window39 = String(document.prefix(39))
+        let hebrewDocument = "הישיבה הסודית על רכישת חברת הלברד נדחתה לחודש הבא בגלל בעיות רגולציה"
+
+        let cases: [Case] = [
+            Case(
+                name: "no context sent — the check must not fire at all",
+                output: document,
+                contextBefore: nil,
+                contextAfter: nil,
+                isEcho: false
+            ),
+            Case(
+                name: "context present but empty",
+                output: document,
+                contextBefore: "",
+                contextAfter: "",
+                isEcho: false
+            ),
+            Case(
+                name: "output shorter than one window cannot contain one",
+                output: "short answer",
+                contextBefore: document,
+                contextAfter: nil,
+                isEcho: false
+            ),
+            Case(
+                name: "one character under the threshold is allowed through",
+                output: "cleaned words " + window39,
+                contextBefore: document,
+                contextAfter: nil,
+                isEcho: false
+            ),
+            Case(
+                name: "exactly the threshold is rejected",
+                output: "cleaned words " + window40,
+                contextBefore: document,
+                contextAfter: nil,
+                isEcho: true
+            ),
+            Case(
+                name: "an echo of the text after the caret counts too",
+                output: "cleaned words " + window40,
+                contextBefore: nil,
+                contextAfter: document,
+                isEcho: true
+            ),
+            Case(
+                name: "re-casing and re-wrapping what it copied does not hide it",
+                output: "CLEANED  WORDS\n" + window40.uppercased().replacingOccurrences(of: " ", with: "   "),
+                contextBefore: document,
+                contextAfter: nil,
+                isEcho: true
+            ),
+            Case(
+                name: "Hebrew is not a special case",
+                output: "שלום עולם " + String(hebrewDocument.prefix(45)),
+                contextBefore: hebrewDocument,
+                contextAfter: nil,
+                isEcho: true
+            ),
+            Case(
+                name: "an ordinary cleanup that merely sits in the same document",
+                output: "So the quarterly figures came in under what we forecast.",
+                contextBefore: document,
+                contextAfter: nil,
+                isEcho: false
+            )
+        ]
+
+        for testCase in cases {
+            let echo = PostProcessResponseValidator.cursorContextEcho(
+                output: testCase.output,
+                contextBefore: testCase.contextBefore,
+                contextAfter: testCase.contextAfter
+            )
+            XCTAssertEqual(echo != nil, testCase.isEcho, testCase.name)
+        }
+    }
+
+    /// The worked example from the review, reproduced exactly: this is the
+    /// shape that both existing guards wave through.
+    ///
+    /// A 102-character transcript answered with 98 characters of genuine
+    /// cleanup plus 80 characters lifted verbatim from the document is 179
+    /// characters — inside the length band, whose upper bound here is 204 —
+    /// and scores ~0.68 on bigram similarity because most of it really *is*
+    /// the transcript, comfortably over the 0.5 bar. Before this guard those
+    /// 80 characters of a confidential document were typed into the user's
+    /// app and written to history.json as `finalText`.
+    func testPartiallyEchoedContextPassesBothOldGuardsAndIsRejectedByTheNewOne() {
+        let transcript = "um so the quarterly figures came in a bit under what we forecast and uh we should revisit the plan now"
+        let cleaned = "So the quarterly figures came in a bit under what we forecast, and we should revisit the plan now."
+        let contextBefore = "Board briefing, strictly confidential. Project Marigold remains unannounced and the acquisition of Halberd Systems closes on the 14th of next month."
+        let echoed = String(contextBefore.dropFirst(38).prefix(80))
+        let laundered = cleaned + " " + echoed
+
+        // The premise: both guards that existed before genuinely pass this.
+        XCTAssertEqual(transcript.count, 102)
+        XCTAssertEqual(echoed.count, 80)
+        XCTAssertEqual(laundered.count, 179)
+        XCTAssertTrue(
+            PostProcessResponseValidator.isProportionate(input: transcript, output: laundered),
+            "if the length guard rejected this, the test would prove nothing about the new one"
+        )
+        XCTAssertTrue(
+            PostProcessResponseValidator.isRelated(input: transcript, output: laundered),
+            "if the similarity guard rejected this, the test would prove nothing about the new one"
+        )
+
+        // Without the context it is still accepted — the hole was never in
+        // the response, it was in validating the response without reference
+        // to what was sent alongside the request.
+        XCTAssertEqual(
+            try? PostProcessResponseValidator.validate(
+                data: payload(content: laundered),
+                statusCode: 200,
+                input: transcript
+            ).get(),
+            laundered
+        )
+
+        // With it, rejected — and AD-2 hands the raw transcript back instead.
+        let guarded = PostProcessResponseValidator.validate(
+            data: payload(content: laundered),
+            statusCode: 200,
+            input: transcript,
+            contextBefore: contextBefore,
+            contextAfter: nil
+        )
+        XCTAssertEqual(guarded.failureError, .echoedCursorContext(sharedCharacters: 40))
+    }
+
+    /// The other half of the same story: cleanup done *with* context, that
+    /// does not copy from it, must still be accepted. A guard that rejected
+    /// this would quietly turn Story 4.4 off for everyone who enabled it.
+    func testAnHonestCleanupWithContextStillPasses() {
+        let transcript = "um so the quarterly figures came in a bit under what we forecast and uh we should revisit the plan now"
+        let cleaned = "So the quarterly figures came in a bit under what we forecast, and we should revisit the plan now."
+        let contextBefore = "Board briefing, strictly confidential. Project Marigold remains unannounced and the acquisition of Halberd Systems closes on the 14th of next month."
+
+        let result = PostProcessResponseValidator.validate(
+            data: payload(content: cleaned),
+            statusCode: 200,
+            input: transcript,
+            contextBefore: contextBefore,
+            contextAfter: "The finance team will circulate the revised deck on Friday."
+        )
+
+        XCTAssertEqual(try? result.get(), cleaned)
+    }
+
+    /// The rejection's `reason` is written into the log by `_clean`. It must
+    /// say how much was copied and never what was copied (AD-5).
+    func testTheRejectionReasonNamesNoDocumentText() {
+        let reason = PostProcessError.echoedCursorContext(sharedCharacters: 40).reason
+
+        XCTAssertTrue(reason.contains("40"))
+        XCTAssertFalse(reason.contains(Self.documentText))
+    }
 }
 
 @MainActor

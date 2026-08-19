@@ -92,60 +92,60 @@ final class AppState: ObservableObject {
 
     // MARK: - User Settings (persisted via UserDefaults)
 
-    @AppStorage("vocamac.hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
-    @AppStorage("vocamac.activationMode") var activationMode: ActivationMode = .pushToTalk
-    @AppStorage("vocamac.hotKeyCode") var hotKeyCode: Int = 61  // Right Option
-    @AppStorage("vocamac.doubleTapThreshold") var doubleTapThreshold: Double = 0.4
-    @AppStorage("vocamac.silenceThreshold") var silenceThreshold: Double = 0.01
-    @AppStorage("vocamac.silenceDuration") var silenceDuration: Double = 1.2
-    @AppStorage("vocamac.maxRecordingDuration") var maxRecordingDuration: Int = 180
-    @AppStorage("vocamac.selectedAudioDeviceID") var selectedAudioDeviceID: String = ""
-    @AppStorage("vocamac.selectedAudioDeviceName") var selectedAudioDeviceName: String = ""
-    @AppStorage("vocamac.selectedModelSize") var selectedModelSize: String = ModelSize.largeV3LatestCompact.rawValue
-    @AppStorage("vocamac.selectedLanguage") var selectedLanguage: String = "he"
-    @AppStorage("vocamac.launchAtLogin") var launchAtLogin: Bool = false
-    @AppStorage("vocamac.preserveClipboard") var preserveClipboard: Bool = true
-    @AppStorage("vocamac.soundEffectsEnabled") var soundEffectsEnabled: Bool = false
-    @AppStorage("vocamac.showCursorIndicator") var showCursorIndicator: Bool = true
-    @AppStorage("vocamac.translationEnabled") var translationEnabled: Bool = false
-    @AppStorage("vocamac.customVocabulary") var customVocabulary: String = "WhisperKit, CoreML, Apple Silicon, macOS, Swift, SwiftUI, Xcode, Homebrew, GitHub, API, JSON, TypeScript, JavaScript, Python, Docker, Kubernetes, React, Node.js, terminal, VS Code, OpenAI, Claude Code, pull request, branch, commit"
-    @AppStorage("vocamac.logLevel") var logLevel: String = "info"
+    @AppStorage("vocamac.hasCompletedOnboarding", store: VocaDefaults.store) var hasCompletedOnboarding: Bool = false
+    @AppStorage("vocamac.activationMode", store: VocaDefaults.store) var activationMode: ActivationMode = .pushToTalk
+    @AppStorage("vocamac.hotKeyCode", store: VocaDefaults.store) var hotKeyCode: Int = 61  // Right Option
+    @AppStorage("vocamac.doubleTapThreshold", store: VocaDefaults.store) var doubleTapThreshold: Double = 0.4
+    @AppStorage("vocamac.silenceThreshold", store: VocaDefaults.store) var silenceThreshold: Double = 0.01
+    @AppStorage("vocamac.silenceDuration", store: VocaDefaults.store) var silenceDuration: Double = 1.2
+    @AppStorage("vocamac.maxRecordingDuration", store: VocaDefaults.store) var maxRecordingDuration: Int = 180
+    @AppStorage("vocamac.selectedAudioDeviceID", store: VocaDefaults.store) var selectedAudioDeviceID: String = ""
+    @AppStorage("vocamac.selectedAudioDeviceName", store: VocaDefaults.store) var selectedAudioDeviceName: String = ""
+    @AppStorage("vocamac.selectedModelSize", store: VocaDefaults.store) var selectedModelSize: String = ModelSize.largeV3LatestCompact.rawValue
+    @AppStorage("vocamac.selectedLanguage", store: VocaDefaults.store) var selectedLanguage: String = "he"
+    @AppStorage("vocamac.launchAtLogin", store: VocaDefaults.store) var launchAtLogin: Bool = false
+    @AppStorage("vocamac.preserveClipboard", store: VocaDefaults.store) var preserveClipboard: Bool = true
+    @AppStorage("vocamac.soundEffectsEnabled", store: VocaDefaults.store) var soundEffectsEnabled: Bool = false
+    @AppStorage("vocamac.showCursorIndicator", store: VocaDefaults.store) var showCursorIndicator: Bool = true
+    @AppStorage("vocamac.translationEnabled", store: VocaDefaults.store) var translationEnabled: Bool = false
+    @AppStorage("vocamac.customVocabulary", store: VocaDefaults.store) var customVocabulary: String = "WhisperKit, CoreML, Apple Silicon, macOS, Swift, SwiftUI, Xcode, Homebrew, GitHub, API, JSON, TypeScript, JavaScript, Python, Docker, Kubernetes, React, Node.js, terminal, VS Code, OpenAI, Claude Code, pull request, branch, commit"
+    @AppStorage("vocamac.logLevel", store: VocaDefaults.store) var logLevel: String = "info"
 
     // Post-processing (AD-9). The stage reads the same keys through
     // PostProcessSettings, so no service has to depend on AppState.
-    @AppStorage(PostProcessSettings.Key.enabled) var postProcessEnabled: Bool = PostProcessSettings.Default.enabled
-    @AppStorage(PostProcessSettings.Key.baseURL) var postProcessBaseURL: String = PostProcessSettings.Default.baseURL
-    @AppStorage(PostProcessSettings.Key.model) var postProcessModel: String = PostProcessSettings.Default.model
-    @AppStorage(PostProcessSettings.Key.timeout) var postProcessTimeout: Double = PostProcessSettings.Default.timeout
-    @AppStorage(PostProcessSettings.Key.temperature) var postProcessTemperature: Double = PostProcessSettings.Default.temperature
-    @AppStorage(PostProcessSettings.Key.systemPrompt) var postProcessSystemPrompt: String = PostProcessSettings.Default.systemPrompt
+    @AppStorage(PostProcessSettings.Key.enabled, store: VocaDefaults.store) var postProcessEnabled: Bool = PostProcessSettings.Default.enabled
+    @AppStorage(PostProcessSettings.Key.baseURL, store: VocaDefaults.store) var postProcessBaseURL: String = PostProcessSettings.Default.baseURL
+    @AppStorage(PostProcessSettings.Key.model, store: VocaDefaults.store) var postProcessModel: String = PostProcessSettings.Default.model
+    @AppStorage(PostProcessSettings.Key.timeout, store: VocaDefaults.store) var postProcessTimeout: Double = PostProcessSettings.Default.timeout
+    @AppStorage(PostProcessSettings.Key.temperature, store: VocaDefaults.store) var postProcessTemperature: Double = PostProcessSettings.Default.temperature
+    @AppStorage(PostProcessSettings.Key.systemPrompt, store: VocaDefaults.store) var postProcessSystemPrompt: String = PostProcessSettings.Default.systemPrompt
 
     /// Master switch for Profile resolution (Story 4.2, AD-9). When off, the
     /// Default Profile always applies and dictation behaves exactly like
     /// Epic 2/3's, regardless of what Profiles exist or how they're bound.
-    @AppStorage("vocamac.profiles.enabled") var profilesEnabled: Bool = true
+    @AppStorage("vocamac.profiles.enabled", store: VocaDefaults.store) var profilesEnabled: Bool = true
 
     /// Global master switch for Cursor Context (Story 4.4, FR-14, AD-9).
     /// Ships **off**: reading text is the highest-privacy-cost capability
     /// here (AD-5, R-8), and it stays off even when this is on unless the
     /// resolved Profile's own toggle also allows it.
-    @AppStorage("vocamac.contextCapture.enabled") var contextCaptureEnabled: Bool = false
+    @AppStorage("vocamac.contextCapture.enabled", store: VocaDefaults.store) var contextCaptureEnabled: Bool = false
 
     /// Master switch for post-ASR Dictionary replacement (Story 5.2, AD-9).
     /// Ships on: with no entries yet added the stage is already an identity
     /// operation (AD-2), so there is nothing for a fresh install to notice.
-    @AppStorage(DictionarySettings.Key.enabled) var dictionaryEnabled: Bool = DictionarySettings.Default.enabled
+    @AppStorage(DictionarySettings.Key.enabled, store: VocaDefaults.store) var dictionaryEnabled: Bool = DictionarySettings.Default.enabled
 
     /// Master switch for Snippet expansion (Story 5.4, AD-9). Ships on for
     /// the same reason as Dictionary: no Snippets defined means the stage
     /// pair is already an identity operation (AD-2).
-    @AppStorage(SnippetSettings.Key.enabled) var snippetsEnabled: Bool = SnippetSettings.Default.enabled
+    @AppStorage(SnippetSettings.Key.enabled, store: VocaDefaults.store) var snippetsEnabled: Bool = SnippetSettings.Default.enabled
 
     /// Master switch for correction learning (Story 5.6, FR-18, AD-9). Ships
     /// **off** — this is the highest-noise-risk capability in this epic
     /// (R-6): it re-reads a text field the user is actively editing, and a
     /// stream of bad suggestions would make dictation worse, not better.
-    @AppStorage(CorrectionLearningSettings.Key.enabled) var correctionLearningEnabled: Bool = CorrectionLearningSettings.Default.enabled
+    @AppStorage(CorrectionLearningSettings.Key.enabled, store: VocaDefaults.store) var correctionLearningEnabled: Bool = CorrectionLearningSettings.Default.enabled
 
     private var hotKeySafetyTimeout: Double {
         Double(maxRecordingDuration) + 5.0
@@ -233,11 +233,23 @@ final class AppState: ObservableObject {
     /// time even if the user switched applications while dictating (Story 4.1
     /// AC). Cleared once consumed so Cursor Context (Story 4.4) is never held
     /// any longer than the one request that needs it.
-    private var capturedContext: CapturedContext?
+    ///
+    /// `private(set)` rather than `private` only so the AD-5 abort-path tests
+    /// can assert it really is `nil` after every way a dictation can end
+    /// (BLOCKER 1); nothing outside this type writes it.
+    private(set) var capturedContext: CapturedContext?
 
     /// The Profile resolved inside that same `capture()` call (Story 4.2),
     /// kept alongside it for the same reason and cleared at the same time.
-    private var capturedProfile: Profile?
+    private(set) var capturedProfile: Profile?
+
+    /// Set synchronously at the top of `stopRecordingAndTranscribe`, before
+    /// its first `await`. A hotkey release and `onSilenceDetected` /
+    /// `onMaxDurationReached` can both reach that method in the same turn;
+    /// without this both pass the `isRecording` guard, both suspend, and both
+    /// race to consume `capturedContext` — the loser writing a History Record
+    /// with a `nil` target app (MINOR 10).
+    private var isStopping = false
 
     /// AudioEngine serializes its own lifecycle internally; this wrapper makes
     /// the intentional background handoff explicit for Dispatch's @Sendable API.
@@ -570,6 +582,11 @@ final class AppState: ObservableObject {
             Task { @MainActor in
                 guard let self = self else { return }
                 VocaLogger.warning(.appState, "Audio device changed — recovering from interrupted recording")
+                // This recording is over and nothing will ever consume what
+                // it captured. A Bluetooth headset dropping mid-sentence must
+                // not leave the surrounding document text resident (BLOCKER 1).
+                self.discardCapturedContext()
+                self.isStopping = false
                 self.isRecording = false
                 self.audioLevel = 0.0
                 self.cursorOverlay.hide()
@@ -712,6 +729,8 @@ final class AppState: ObservableObject {
         // Invalidate any dictation still suspended in the pipeline (MAJOR 2)
         // before touching anything else it might race with.
         dictationGeneration += 1
+        discardCapturedContext()
+        isStopping = false
 
         // Reset audio engine unconditionally
         audioEngine.forceReset()
@@ -725,6 +744,29 @@ final class AppState: ObservableObject {
         cursorOverlay.hide()
         appStatus = .idle
         errorMessage = nil
+    }
+
+    /// Releases everything captured at recording start — the bundle
+    /// identifier, the resolved Profile, and, the reason this exists at all,
+    /// Cursor Context (Story 4.4 AC: "released from memory immediately after
+    /// the request").
+    ///
+    /// The success path already consumed and cleared these; this is for every
+    /// other way a dictation can end (BLOCKER 1). Without it a mic unplug, a
+    /// Bluetooth headset dropping, a wake-from-sleep device change, a failed
+    /// audio-engine start, blank audio, a transcription error, or a force
+    /// recovery all leave up to 1000 characters of the user's document alive
+    /// in a process-lifetime singleton — reachable from a crash report, a
+    /// memory dump, or swap — for as long as the app stays running.
+    ///
+    /// Story 5.6's pending correction re-read is dropped here too: it holds
+    /// the injected text and is about to AX-read a field the user may well
+    /// have moved on from, and a dictation that was abandoned has no business
+    /// still reaching into their screen a second later.
+    private func discardCapturedContext() {
+        capturedContext = nil
+        capturedProfile = nil
+        correctionLearner.cancelPendingObservation()
     }
 
     // MARK: - Recording Flow
@@ -775,7 +817,7 @@ final class AppState: ObservableObject {
         // bundle identifier: both reflect this exact moment, never a
         // mid-dictation app switch.
         var profileForThisRecording: Profile?
-        capturedContext = axContextReader.capture { bundleIdentifier in
+        capturedContext = axContextReader.capture(fallbackApplication: lastNonSelfFrontmostApp) { bundleIdentifier in
             let profile = self.profileManager.resolve(bundleIdentifier: bundleIdentifier, profilesEnabled: self.profilesEnabled)
             profileForThisRecording = profile
             return self.contextCaptureEnabled && profile.contextCaptureEnabled
@@ -803,6 +845,10 @@ final class AppState: ObservableObject {
 
         guard didStartRecording else {
             VocaLogger.warning(.appState, "Audio engine failed to start — resetting recording state")
+            // Nothing will consume what was captured a moment ago — drop it
+            // now rather than leaving it alive until the next dictation
+            // happens to overwrite it (BLOCKER 1, AD-5).
+            discardCapturedContext()
             isRecording = false
             audioLevel = 0.0
             cursorOverlay.hide()
@@ -823,6 +869,19 @@ final class AppState: ObservableObject {
         // isRecording and appStatus may be out of sync).
         guard isRecording || appStatus == .recording else { return }
 
+        // MINOR 10: a hotkey release and an auto-stop (silence detected, max
+        // duration reached) can both arrive before either has suspended. Both
+        // would pass the guard above, both would suspend on `stopAudioEngine`,
+        // and both would come back to consume the same captured context — the
+        // second one finding it already `nil` and writing a History Record
+        // with no target app. Latched synchronously, before the first await.
+        guard !isStopping else {
+            VocaLogger.info(.appState, "stopRecordingAndTranscribe re-entered while already stopping — ignoring")
+            return
+        }
+        isStopping = true
+        defer { isStopping = false }
+
         let audioData = await stopAudioEngine()
         isRecording = false
         audioLevel = 0.0
@@ -837,6 +896,9 @@ final class AppState: ObservableObject {
         cursorOverlay.transitionToProcessing()
 
         guard !audioData.isEmpty else {
+            // Blank audio: there is no pipeline run coming, so nothing will
+            // consume the capture this recording made (BLOCKER 1, AD-5).
+            discardCapturedContext()
             cursorOverlay.hide()
             appStatus = .idle
             return
@@ -932,6 +994,11 @@ final class AppState: ObservableObject {
             cursorOverlay.hide()
             appStatus = .idle
         } catch {
+            // ASR threw before the capture was consumed below — release it
+            // here, on the one remaining path out of this method that has not
+            // already done so (BLOCKER 1, AD-5).
+            discardCapturedContext()
+
             // Same guard as above: a transcription that fails after a new
             // recording has already started must not clobber it either.
             guard generation == dictationGeneration else {

@@ -28,7 +28,7 @@ struct DictionarySettings: Equatable {
         self.isEnabled = isEnabled
     }
 
-    static func current(from defaults: UserDefaults = .standard) -> DictionarySettings {
+    static func current(from defaults: UserDefaults = VocaDefaults.store) -> DictionarySettings {
         guard defaults.object(forKey: Key.enabled) != nil else {
             return DictionarySettings(isEnabled: Default.enabled)
         }

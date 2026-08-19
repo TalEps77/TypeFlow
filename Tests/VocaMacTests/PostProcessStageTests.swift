@@ -216,6 +216,36 @@ final class PostProcessStageTests: XCTestCase {
         XCTAssertEqual(service.lastSystemPrompt, "SYSTEM", "An empty override must not shadow the global prompt")
     }
 
+    /// MINOR 15: an override of nothing but whitespace reads as empty in the
+    /// editor — the placeholder even reappears in it — but used to count as a
+    /// real override, sending a blank system prompt on every dictation into
+    /// that app. The LLM then had no instructions at all and answered the
+    /// transcript instead of cleaning it, for as long as the stray space sat
+    /// there unnoticed.
+    func testWhitespaceOnlyProfilePromptOverrideFallsBackToTheGlobalSystemPrompt() async {
+        for override in [" ", "\n", "   \n\t  "] {
+            let service = MockPostProcessService()
+            let stage = makeStage(service: service, settings: enabledSettings)
+            let profile = Profile(name: "Fat-fingered", promptOverride: override)
+
+            _ = await stage.run(TranscriptContext(rawTranscript: "שלום", resolvedProfile: profile))
+
+            XCTAssertEqual(service.lastSystemPrompt, "SYSTEM", "an override of \(override.debugDescription) is not an override")
+        }
+    }
+
+    /// The trim must not eat a real override's surrounding whitespace-only
+    /// padding case: content survives, it is only emptiness that is rejected.
+    func testAnOverrideWithSurroundingWhitespaceIsStillAnOverride() async {
+        let service = MockPostProcessService()
+        let stage = makeStage(service: service, settings: enabledSettings)
+        let profile = Profile(name: "Padded", promptOverride: "\n  PROFILE PROMPT  \n")
+
+        _ = await stage.run(TranscriptContext(rawTranscript: "שלום", resolvedProfile: profile))
+
+        XCTAssertEqual(service.lastSystemPrompt, "PROFILE PROMPT")
+    }
+
     func testProfileWithPostProcessDisabledMakesNoRequestEvenWhenGloballyEnabled() async {
         let service = MockPostProcessService()
         service.cleanResult = .success("THIS MUST NEVER APPEAR")
@@ -256,10 +286,10 @@ final class PostProcessStageTests: XCTestCase {
         // The shipping pipeline carries the PostProcess stage, but the feature
         // ships off, so a user who has changed nothing sees no change (AD-13).
         //
-        // This reads and writes UserDefaults.standard through the real
+        // This reads and writes VocaDefaults.store through the real
         // PostProcessSettings.current() — restore whatever was there before,
         // even if an assertion below fails (MINOR 8).
-        let defaults = UserDefaults.standard
+        let defaults = VocaDefaults.store
         let previousValue = defaults.object(forKey: PostProcessSettings.Key.enabled)
         defer {
             if let previousValue {

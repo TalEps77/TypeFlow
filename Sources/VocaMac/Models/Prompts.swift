@@ -126,12 +126,19 @@ enum Prompts {
     /// using it as a style reference. Dropping the example, and switching to
     /// this single label, stopped the echoing, at the cost of the model
     /// reliably applying the surrounding format (e.g. picking up on a
-    /// bulleted list). That tradeoff is the safe one:
-    /// `PostProcessResponseValidator`'s existing disproportionate-length and
-    /// similarity guards (Story 2.2) already reject an echoed-context or
-    /// script-flipped answer, falling back to the raw transcript exactly as
-    /// AD-2 promises — so the observed failure mode here is "no style match
-    /// this time," never document content leaking into the injected text.
+    /// bulleted list). That tradeoff is the safe one — but the prompt is not
+    /// what makes it safe.
+    ///
+    /// The original note here claimed Story 2.2's disproportionate-length and
+    /// similarity guards already rejected an echoed context. They do not, and
+    /// that was the hole (MAJOR 4): a *partial* echo — the cleaned transcript
+    /// plus a clause lifted from the document — sits comfortably inside the
+    /// length band and scores high on similarity precisely because most of it
+    /// really is the transcript. `PostProcessResponseValidator.cursorContextEcho`
+    /// is the guard that actually closes it, by comparing the answer against
+    /// the very context that was sent with the request. With that in place the
+    /// worst observed failure mode really is "no style match this time,"
+    /// falling back to the raw transcript exactly as AD-2 promises.
     static let cursorContextInstructions = """
 
 

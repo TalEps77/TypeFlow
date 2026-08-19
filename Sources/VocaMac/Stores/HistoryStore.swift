@@ -23,7 +23,7 @@ final class HistoryStore: ObservableObject, HistoryRecording {
     /// a file that grows forever and a write that gets slower forever with it
     /// (MAJOR 1). 500 is the largest value the retention picker already offers
     /// short of "Unlimited", which stays available for anyone who wants it.
-    @AppStorage("vocamac.history.retentionLimit") var retentionLimit: Int = 500 {
+    @AppStorage("vocamac.history.retentionLimit", store: VocaDefaults.store) var retentionLimit: Int = 500 {
         didSet {
             // Published unconditionally: the menu shows the current limit, so
             // it has to re-render even when the new limit trims nothing

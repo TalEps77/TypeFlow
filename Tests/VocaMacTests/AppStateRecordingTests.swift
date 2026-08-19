@@ -295,8 +295,8 @@ final class AppStateForceRecoveryTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.removeObject(forKey: "vocamac.hasCompletedOnboarding")
-        UserDefaults.standard.removeObject(forKey: "vocamac.launchAtLogin")
+        VocaDefaults.store.removeObject(forKey: "vocamac.hasCompletedOnboarding")
+        VocaDefaults.store.removeObject(forKey: "vocamac.launchAtLogin")
     }
 
     @MainActor
@@ -386,8 +386,8 @@ final class AppStateRecordingGuardTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.removeObject(forKey: "vocamac.hasCompletedOnboarding")
-        UserDefaults.standard.removeObject(forKey: "vocamac.launchAtLogin")
+        VocaDefaults.store.removeObject(forKey: "vocamac.hasCompletedOnboarding")
+        VocaDefaults.store.removeObject(forKey: "vocamac.launchAtLogin")
     }
 
     @MainActor

@@ -26,6 +26,13 @@ protocol CorrectionLearning: AnyObject {
     /// disabled (the common case, since it ships off) or when there is
     /// nothing to observe.
     func observeInjection(_ text: String, targetProcessIdentifier: pid_t?)
+
+    /// Drops a scheduled re-read that has not fired yet, releasing the
+    /// injected text it was holding on to. Called by `AppState` on every
+    /// abort path alongside the Cursor Context discard (BLOCKER 1): a
+    /// dictation the user abandoned must not reach back into their focused
+    /// text field a second later, and its text should not outlive it.
+    func cancelPendingObservation()
 }
 
 @MainActor
@@ -59,13 +66,28 @@ final class CorrectionLearner: CorrectionLearning {
         }
     }
 
+    /// The one re-read waiting to happen, if any. Held here rather than
+    /// captured in the scheduled closure so `cancelPendingObservation` can
+    /// actually release the injected text, not merely skip the diff.
+    private var pendingObservation: (text: String, processIdentifier: pid_t?)?
+
     func observeInjection(_ text: String, targetProcessIdentifier: pid_t?) {
         guard isEnabledProvider() else { return }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
+        pendingObservation = (text: text, processIdentifier: targetProcessIdentifier)
         scheduleReRead { [weak self] in
-            self?.performReReadAndDiff(injectedText: text, targetProcessIdentifier: targetProcessIdentifier)
+            guard let self, let pending = self.pendingObservation else { return }
+            self.pendingObservation = nil
+            self.performReReadAndDiff(
+                injectedText: pending.text,
+                targetProcessIdentifier: pending.processIdentifier
+            )
         }
+    }
+
+    func cancelPendingObservation() {
+        pendingObservation = nil
     }
 
     private func performReReadAndDiff(injectedText: String, targetProcessIdentifier: pid_t?) {

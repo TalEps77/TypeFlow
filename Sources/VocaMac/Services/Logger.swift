@@ -87,6 +87,14 @@ final class VocaLogger {
         VocaLogger.shared.currentLogLevel = level
     }
 
+    /// The level currently in force. Exposed so a caller that lowers the
+    /// level temporarily can put back whatever was actually set rather than
+    /// guessing at the default — the AD-5 privacy assertion has to run at
+    /// `.debug` to be able to catch a `.debug`-level leak at all (MAJOR 6).
+    static var logLevel: LogLevel {
+        VocaLogger.shared.currentLogLevel
+    }
+
     /// Log a debug message
     static func debug(_ category: LogCategory, _ message: String) {
         VocaLogger.shared.log(message, level: .debug, category: category)

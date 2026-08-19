@@ -157,7 +157,7 @@ final class RehydrateStageTests: XCTestCase {
         // this test only cares about stage order and Dictionary/Snippet
         // results, not the real (networked) PostProcessService (MINOR 8,
         // same precaution as PostProcessStageTests).
-        let defaults = UserDefaults.standard
+        let defaults = VocaDefaults.store
         let previousValue = defaults.object(forKey: PostProcessSettings.Key.enabled)
         defer {
             if let previousValue {

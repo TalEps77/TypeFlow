@@ -64,7 +64,7 @@ struct PostProcessSettings: Equatable {
     /// Reads the current values. An absent or empty stored value falls back to
     /// the default, so a half-written defaults domain cannot produce a request
     /// with an empty model or a zero timeout.
-    static func current(from defaults: UserDefaults = .standard) -> PostProcessSettings {
+    static func current(from defaults: UserDefaults = VocaDefaults.store) -> PostProcessSettings {
         func string(_ key: String, _ fallback: String) -> String {
             let stored = defaults.string(forKey: key)?.trimmingCharacters(in: .whitespacesAndNewlines)
             return (stored?.isEmpty == false) ? stored! : fallback

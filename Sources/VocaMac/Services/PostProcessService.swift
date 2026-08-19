@@ -20,6 +20,9 @@ enum PostProcessError: Error, Equatable {
     case malformedResponse(String)
     case emptyContent
     case disproportionateLength(inputCharacters: Int, outputCharacters: Int)
+    /// The model handed back a run of the surrounding document text it was
+    /// shown as reference (MAJOR 4, AD-5).
+    case echoedCursorContext(sharedCharacters: Int)
 
     /// Short, actionable, and safe to show in the settings UI or write to a log.
     var reason: String {
@@ -40,6 +43,12 @@ enum PostProcessError: Error, Equatable {
             return "model returned empty content"
         case .disproportionateLength(let input, let output):
             return "output length \(output) is disproportionate to input length \(input)"
+        case .echoedCursorContext(let sharedCharacters):
+            // Deliberately reports only the *length* of the overlap. The
+            // overlapping text is document content; naming it here would put
+            // it straight into a log line, which is the exact thing this
+            // rejection exists to prevent (AD-5).
+            return "output repeated \(sharedCharacters) characters of the surrounding document"
         }
     }
 }
@@ -245,9 +254,98 @@ enum PostProcessResponseValidator {
         bigramSimilarity(input, output) >= minimumSimilarity
     }
 
+    // MARK: - Cursor Context echo (MAJOR 4, AD-5)
+
+    /// The longest run of characters the output may share with the Cursor
+    /// Context it was shown before that output is treated as an echo of the
+    /// user's document rather than a cleanup of their transcript.
+    ///
+    /// Neither guard above catches this on its own, which is the whole
+    /// problem: a 100-character transcript answered with 95 clean characters
+    /// plus 80 echoed from the document is 175 characters — inside the
+    /// 0.5–2.0 length band — and shares nearly all of the transcript's
+    /// bigrams, so the similarity check reads ~0.70 and waves it through.
+    /// What lands is 80 characters of the user's document, typed into their
+    /// app *and* written verbatim to history.json as `finalText`, which is
+    /// the one way document text can reach a persisted record no schema
+    /// constraint can stop.
+    ///
+    /// 40 characters is roughly a clause: long enough that ordinary phrase
+    /// overlap between a dictation and the paragraph it continues does not
+    /// trip it, short enough that no meaningful sentence of the document can
+    /// slip through under it. A false positive costs exactly one dictation's
+    /// cleanup — AD-2 falls back to the raw transcript, which is always safe.
+    ///
+    /// The bar is a bar, not a proof: an echo shorter than this is not caught
+    /// here. Live-checking against Qwen3-4B-Instruct, a coaxed echo came back
+    /// as a copied 26-character sentence fragment, which this lets through.
+    /// Lowering the window is what would catch it, and is also what would
+    /// start rejecting honest cleanups that happen to repeat a five-word
+    /// phrase from the paragraph they are being written into — a dictation
+    /// continuing a document *should* look like that document. The prompt
+    /// (Prompts.cursorContextInstructions) is the first line of defense and
+    /// held in every live run; this is the second, sized for the failure that
+    /// actually matters: a whole clause or sentence of the document being
+    /// typed into the user's app and written to history.
+    static let contextEchoWindowLength = 40
+
+    /// Length of the longest overlap found, or `nil` when the output shares
+    /// no window of `contextEchoWindowLength` characters with either side of
+    /// the context. Comparison is case- and whitespace-insensitive so a model
+    /// that re-wraps or re-cases what it copied is caught just the same.
+    static func cursorContextEcho(
+        output: String,
+        contextBefore: String?,
+        contextAfter: String?,
+        windowLength: Int = contextEchoWindowLength
+    ) -> Int? {
+        let contexts = [contextBefore, contextAfter].compactMap { $0 }.filter { !$0.isEmpty }
+        guard !contexts.isEmpty else { return nil }
+
+        let normalizedOutput = Array(normalizedForEchoComparison(output))
+        guard normalizedOutput.count >= windowLength else { return nil }
+
+        let normalizedContexts = contexts.map { normalizedForEchoComparison($0) }
+
+        var longest = 0
+        for start in 0...(normalizedOutput.count - windowLength) {
+            let window = String(normalizedOutput[start..<(start + windowLength)])
+            if normalizedContexts.contains(where: { $0.contains(window) }) {
+                longest = max(longest, windowLength)
+                // One window over the bar is already a rejection; there is
+                // nothing a longer measurement would change, and the exact
+                // figure is only ever used to say how much, never what.
+                return longest
+            }
+        }
+        return nil
+    }
+
+    /// Lowercased, with every run of whitespace collapsed to a single space.
+    /// Nothing else is stripped: punctuation is exactly the kind of detail a
+    /// copied clause carries, and removing it would only make the comparison
+    /// looser than it needs to be.
+    private static func normalizedForEchoComparison(_ text: String) -> String {
+        text.lowercased()
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
     /// Turns a raw HTTP answer into either cleaned text or the reason it was
     /// refused. Never returns text it has not checked.
-    static func validate(data: Data, statusCode: Int, input: String) -> Result<String, PostProcessError> {
+    ///
+    /// - Parameters:
+    ///   - contextBefore: the Cursor Context sent *with this request*, so the
+    ///     answer can be checked against it in the same call frame (MAJOR 4).
+    ///     Defaulted, so every call site that sends no context is unchanged.
+    static func validate(
+        data: Data,
+        statusCode: Int,
+        input: String,
+        contextBefore: String? = nil,
+        contextAfter: String? = nil
+    ) -> Result<String, PostProcessError> {
         guard (200...299).contains(statusCode) else {
             return .failure(.httpStatus(statusCode))
         }
@@ -282,6 +380,12 @@ enum PostProcessResponseValidator {
         guard isRelated(input: input, output: cleaned) else {
             return .failure(.malformedResponse("output unrelated to input"))
         }
+        // Last, and only when context was actually sent: the two guards above
+        // are both satisfied by a partial echo, so this is the one that keeps
+        // document text out of the injected text and out of history (MAJOR 4).
+        if let shared = cursorContextEcho(output: cleaned, contextBefore: contextBefore, contextAfter: contextAfter) {
+            return .failure(.echoedCursorContext(sharedCharacters: shared))
+        }
 
         return .success(cleaned)
     }
@@ -293,10 +397,12 @@ enum PostProcessResponseValidator {
 /// protocol's vocabulary lives in this file; it is registered there too.
 ///
 /// The requirement is `_clean`, not `clean`: mirrors the `_loadModel`/
-/// `loadModel` idiom used elsewhere (AD-7) — protocol requirements cannot
-/// carry default arguments, so `contextBefore`/`contextAfter` (Story 4.4)
-/// are defaulted to `nil` on the `clean(...)` overloads below instead,
-/// keeping every pre-Story-4.4 call site unchanged.
+/// `loadModel` idiom used elsewhere (AD-7). Protocol requirements cannot
+/// carry default arguments, so rather than defaulting anything, the single
+/// five-argument requirement below is fronted by three distinct `clean(...)`
+/// overloads in the extension — one per call shape that existed or was added
+/// — and only the Story 4.4 overload takes Cursor Context at all. That is
+/// what keeps every pre-Story-4.4 call site compiling unchanged (MINOR 14).
 protocol PostProcessing: AnyObject {
     func _clean(
         text: String,
@@ -349,7 +455,15 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
             self.session = session
         } else {
             let configuration = URLSessionConfiguration.ephemeral
-            configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+            // A cache *policy* governs what a request is allowed to read, not
+            // what the session is allowed to store: an ephemeral session still
+            // builds an in-memory `URLCache`, and a response containing the
+            // user's cleaned transcript — and, with Story 4.4 on, the document
+            // text sent alongside it — would sit in it. Removing the cache
+            // outright is the only thing that guarantees nothing is written at
+            // all (MINOR 2, AD-5).
+            configuration.urlCache = nil
+            configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             configuration.httpCookieAcceptPolicy = .never
             configuration.httpShouldSetCookies = false
             // Fail fast instead of parking a request until the backend appears.
@@ -392,7 +506,13 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
             VocaLogger.warning(.postProcess, "clean failed — \(error.reason)")
             return .failure(error)
         case .success(let (data, statusCode)):
-            let result = PostProcessResponseValidator.validate(data: data, statusCode: statusCode, input: text)
+            let result = PostProcessResponseValidator.validate(
+                data: data,
+                statusCode: statusCode,
+                input: text,
+                contextBefore: contextBefore,
+                contextAfter: contextAfter
+            )
             let elapsed = CFAbsoluteTimeGetCurrent() - startedAt
             switch result {
             case .success:
