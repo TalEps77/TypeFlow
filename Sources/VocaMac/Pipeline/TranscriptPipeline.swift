@@ -55,6 +55,19 @@ final class TranscriptPipeline: TranscriptPipelining {
                 )
             )
 
+            // AD-5: Cursor Context is read once, used once, by the one stage
+            // that consumes it, and released immediately after — never held
+            // any longer than this one request needs it for, regardless of
+            // how the stage's own attempt went (success, failure, or
+            // disabled). `TranscriptPipeline` is the sole writer of
+            // `TranscriptContext`, which is what makes clearing it here —
+            // rather than trusting every current and future stage to do it
+            // — the one place this is enforced.
+            if stage.name == PostProcessStage.stageName {
+                context.cursorContextBefore = nil
+                context.cursorContextAfter = nil
+            }
+
             if case .failed(let reason) = result.outcome {
                 VocaLogger.warning(.pipeline, "\(stage.name) failed — passing text through unchanged: \(reason)")
             }

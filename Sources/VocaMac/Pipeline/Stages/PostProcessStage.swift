@@ -58,9 +58,16 @@ final class PostProcessStage: TranscriptStage {
         // Default Profile stays identical to Epic 2/3's behavior.
         let systemPrompt = (profile?.promptOverride.isEmpty == false) ? profile!.promptOverride : settings.systemPrompt
 
+        // Story 4.4: whatever is here was already gated by both the global
+        // and Profile Cursor Context toggles at capture time (AppState) —
+        // this stage does not re-check either toggle, it only forwards what
+        // it was handed. `nil` here (the common case) sends no context at
+        // all, identical to before Story 4.4.
         switch await service.clean(
             text: text,
             systemPrompt: systemPrompt,
+            contextBefore: context.cursorContextBefore,
+            contextAfter: context.cursorContextAfter,
             configuration: settings.configuration
         ) {
         case .success(let cleaned):

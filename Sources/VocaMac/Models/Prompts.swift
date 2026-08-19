@@ -76,9 +76,67 @@ enum Prompts {
     /// Wraps the transcript in the same `Transcript:/Cleaned:` shape the
     /// few-shot examples use. Matching the example format is what stopped the
     /// model treating the transcript as a request to act on.
-    static func cleanTranscriptUserMessage(for text: String) -> String {
-        "Transcript: \(text)\nCleaned:"
+    ///
+    /// `contextBefore`/`contextAfter` are Cursor Context (Story 4.4, AD-5):
+    /// read once at recording start, forwarded here for exactly one request,
+    /// never logged, never persisted. Omitted from the message entirely when
+    /// both are `nil` or empty, so a request with no context is
+    /// byte-for-byte what Epic 2/3 already sent.
+    ///
+    /// Both pieces go under one label, not two directional ones — live-
+    /// verified against Qwen3-4B-Instruct that separately labeling "text
+    /// before the cursor" / "text after the cursor" made the model echo that
+    /// text back into its answer, apparently reading "before the cursor"
+    /// plus a list as an instruction to continue the list, despite an
+    /// explicit "copy nothing from it" rule. One neutral label, with the
+    /// natural before-then-after reading order left to imply which is which,
+    /// did not trigger that.
+    static func cleanTranscriptUserMessage(for text: String, contextBefore: String? = nil, contextAfter: String? = nil) -> String {
+        let before = (contextBefore?.isEmpty == false) ? contextBefore : nil
+        let after = (contextAfter?.isEmpty == false) ? contextAfter : nil
+        guard before != nil || after != nil else {
+            return "Transcript: \(text)\nCleaned:"
+        }
+
+        // The label must match `cursorContextInstructions` exactly — that is
+        // the instruction telling the model this section is reference-only.
+        let combined = [before, after].compactMap { $0 }.joined(separator: "\n")
+        return "\(Prompts.existingDocumentTextLabel): \(combined)\nTranscript: \(text)\nCleaned:"
     }
+
+    /// Shared verbatim between `cleanTranscriptUserMessage` and
+    /// `cursorContextInstructions` — the model was found to key off an exact
+    /// string match between what the instruction quotes and what actually
+    /// appears in the message, not merely the same idea reworded.
+    static let existingDocumentTextLabel = "Existing document text (reference only, already written — copy nothing from it)"
+
+    /// Appended to the system prompt only for a request that actually
+    /// carries Cursor Context (Story 4.4) — a request with none sends
+    /// exactly the prompt it would have sent before this story.
+    ///
+    /// Deliberately prose-only, with no few-shot example, unlike every other
+    /// prompt in this file, and deliberately one neutral label rather than
+    /// two directional ones ("before"/"after the cursor") — see
+    /// `cleanTranscriptUserMessage` for what both of those choices fixed.
+    /// Live-verified against Qwen3-4B-Instruct combined with the full
+    /// `cleanTranscriptSystemPrompt`: an added few-shot example in the same
+    /// "Context: ... / Transcript: ... / Cleaned: ..." shape as the base
+    /// prompt's own examples made the model echo the *context* back as part
+    /// of its answer — sometimes with corrupted repeats — rather than only
+    /// using it as a style reference. Dropping the example, and switching to
+    /// this single label, stopped the echoing, at the cost of the model
+    /// reliably applying the surrounding format (e.g. picking up on a
+    /// bulleted list). That tradeoff is the safe one:
+    /// `PostProcessResponseValidator`'s existing disproportionate-length and
+    /// similarity guards (Story 2.2) already reject an echoed-context or
+    /// script-flipped answer, falling back to the raw transcript exactly as
+    /// AD-2 promises — so the observed failure mode here is "no style match
+    /// this time," never document content leaking into the injected text.
+    static let cursorContextInstructions = """
+
+
+    You may also be given a section labeled exactly "\(Prompts.existingDocumentTextLabel)". That section is NOT part of the transcript and must never appear in your output, not even partially. Read it only to notice things like whether the surrounding document uses a bulleted list, or a formal or casual register, and apply that same style to the cleaned transcript alone. Your output must contain only the cleaned transcript for the new dictated text.
+    """
 
     // MARK: - Starter Profile prompts (Story 4.3)
     //

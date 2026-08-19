@@ -124,12 +124,24 @@ enum PostProcessRequestBuilder {
         return url
     }
 
-    static func body(text: String, systemPrompt: String, configuration: PostProcessConfiguration) -> ChatCompletionRequest {
-        ChatCompletionRequest(
+    static func body(
+        text: String,
+        systemPrompt: String,
+        contextBefore: String? = nil,
+        contextAfter: String? = nil,
+        configuration: PostProcessConfiguration
+    ) -> ChatCompletionRequest {
+        // Story 4.4: the addendum only goes out when there is actually
+        // context to use it on, so a request with none is identical to
+        // every request before this story.
+        let hasContext = (contextBefore?.isEmpty == false) || (contextAfter?.isEmpty == false)
+        let effectiveSystemPrompt = hasContext ? systemPrompt + Prompts.cursorContextInstructions : systemPrompt
+
+        return ChatCompletionRequest(
             model: configuration.model,
             messages: [
-                .init(role: "system", content: systemPrompt),
-                .init(role: "user", content: Prompts.cleanTranscriptUserMessage(for: text))
+                .init(role: "system", content: effectiveSystemPrompt),
+                .init(role: "user", content: Prompts.cleanTranscriptUserMessage(for: text, contextBefore: contextBefore, contextAfter: contextAfter))
             ],
             temperature: configuration.temperature,
             maxTokens: maxTokens(forInputCharacterCount: text.count),
@@ -279,10 +291,18 @@ enum PostProcessResponseValidator {
 
 /// Declared here rather than in ServiceProtocols.swift only because the
 /// protocol's vocabulary lives in this file; it is registered there too.
+///
+/// The requirement is `_clean`, not `clean`: mirrors the `_loadModel`/
+/// `loadModel` idiom used elsewhere (AD-7) — protocol requirements cannot
+/// carry default arguments, so `contextBefore`/`contextAfter` (Story 4.4)
+/// are defaulted to `nil` on the `clean(...)` overloads below instead,
+/// keeping every pre-Story-4.4 call site unchanged.
 protocol PostProcessing: AnyObject {
-    func clean(
+    func _clean(
         text: String,
         systemPrompt: String,
+        contextBefore: String?,
+        contextAfter: String?,
         configuration: PostProcessConfiguration
     ) async -> Result<String, PostProcessError>
 
@@ -290,11 +310,31 @@ protocol PostProcessing: AnyObject {
 }
 
 extension PostProcessing {
+    /// The original three-argument shape — no Cursor Context.
+    func clean(
+        text: String,
+        systemPrompt: String,
+        configuration: PostProcessConfiguration
+    ) async -> Result<String, PostProcessError> {
+        await _clean(text: text, systemPrompt: systemPrompt, contextBefore: nil, contextAfter: nil, configuration: configuration)
+    }
+
+    /// Story 4.4: Cursor Context, read once at recording start and forwarded
+    /// here for exactly this one request (AD-5) — never logged, never
+    /// persisted, and dropped by the pipeline immediately after this call.
+    func clean(
+        text: String,
+        systemPrompt: String,
+        contextBefore: String?,
+        contextAfter: String?,
+        configuration: PostProcessConfiguration
+    ) async -> Result<String, PostProcessError> {
+        await _clean(text: text, systemPrompt: systemPrompt, contextBefore: contextBefore, contextAfter: contextAfter, configuration: configuration)
+    }
+
     /// The `clean(text:prompt:)` shape, with the current settings supplied.
-    /// Mirrors the `loadModel`/`_loadModel` idiom used elsewhere: protocol
-    /// requirements cannot carry default arguments, extensions can.
     func clean(text: String, systemPrompt: String) async -> Result<String, PostProcessError> {
-        await clean(text: text, systemPrompt: systemPrompt, configuration: PostProcessSettings.current().configuration)
+        await _clean(text: text, systemPrompt: systemPrompt, contextBefore: nil, contextAfter: nil, configuration: PostProcessSettings.current().configuration)
     }
 }
 
@@ -318,9 +358,11 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
         }
     }
 
-    func clean(
+    func _clean(
         text: String,
         systemPrompt: String,
+        contextBefore: String?,
+        contextAfter: String?,
         configuration: PostProcessConfiguration
     ) async -> Result<String, PostProcessError> {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -330,7 +372,13 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
             return .failure(.invalidEndpoint(configuration.baseURL))
         }
 
-        let body = PostProcessRequestBuilder.body(text: text, systemPrompt: systemPrompt, configuration: configuration)
+        let body = PostProcessRequestBuilder.body(
+            text: text,
+            systemPrompt: systemPrompt,
+            contextBefore: contextBefore,
+            contextAfter: contextAfter,
+            configuration: configuration
+        )
         let request: URLRequest
         do {
             request = try PostProcessRequestBuilder.urlRequest(url: url, body: body, timeout: configuration.timeout)

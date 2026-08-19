@@ -27,6 +27,14 @@ struct ProfilesSettingsTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Cursor Context") {
+                Toggle("Read text near the cursor to match its style", isOn: $appState.contextCaptureEnabled)
+
+                Text("When on, VocaMac reads a small amount of text immediately before and after your cursor in the app you're dictating into — so the LLM can match its existing tone, punctuation, and formatting. This text is sent to the LLM for that one request only: it is never saved to History, never written to a log, and never stored anywhere. This also requires the Profile you're dictating into to have its own \"Read text around the cursor\" toggle on — both must be on for anything to be read.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Manage") {
                 List {
                     ForEach(appState.profileStore.profiles) { profile in

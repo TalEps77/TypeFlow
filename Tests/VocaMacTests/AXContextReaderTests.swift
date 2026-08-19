@@ -92,14 +92,127 @@ final class AXContextReaderTests: XCTestCase {
         XCTAssertEqual(mocks.historyStore.lastRecordedRecord?.targetBundleId, "com.apple.TextEdit")
     }
 
-    // MARK: - Story 4.4 stays off by default
+    // MARK: - Story 4.4: both the global and Profile toggles are required
 
-    func testCursorContextIsNotRequestedUntilStory44WiresItsToggles() async {
+    func testCursorContextStaysOffByDefault() async {
         let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.TextEdit")
+        // appState.contextCaptureEnabled and Profile.makeDefault().contextCaptureEnabled
+        // both default false/off — nothing overridden here.
 
         await appState.startRecording()
 
-        XCTAssertEqual(mocks.contextReader.lastReadCursorContextRequested, false)
+        XCTAssertEqual(mocks.contextReader.lastShouldReadCursorContextAnswer, false)
+    }
+
+    func testCursorContextTurnsOnOnlyWhenBothGlobalAndProfileToggleAreOn() async {
+        defer { UserDefaults.standard.removeObject(forKey: "vocamac.contextCapture.enabled") }
+        let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.TextEdit")
+        appState.contextCaptureEnabled = true
+        mocks.profileManager.resolvedProfile = Profile(name: "Editor", contextCaptureEnabled: true)
+
+        await appState.startRecording()
+
+        XCTAssertEqual(mocks.contextReader.lastShouldReadCursorContextAnswer, true)
+    }
+
+    func testCursorContextStaysOffWhenOnlyTheGlobalToggleIsOn() async {
+        defer { UserDefaults.standard.removeObject(forKey: "vocamac.contextCapture.enabled") }
+        let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.TextEdit")
+        appState.contextCaptureEnabled = true
+        mocks.profileManager.resolvedProfile = Profile(name: "Editor", contextCaptureEnabled: false)
+
+        await appState.startRecording()
+
+        XCTAssertEqual(mocks.contextReader.lastShouldReadCursorContextAnswer, false)
+    }
+
+    func testCursorContextStaysOffWhenOnlyTheProfileToggleIsOn() async {
+        let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.TextEdit")
+        // Global toggle left at its default (off).
+        mocks.profileManager.resolvedProfile = Profile(name: "Editor", contextCaptureEnabled: true)
+
+        await appState.startRecording()
+
+        XCTAssertEqual(mocks.contextReader.lastShouldReadCursorContextAnswer, false)
+    }
+
+    // MARK: - Story 4.4: captured Cursor Context reaches the LLM request
+
+    func testCapturedCursorContextReachesThePostProcessRequest() async {
+        defer { UserDefaults.standard.removeObject(forKey: "vocamac.contextCapture.enabled") }
+
+        let postProcessService = MockPostProcessService()
+        let stage = PostProcessStage(service: postProcessService, settingsProvider: {
+            PostProcessSettings(isEnabled: true)
+        })
+        let pipeline = TranscriptPipeline(stages: [stage])
+        let (appState, mocks) = AppState.makeTestState(transcriptPipelineOverride: pipeline)
+
+        appState.contextCaptureEnabled = true
+        mocks.profileManager.resolvedProfile = Profile(name: "Editor", contextCaptureEnabled: true)
+        mocks.contextReader.captureResult = CapturedContext(
+            bundleIdentifier: "com.apple.TextEdit",
+            cursorContextBefore: "some text before the caret",
+            cursorContextAfter: "some text after the caret"
+        )
+        mocks.audioEngine.stopRecordingResult = [0.1, 0.2, 0.3]
+        mocks.whisperService.mockTranscriptionResult = VocaTranscription(
+            text: "שלום עולם",
+            duration: 1.0,
+            detectedLanguage: "he",
+            audioLengthSeconds: 1.0,
+            modelUsed: .tiny
+        )
+
+        await appState.startRecording()
+        await appState.stopRecordingAndTranscribe()
+
+        XCTAssertEqual(postProcessService.lastContextBefore, "some text before the caret")
+        XCTAssertEqual(postProcessService.lastContextAfter, "some text after the caret")
+    }
+
+    /// AD-5: once the stage that used Cursor Context has run, the pipeline
+    /// itself must have dropped it — proven here by inspecting the
+    /// `TranscriptContext` the mock pipeline stage actually saw versus what
+    /// a *second*, no-op stage placed after it would see.
+    func testCursorContextIsClearedFromTheContextAfterPostProcessRuns() async {
+        defer { UserDefaults.standard.removeObject(forKey: "vocamac.contextCapture.enabled") }
+
+        let postProcessService = MockPostProcessService()
+        let postProcessStage = PostProcessStage(service: postProcessService, settingsProvider: {
+            PostProcessSettings(isEnabled: true)
+        })
+        let observerStage = StubTranscriptStage(name: "Observer", result: .unchanged("שלום עולם", outcome: .skipped(reason: "just observing")))
+        let pipeline = TranscriptPipeline(stages: [postProcessStage, observerStage])
+        let (appState, mocks) = AppState.makeTestState(transcriptPipelineOverride: pipeline)
+
+        appState.contextCaptureEnabled = true
+        mocks.profileManager.resolvedProfile = Profile(name: "Editor", contextCaptureEnabled: true)
+        mocks.contextReader.captureResult = CapturedContext(
+            bundleIdentifier: "com.apple.TextEdit",
+            cursorContextBefore: "before",
+            cursorContextAfter: "after"
+        )
+        mocks.audioEngine.stopRecordingResult = [0.1, 0.2, 0.3]
+        mocks.whisperService.mockTranscriptionResult = VocaTranscription(
+            text: "שלום עולם",
+            duration: 1.0,
+            detectedLanguage: "he",
+            audioLengthSeconds: 1.0,
+            modelUsed: .tiny
+        )
+
+        await appState.startRecording()
+        await appState.stopRecordingAndTranscribe()
+
+        // PostProcessStage itself did see it (proven by the service call);
+        // by the time the pipeline moved on to the next stage, the context
+        // it carries must already be nil (AD-5) — `TranscriptPipeline`
+        // clears it right after the PostProcess stage runs.
+        XCTAssertEqual(postProcessService.lastContextBefore, "before")
+        XCTAssertEqual(observerStage.runCallCount, 1)
+        XCTAssertNil(observerStage.lastContext?.cursorContextBefore)
+        XCTAssertNil(observerStage.lastContext?.cursorContextAfter)
     }
 
     // MARK: - Story 4.2: the resolved Profile is passed through and persisted

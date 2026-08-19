@@ -510,15 +510,24 @@ final class MockPostProcessService: PostProcessing {
     var lastText: String?
     var lastSystemPrompt: String?
     var lastConfiguration: PostProcessConfiguration?
+    /// Story 4.4: what the caller passed as Cursor Context, so tests can
+    /// assert it reached the service (and, separately, that it never reaches
+    /// anything it shouldn't).
+    var lastContextBefore: String?
+    var lastContextAfter: String?
 
-    func clean(
+    func _clean(
         text: String,
         systemPrompt: String,
+        contextBefore: String?,
+        contextAfter: String?,
         configuration: PostProcessConfiguration
     ) async -> Result<String, PostProcessError> {
         cleanCallCount += 1
         lastText = text
         lastSystemPrompt = systemPrompt
+        lastContextBefore = contextBefore
+        lastContextAfter = contextAfter
         lastConfiguration = configuration
         if cleanDelay > 0 {
             try? await Task.sleep(nanoseconds: UInt64(cleanDelay * 1_000_000_000))
@@ -535,13 +544,20 @@ final class MockPostProcessService: PostProcessing {
 
 @MainActor
 final class MockContextReader: ContextReading {
+    /// What `capture` returns, regardless of what the decision closure
+    /// answers — a test that wants to see Cursor Context reach the pipeline
+    /// sets this directly rather than relying on the real AX-gating logic.
     var captureResult: CapturedContext = .empty
     var captureCallCount = 0
-    var lastReadCursorContextRequested: Bool?
 
-    func capture(readCursorContext: Bool) -> CapturedContext {
+    /// What the caller's closure answered when asked about
+    /// `captureResult.bundleIdentifier` — this is what the toggle-gating
+    /// tests actually assert on.
+    var lastShouldReadCursorContextAnswer: Bool?
+
+    func capture(shouldReadCursorContext: (String?) -> Bool) -> CapturedContext {
         captureCallCount += 1
-        lastReadCursorContextRequested = readCursorContext
+        lastShouldReadCursorContextAnswer = shouldReadCursorContext(captureResult.bundleIdentifier)
         return captureResult
     }
 }
@@ -608,6 +624,11 @@ final class StubTranscriptStage: TranscriptStage {
     var result: StageResult
     var runCallCount = 0
 
+    /// The context this stage actually received — e.g. used to prove Cursor
+    /// Context (Story 4.4) has already been cleared by the time a stage
+    /// after PostProcess runs (AD-5).
+    var lastContext: TranscriptContext?
+
     init(name: String = "Stub", result: StageResult) {
         self.name = name
         self.result = result
@@ -615,6 +636,7 @@ final class StubTranscriptStage: TranscriptStage {
 
     func run(_ context: TranscriptContext) async -> StageResult {
         runCallCount += 1
+        lastContext = context
         return result
     }
 }

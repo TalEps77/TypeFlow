@@ -138,6 +138,16 @@ final class VocaLogger {
         VocaLogger.shared.getLastLines(count)
     }
 
+    /// Blocks until every log line enqueued so far has been written to disk.
+    /// Writes happen on an async serial queue (`fileQueue`); a test that logs
+    /// something and then immediately reads the file back — as the AD-5
+    /// privacy assertion does — needs this to avoid a race against its own
+    /// write, mirroring `JSONFileStore.flush()`'s precedent for the same
+    /// reason.
+    static func flush() {
+        VocaLogger.shared.fileQueue.sync {}
+    }
+
     /// Export logs as a formatted string with system info header
     static func exportLogs(lastLines: Int = 500) -> String {
         VocaLogger.shared.formatExportedLogs(lastLines: lastLines)

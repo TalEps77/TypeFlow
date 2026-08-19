@@ -29,6 +29,15 @@ struct TranscriptContext {
     /// so existing callers that never pass this keep Epic 2/3's behavior.
     let resolvedProfile: Profile?
 
+    /// Text immediately before/after the caret, read via Accessibility at
+    /// recording start when both the global and Profile toggles allow it
+    /// (Story 4.4). `var`, not `let`: AD-5 requires this to be dropped as
+    /// soon as the one stage that consumes it has run, and `TranscriptPipeline`
+    /// — the sole writer of this type — is what clears it (see there).
+    /// **Never** read this into `HistoryRecord` or `VocaLogger`, at any level.
+    var cursorContextBefore: String?
+    var cursorContextAfter: String?
+
     /// Placeholder token -> the original text it stands in for, for stages that
     /// hide spans from the LLM and restore them afterwards (AD-3).
     var protectedSpans: [String: String]
@@ -39,12 +48,16 @@ struct TranscriptContext {
     init(
         rawTranscript: String,
         targetBundleIdentifier: String? = nil,
-        resolvedProfile: Profile? = nil
+        resolvedProfile: Profile? = nil,
+        cursorContextBefore: String? = nil,
+        cursorContextAfter: String? = nil
     ) {
         self.rawTranscript = rawTranscript
         self.currentText = rawTranscript
         self.targetBundleIdentifier = targetBundleIdentifier
         self.resolvedProfile = resolvedProfile
+        self.cursorContextBefore = cursorContextBefore
+        self.cursorContextAfter = cursorContextAfter
         self.protectedSpans = [:]
         self.reports = []
     }

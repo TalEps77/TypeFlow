@@ -73,6 +73,67 @@ final class PostProcessRequestBuilderTests: XCTestCase {
         XCTAssertEqual(body.messages[1].content, "Transcript: נפגש מחר\nCleaned:")
     }
 
+    // MARK: - Cursor Context (Story 4.4)
+
+    func testNoContextLeavesTheRequestByteForByteUnchanged() {
+        let withoutContext = PostProcessRequestBuilder.body(
+            text: "נפגש מחר",
+            systemPrompt: "SYSTEM",
+            configuration: PostProcessConfiguration()
+        )
+        let withExplicitNilContext = PostProcessRequestBuilder.body(
+            text: "נפגש מחר",
+            systemPrompt: "SYSTEM",
+            contextBefore: nil,
+            contextAfter: nil,
+            configuration: PostProcessConfiguration()
+        )
+
+        XCTAssertEqual(withoutContext, withExplicitNilContext)
+        XCTAssertEqual(withoutContext.messages[0].content, "SYSTEM", "no addendum without context")
+        XCTAssertEqual(withoutContext.messages[1].content, "Transcript: נפגש מחר\nCleaned:")
+    }
+
+    func testContextBeforeAndAfterAppearInTheUserMessage() {
+        let body = PostProcessRequestBuilder.body(
+            text: "נפגש מחר",
+            systemPrompt: "SYSTEM",
+            contextBefore: "some prior text",
+            contextAfter: "some following text",
+            configuration: PostProcessConfiguration()
+        )
+
+        XCTAssertTrue(body.messages[1].content.contains("some prior text"))
+        XCTAssertTrue(body.messages[1].content.contains("some following text"))
+        XCTAssertTrue(body.messages[1].content.contains("Transcript: נפגש מחר"))
+    }
+
+    func testContextAppendsInstructionsToTheSystemPromptOnlyWhenPresent() {
+        let body = PostProcessRequestBuilder.body(
+            text: "נפגש מחר",
+            systemPrompt: "SYSTEM",
+            contextBefore: "before",
+            contextAfter: nil,
+            configuration: PostProcessConfiguration()
+        )
+
+        XCTAssertTrue(body.messages[0].content.hasPrefix("SYSTEM"))
+        XCTAssertGreaterThan(body.messages[0].content.count, "SYSTEM".count, "the Cursor Context addendum must be appended")
+    }
+
+    func testEmptyStringContextIsTreatedTheSameAsNoContext() {
+        let body = PostProcessRequestBuilder.body(
+            text: "נפגש מחר",
+            systemPrompt: "SYSTEM",
+            contextBefore: "",
+            contextAfter: "",
+            configuration: PostProcessConfiguration()
+        )
+
+        XCTAssertEqual(body.messages[0].content, "SYSTEM")
+        XCTAssertEqual(body.messages[1].content, "Transcript: נפגש מחר\nCleaned:")
+    }
+
     // MARK: - max_tokens (BLOCKER 1)
 
     func testMaxTokensIsSetExplicitlyRatherThanLeftToTheServer() {
