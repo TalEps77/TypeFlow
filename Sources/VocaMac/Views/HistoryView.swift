@@ -27,6 +27,9 @@ struct HistoryView: View {
                         HistoryRowView(record: record)
                             .tag(record.id)
                             .contextMenu {
+                                Button("Re-paste") {
+                                    appState.rePaste(record)
+                                }
                                 Button("Delete", role: .destructive) {
                                     delete(record)
                                 }
@@ -52,7 +55,11 @@ struct HistoryView: View {
             }
         } detail: {
             if let record = appState.historyStore.records.first(where: { $0.id == selectedRecordID }) {
-                HistoryDetailView(record: record, onDelete: { delete(record) })
+                HistoryDetailView(
+                    record: record,
+                    onRePaste: { appState.rePaste(record) },
+                    onDelete: { delete(record) }
+                )
             } else {
                 Text("Select a dictation to view its details")
                     .foregroundStyle(.secondary)
@@ -143,6 +150,7 @@ struct HistoryRowView: View {
 
 struct HistoryDetailView: View {
     let record: HistoryRecord
+    let onRePaste: () -> Void
     let onDelete: () -> Void
 
     private static let dateFormatter: DateFormatter = {
@@ -175,10 +183,18 @@ struct HistoryDetailView: View {
                     textSection(title: "Transcript", text: record.finalText)
                 }
 
-                Button(role: .destructive, action: onDelete) {
-                    Label("Delete This Record", systemImage: "trash")
+                HStack {
+                    Button(action: onRePaste) {
+                        Label("Re-paste", systemImage: "arrow.uturn.forward.circle")
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.borderedProminent)
+
+                    Button(role: .destructive, action: onDelete) {
+                        Label("Delete This Record", systemImage: "trash")
+                    }
+                    .controlSize(.small)
                 }
-                .controlSize(.small)
             }
             .padding()
         }

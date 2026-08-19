@@ -407,6 +407,27 @@ struct MenuBarView: View {
             .buttonStyle(MenuRowButtonStyle())
 
             Button {
+                appState.rePasteMostRecent()
+            } label: {
+                HStack {
+                    Image(systemName: "arrow.uturn.forward.circle")
+                    Text("Re-paste Last")
+                    Spacer()
+                }
+                .font(.body)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(0.0001))
+                )
+            }
+            .buttonStyle(MenuRowButtonStyle())
+            .disabled(appState.historyStore.records.isEmpty)
+
+            Button {
                 NotificationCenter.default.post(name: .showOnboarding, object: nil)
             } label: {
                 HStack {

@@ -688,6 +688,24 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Re-paste (FR-9)
+
+    /// Re-inject a previous dictation's Final Text via the same `TextInjector`
+    /// path a live dictation uses. Does not write a new History Record — the
+    /// record already exists, and re-pasting it must not duplicate it.
+    func rePaste(_ record: HistoryRecord) {
+        textInjector.inject(text: record.finalText, preserveClipboard: preserveClipboard)
+    }
+
+    /// Re-paste the most recent dictation, if any exist.
+    func rePasteMostRecent() {
+        guard let mostRecent = historyStore.records.first else {
+            VocaLogger.info(.appState, "Re-paste requested with no history — nothing to do")
+            return
+        }
+        rePaste(mostRecent)
+    }
+
     /// Persist the completed dictation (FR-8). `context.rawTranscript` and
     /// `context.currentText` are exactly what was injected; per AD-5, nothing
     /// about Cursor Context is read or passed here — HistoryRecord has no

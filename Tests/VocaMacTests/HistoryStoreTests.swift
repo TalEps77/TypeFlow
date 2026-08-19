@@ -307,3 +307,59 @@ final class AppStateHistoryTests: XCTestCase {
         XCTAssertEqual(mocks.historyStore.recordCallCount, 0)
     }
 }
+
+// MARK: - Re-paste (Story 3.3, FR-9)
+
+@MainActor
+final class AppStateRePasteTests: XCTestCase {
+
+    func testRePasteInjectsTheGivenRecordsFinalText() {
+        let (appState, mocks) = AppState.makeTestState()
+        let record = HistoryRecord(rawTranscript: "raw", finalText: "final text", modelName: "Tiny")
+
+        appState.rePaste(record)
+
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 1)
+        XCTAssertEqual(mocks.textInjector.lastInjectedText, "final text")
+    }
+
+    func testRePasteDoesNotCreateANewHistoryRecord() {
+        let (appState, mocks) = AppState.makeTestState()
+        let record = HistoryRecord(rawTranscript: "raw", finalText: "final text", modelName: "Tiny")
+
+        appState.rePaste(record)
+
+        XCTAssertEqual(mocks.historyStore.recordCallCount, 0, "Re-paste must not duplicate the History Record")
+    }
+
+    func testRePastePassesThroughThePreserveClipboardSetting() {
+        let (appState, mocks) = AppState.makeTestState()
+        appState.preserveClipboard = false
+        let record = HistoryRecord(rawTranscript: "raw", finalText: "final", modelName: "Tiny")
+
+        appState.rePaste(record)
+
+        XCTAssertEqual(mocks.textInjector.lastPreserveClipboard, false)
+    }
+
+    func testRePasteMostRecentInjectsTheNewestRecord() {
+        let (appState, mocks) = AppState.makeTestState()
+        mocks.historyStore.records = [
+            HistoryRecord(timestamp: Date(timeIntervalSince1970: 2), rawTranscript: "newer", finalText: "newer final", modelName: "Tiny"),
+            HistoryRecord(timestamp: Date(timeIntervalSince1970: 1), rawTranscript: "older", finalText: "older final", modelName: "Tiny")
+        ]
+
+        appState.rePasteMostRecent()
+
+        XCTAssertEqual(mocks.textInjector.lastInjectedText, "newer final",
+                       "Records are newest-first, so the most recent is at index 0")
+    }
+
+    func testRePasteMostRecentDoesNothingWhenHistoryIsEmpty() {
+        let (appState, mocks) = AppState.makeTestState()
+
+        appState.rePasteMostRecent()
+
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 0)
+    }
+}
