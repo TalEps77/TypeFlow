@@ -97,18 +97,18 @@ final class AppState: ObservableObject {
     @AppStorage("vocamac.hotKeyCode") var hotKeyCode: Int = 61  // Right Option
     @AppStorage("vocamac.doubleTapThreshold") var doubleTapThreshold: Double = 0.4
     @AppStorage("vocamac.silenceThreshold") var silenceThreshold: Double = 0.01
-    @AppStorage("vocamac.silenceDuration") var silenceDuration: Double = 2.0
-    @AppStorage("vocamac.maxRecordingDuration") var maxRecordingDuration: Int = 60
+    @AppStorage("vocamac.silenceDuration") var silenceDuration: Double = 1.2
+    @AppStorage("vocamac.maxRecordingDuration") var maxRecordingDuration: Int = 180
     @AppStorage("vocamac.selectedAudioDeviceID") var selectedAudioDeviceID: String = ""
     @AppStorage("vocamac.selectedAudioDeviceName") var selectedAudioDeviceName: String = ""
-    @AppStorage("vocamac.selectedModelSize") var selectedModelSize: String = ModelSize.tiny.rawValue
-    @AppStorage("vocamac.selectedLanguage") var selectedLanguage: String = "auto"
+    @AppStorage("vocamac.selectedModelSize") var selectedModelSize: String = ModelSize.largeV3LatestCompact.rawValue
+    @AppStorage("vocamac.selectedLanguage") var selectedLanguage: String = "he"
     @AppStorage("vocamac.launchAtLogin") var launchAtLogin: Bool = false
     @AppStorage("vocamac.preserveClipboard") var preserveClipboard: Bool = true
-    @AppStorage("vocamac.soundEffectsEnabled") var soundEffectsEnabled: Bool = true
+    @AppStorage("vocamac.soundEffectsEnabled") var soundEffectsEnabled: Bool = false
     @AppStorage("vocamac.showCursorIndicator") var showCursorIndicator: Bool = true
     @AppStorage("vocamac.translationEnabled") var translationEnabled: Bool = false
-    @AppStorage("vocamac.customVocabulary") var customVocabulary: String = ""
+    @AppStorage("vocamac.customVocabulary") var customVocabulary: String = "WhisperKit, CoreML, Apple Silicon, macOS, Swift, SwiftUI, Xcode, Homebrew, GitHub, API, JSON, TypeScript, JavaScript, Python, Docker, Kubernetes, React, Node.js, terminal, VS Code, OpenAI, Claude Code, pull request, branch, commit"
     @AppStorage("vocamac.logLevel") var logLevel: String = "info"
 
     private var hotKeySafetyTimeout: Double {
@@ -164,6 +164,7 @@ final class AppState: ObservableObject {
     ///
     /// Internal (not private) so test teardown can reset it between test cases.
     static var hasStartedGlobally = false
+    static var hasPerformedStartupGlobally = false
 
     /// Whether to skip system integration calls (SMAppService, etc.) during init.
     /// Set to `true` in tests to avoid side effects.
@@ -938,6 +939,12 @@ final class AppState: ObservableObject {
     }
 
     func performStartup() async {
+        guard !AppState.hasPerformedStartupGlobally else {
+            VocaLogger.debug(.appState, "performStartup called again — skipping (already performed)")
+            return
+        }
+        AppState.hasPerformedStartupGlobally = true
+
         VocaLogger.info(.appState, "performStartup beginning...")
 
         // 1. Detect hardware
@@ -1011,8 +1018,6 @@ final class AppState: ObservableObject {
         } else {
             VocaLogger.warning(.appState, "Hotkey listener failed to start. Check Accessibility & Input Monitoring permissions.")
         }
-
-        await updateChecker.checkOnLaunchIfNeeded()
 
         VocaLogger.info(.appState, "Startup complete!")
     }

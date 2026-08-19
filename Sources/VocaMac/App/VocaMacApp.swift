@@ -200,7 +200,7 @@ struct VocaMacApp: App {
         // Also kill by process name for direct binary execution (no bundle ID)
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        task.arguments = ["-f", "VocaMac"]
+        task.arguments = ["-x", "VocaMac"]
 
         let pipe = Pipe()
         task.standardOutput = pipe
