@@ -306,6 +306,59 @@ final class AppStateHistoryTests: XCTestCase {
 
         XCTAssertEqual(mocks.historyStore.recordCallCount, 0)
     }
+
+    // MARK: - Per-stage latency (Story 1.3, FR-3)
+
+    func testHistoryRecordCapturesRecordingAndASRDurations() async {
+        let (appState, mocks) = AppState.makeTestState()
+        appState.isRecording = true
+        appState.appStatus = .recording
+        mocks.audioEngine.stopRecordingResult = [0.1, 0.2, 0.3]
+        mocks.whisperService.mockTranscriptionResult = VocaTranscription(
+            text: "hello",
+            duration: 0.42,
+            detectedLanguage: "en",
+            audioLengthSeconds: 3.5,
+            modelUsed: .largeV3
+        )
+
+        await appState.stopRecordingAndTranscribe()
+
+        XCTAssertEqual(mocks.historyStore.lastRecordedRecord?.recordingMillis ?? .nan, 3500, accuracy: 0.01)
+        XCTAssertEqual(mocks.historyStore.lastRecordedRecord?.asrMillis ?? .nan, 420, accuracy: 0.01)
+    }
+
+    func testHistoryRecordPostProcessMillisIsZeroWhenTheStageDidNotRun() async {
+        // The identity mock pipeline (no `transform`, no `additionalReports`)
+        // appends no "PostProcess" report at all — the stage did not run.
+        let (appState, mocks) = makeStateThatTranscribes("שלום עולם")
+
+        await appState.stopRecordingAndTranscribe()
+
+        XCTAssertEqual(mocks.historyStore.lastRecordedRecord?.postProcessMillis, 0)
+    }
+
+    func testHistoryRecordCapturesThePostProcessStagesOwnDuration() async {
+        let (appState, mocks) = makeStateThatTranscribes("שלום עולם")
+        mocks.transcriptPipeline.additionalReports = [
+            StageReport(stageName: "PostProcess", outcome: .applied, duration: 0.25)
+        ]
+
+        await appState.stopRecordingAndTranscribe()
+
+        XCTAssertEqual(mocks.historyStore.lastRecordedRecord?.postProcessMillis ?? .nan, 250, accuracy: 0.01)
+    }
+
+    func testHistoryRecordDidFallbackIsTrueWhenAnyStageFailed() async {
+        let (appState, mocks) = makeStateThatTranscribes("שלום עולם")
+        mocks.transcriptPipeline.additionalReports = [
+            StageReport(stageName: "PostProcess", outcome: .failed(reason: "connection refused"), duration: 0.1)
+        ]
+
+        await appState.stopRecordingAndTranscribe()
+
+        XCTAssertTrue(mocks.historyStore.lastRecordedRecord?.didFallback ?? false)
+    }
 }
 
 // MARK: - Re-paste (Story 3.3, FR-9)

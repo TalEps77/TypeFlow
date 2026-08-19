@@ -497,15 +497,22 @@ final class MockTranscriptPipeline: TranscriptPipelining {
     var lastContext: TranscriptContext?
     var transform: ((String) -> String)?
 
+    /// Extra stage reports to append to the result, so a test can simulate a
+    /// named stage (e.g. "PostProcess") having run with a specific outcome
+    /// and duration — used by Story 1.3's per-stage latency tests.
+    var additionalReports: [StageReport] = []
+
     func run(_ context: TranscriptContext) async -> TranscriptContext {
         runCallCount += 1
         lastContext = context
-        guard let transform else { return context }
         var result = context
-        result.currentText = transform(context.currentText)
-        result.reports.append(
-            StageReport(stageName: "MockStage", outcome: .applied, duration: 0)
-        )
+        if let transform {
+            result.currentText = transform(context.currentText)
+            result.reports.append(
+                StageReport(stageName: "MockStage", outcome: .applied, duration: 0)
+            )
+        }
+        result.reports.append(contentsOf: additionalReports)
         return result
     }
 }

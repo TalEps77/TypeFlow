@@ -141,6 +141,9 @@ struct HistoryRowView: View {
             Text(record.preview.isEmpty ? "(empty)" : record.preview)
                 .font(.body)
                 .lineLimit(2)
+            Text("\(record.modelName) • ASR \(HistoryDetailView.millisecondsLabel(record.asrMillis))")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
         .padding(.vertical, 2)
     }
@@ -169,6 +172,11 @@ struct HistoryDetailView: View {
                         InfoRow2(label: "App", value: record.targetBundleId ?? "Unknown")
                         InfoRow2(label: "Model", value: record.modelName)
                         InfoRow2(label: "Mode", value: record.mode == .command ? "Command" : "Dictation")
+                        InfoRow2(label: "Recording", value: Self.millisecondsLabel(record.recordingMillis))
+                        InfoRow2(label: "ASR", value: Self.millisecondsLabel(record.asrMillis))
+                        if record.postProcessMillis > 0 {
+                            InfoRow2(label: "Post-process", value: Self.millisecondsLabel(record.postProcessMillis))
+                        }
                         if record.didFallback {
                             InfoRow2(label: "Fallback", value: "Post-processing failed — raw transcript used")
                         }
@@ -198,6 +206,10 @@ struct HistoryDetailView: View {
             }
             .padding()
         }
+    }
+
+    fileprivate static func millisecondsLabel(_ millis: Double) -> String {
+        millis >= 1000 ? String(format: "%.1fs", millis / 1000) : String(format: "%.0fms", millis)
     }
 
     private func textSection(title: String, text: String) -> some View {

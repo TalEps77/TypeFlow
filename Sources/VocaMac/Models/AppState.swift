@@ -666,7 +666,12 @@ final class AppState: ObservableObject {
                     text: finalText,
                     preserveClipboard: preserveClipboard
                 )
-                recordHistory(context: pipelineContext, model: result.modelUsed)
+                recordHistory(
+                    context: pipelineContext,
+                    model: result.modelUsed,
+                    recordingMillis: result.audioLengthSeconds * 1000,
+                    asrMillis: result.duration * 1000
+                )
             } else {
                 VocaLogger.info(.appState, "Transcription produced no usable text (silence or blank audio)")
             }
@@ -723,16 +728,35 @@ final class AppState: ObservableObject {
     /// `context.currentText` are exactly what was injected; per AD-5, nothing
     /// about Cursor Context is read or passed here — HistoryRecord has no
     /// field that could hold it.
-    private func recordHistory(context: TranscriptContext, model: ModelSize) {
+    ///
+    /// Per-stage latency (FR-3, Story 1.3): `recordingMillis` and `asrMillis`
+    /// come from measurements WhisperService already makes (audio length and
+    /// transcription elapsed time); `postProcessMillis` comes from the
+    /// PostProcess stage's own `StageReport.duration`, which `TranscriptPipeline`
+    /// already records for every stage regardless of outcome (AD-2). A stage
+    /// that did not run — post-processing disabled, or absent from the
+    /// pipeline — has no matching report, so it defaults to zero rather than
+    /// leaving the field unset.
+    private func recordHistory(
+        context: TranscriptContext,
+        model: ModelSize,
+        recordingMillis: Double,
+        asrMillis: Double
+    ) {
         let didFallback = context.reports.contains { report in
             if case .failed = report.outcome { return true }
             return false
         }
+        let postProcessMillis = (context.reports.first(where: { $0.stageName == "PostProcess" })?.duration ?? 0) * 1000
+
         historyStore.record(HistoryRecord(
             rawTranscript: context.rawTranscript,
             finalText: context.currentText,
             targetBundleId: context.targetBundleIdentifier,
             modelName: model.displayName,
+            recordingMillis: recordingMillis,
+            asrMillis: asrMillis,
+            postProcessMillis: postProcessMillis,
             didFallback: didFallback
         ))
     }
