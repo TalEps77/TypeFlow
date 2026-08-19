@@ -101,4 +101,36 @@ final class AXContextReaderTests: XCTestCase {
 
         XCTAssertEqual(mocks.contextReader.lastReadCursorContextRequested, false)
     }
+
+    // MARK: - Story 4.2: the resolved Profile is passed through and persisted
+
+    func testProfileManagerIsCalledWithTheCapturedBundleIdentifier() async {
+        let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.mail")
+
+        await appState.startRecording()
+        await appState.stopRecordingAndTranscribe()
+
+        XCTAssertEqual(mocks.profileManager.lastBundleIdentifier, "com.apple.mail")
+    }
+
+    func testResolvedProfileNameIsPersistedToHistory() async {
+        let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.mail")
+        mocks.profileManager.resolvedProfile = Profile(name: "Mail", bundleIdentifiers: ["com.apple.mail"])
+
+        await appState.startRecording()
+        await appState.stopRecordingAndTranscribe()
+
+        XCTAssertEqual(mocks.historyStore.lastRecordedRecord?.profileName, "Mail")
+    }
+
+    func testProfilesEnabledSettingIsPassedThroughToResolution() async {
+        defer { UserDefaults.standard.removeObject(forKey: "vocamac.profiles.enabled") }
+        let (appState, mocks) = makeRecordingState(bundleIdentifier: "com.apple.mail")
+        appState.profilesEnabled = false
+
+        await appState.startRecording()
+        await appState.stopRecordingAndTranscribe()
+
+        XCTAssertEqual(mocks.profileManager.lastProfilesEnabled, false)
+    }
 }

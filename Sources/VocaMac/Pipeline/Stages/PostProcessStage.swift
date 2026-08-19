@@ -33,6 +33,7 @@ final class PostProcessStage: TranscriptStage {
     func run(_ context: TranscriptContext) async -> StageResult {
         let text = context.currentText
         let settings = settingsProvider()
+        let profile = context.resolvedProfile
 
         // The master toggle is checked before anything else, so that with
         // post-processing off no request is constructed, let alone sent.
@@ -42,13 +43,24 @@ final class PostProcessStage: TranscriptStage {
         guard settings.isEnabled else {
             return StageResult.declined(text, reason: "post-processing disabled")
         }
+        // Story 4.2: the resolved Profile's own toggle is honored in addition
+        // to the global one, never instead of it. A `nil` Profile (every
+        // caller before Epic 4, and any pipeline run with Profiles disabled)
+        // is treated as "allows it" so existing behavior is unchanged.
+        guard profile?.postProcessEnabled ?? true else {
+            return StageResult.declined(text, reason: "post-processing disabled for Profile \"\(profile?.name ?? "")\"")
+        }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return StageResult.declined(text, reason: "nothing to clean")
         }
 
+        // An empty override means "use the global prompt unchanged" — how the
+        // Default Profile stays identical to Epic 2/3's behavior.
+        let systemPrompt = (profile?.promptOverride.isEmpty == false) ? profile!.promptOverride : settings.systemPrompt
+
         switch await service.clean(
             text: text,
-            systemPrompt: settings.systemPrompt,
+            systemPrompt: systemPrompt,
             configuration: settings.configuration
         ) {
         case .success(let cleaned):

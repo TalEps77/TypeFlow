@@ -194,6 +194,64 @@ final class PostProcessStageTests: XCTestCase {
 
     // MARK: - The production pipeline
 
+    // MARK: - Story 4.2: the resolved Profile is honored
+
+    func testProfilePromptOverrideReplacesTheGlobalSystemPrompt() async {
+        let service = MockPostProcessService()
+        let stage = makeStage(service: service, settings: enabledSettings)
+        let profile = Profile(name: "Code Editor", promptOverride: "PROFILE PROMPT")
+
+        _ = await stage.run(TranscriptContext(rawTranscript: "שלום", resolvedProfile: profile))
+
+        XCTAssertEqual(service.lastSystemPrompt, "PROFILE PROMPT")
+    }
+
+    func testEmptyProfilePromptOverrideFallsBackToTheGlobalSystemPrompt() async {
+        let service = MockPostProcessService()
+        let stage = makeStage(service: service, settings: enabledSettings)
+        let profile = Profile(name: "Default", promptOverride: "", isDefault: true)
+
+        _ = await stage.run(TranscriptContext(rawTranscript: "שלום", resolvedProfile: profile))
+
+        XCTAssertEqual(service.lastSystemPrompt, "SYSTEM", "An empty override must not shadow the global prompt")
+    }
+
+    func testProfileWithPostProcessDisabledMakesNoRequestEvenWhenGloballyEnabled() async {
+        let service = MockPostProcessService()
+        service.cleanResult = .success("THIS MUST NEVER APPEAR")
+        let stage = makeStage(service: service, settings: enabledSettings)
+        let profile = Profile(name: "Raw", postProcessEnabled: false)
+
+        let result = await stage.run(TranscriptContext(rawTranscript: "שלום עולם", resolvedProfile: profile))
+
+        XCTAssertEqual(service.cleanCallCount, 0)
+        XCTAssertEqual(result.text, "שלום עולם")
+        XCTAssertFalse(result.didRun)
+    }
+
+    func testNoProfileBehavesLikeEveryToggleEnabled() async {
+        // Pre-Epic-4 callers, and any pipeline run before a Profile is
+        // resolved, must see exactly Epic 2/3's behavior.
+        let service = MockPostProcessService()
+        let stage = makeStage(service: service, settings: enabledSettings)
+
+        _ = await stage.run(TranscriptContext(rawTranscript: "שלום"))
+
+        XCTAssertEqual(service.cleanCallCount, 1)
+        XCTAssertEqual(service.lastSystemPrompt, "SYSTEM")
+    }
+
+    func testGlobalToggleOffWinsEvenWhenProfileAllowsPostProcessing() async {
+        let service = MockPostProcessService()
+        let stage = makeStage(service: service, settings: PostProcessSettings(isEnabled: false))
+        let profile = Profile(name: "Eager", postProcessEnabled: true)
+
+        let result = await stage.run(TranscriptContext(rawTranscript: "שלום", resolvedProfile: profile))
+
+        XCTAssertEqual(service.cleanCallCount, 0)
+        XCTAssertEqual(result.outcome, .skipped(reason: "post-processing disabled"))
+    }
+
     func testProductionPipelineIsIdentityWithDefaultSettings() async {
         // The shipping pipeline carries the PostProcess stage, but the feature
         // ships off, so a user who has changed nothing sees no change (AD-13).

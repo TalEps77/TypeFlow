@@ -167,6 +167,11 @@ protocol TextInjecting: AnyObject {
 // identifier and, when asked, Cursor Context — in one call, at recording
 // start (AD-5).
 
+// MARK: - ProfileResolving
+//
+// Declared in Services/ProfileManager.swift, alongside its one method.
+// Resolves a captured bundle identifier to a Profile (Story 4.2).
+
 // MARK: - TranscriptPipelining
 
 /// The ordered post-ASR transform chain (AD-1). Runs on the main actor because

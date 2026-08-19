@@ -120,6 +120,11 @@ final class AppState: ObservableObject {
     @AppStorage(PostProcessSettings.Key.temperature) var postProcessTemperature: Double = PostProcessSettings.Default.temperature
     @AppStorage(PostProcessSettings.Key.systemPrompt) var postProcessSystemPrompt: String = PostProcessSettings.Default.systemPrompt
 
+    /// Master switch for Profile resolution (Story 4.2, AD-9). When off, the
+    /// Default Profile always applies and dictation behaves exactly like
+    /// Epic 2/3's, regardless of what Profiles exist or how they're bound.
+    @AppStorage("vocamac.profiles.enabled") var profilesEnabled: Bool = true
+
     private var hotKeySafetyTimeout: Double {
         Double(maxRecordingDuration) + 5.0
     }
@@ -137,6 +142,7 @@ final class AppState: ObservableObject {
     let historyStore: HistoryRecording
     let transcriptPipeline: TranscriptPipelining
     let axContextReader: ContextReading
+    let profileManager: ProfileResolving
     let updateChecker = UpdateChecker()
     let permissionManager: any PermissionManaging
 
@@ -223,6 +229,7 @@ final class AppState: ObservableObject {
         historyStore: HistoryRecording,
         transcriptPipeline: TranscriptPipelining? = nil,
         axContextReader: ContextReading,
+        profileManager: ProfileResolving,
         permissionManager: (any PermissionManaging)? = nil,
         skipSystemIntegration: Bool = false
     ) {
@@ -237,6 +244,7 @@ final class AppState: ObservableObject {
         self.historyStore = historyStore
         self.transcriptPipeline = transcriptPipeline ?? TranscriptPipeline.production()
         self.axContextReader = axContextReader
+        self.profileManager = profileManager
         self.permissionManager = permissionManager ?? PermissionManager(audioEngine: audioEngine, hotKeyManager: hotKeyManager)
         self.skipSystemIntegration = skipSystemIntegration
 
@@ -300,7 +308,8 @@ final class AppState: ObservableObject {
         cursorOverlay: CursorOverlayManager(),
         statsManager: StatsManager(),
         historyStore: HistoryStore(),
-        axContextReader: AXContextReader()
+        axContextReader: AXContextReader(),
+        profileManager: ProfileManager(store: ProfileStore())
     )
 
     /// Convenience factory for creating AppState with all real services.
@@ -738,11 +747,19 @@ final class AppState: ObservableObject {
             let context = capturedContext
             capturedContext = nil
 
+            // Story 4.2: resolved from the bundle identifier captured at
+            // recording start, not from whatever is frontmost now.
+            let resolvedProfile = profileManager.resolve(
+                bundleIdentifier: context?.bundleIdentifier,
+                profilesEnabled: profilesEnabled
+            )
+
             // AD-1: the single seam for every post-ASR text transformation.
             // With no stages enabled this returns trimmedText unchanged (AD-2).
             let pipelineContext = await transcriptPipeline.run(TranscriptContext(
                 rawTranscript: trimmedText,
-                targetBundleIdentifier: context?.bundleIdentifier
+                targetBundleIdentifier: context?.bundleIdentifier,
+                resolvedProfile: resolvedProfile
             ))
 
             // A new recording started while this one was suspended above —
@@ -907,6 +924,7 @@ final class AppState: ObservableObject {
             rawTranscript: context.rawTranscript,
             finalText: context.currentText,
             targetBundleId: context.targetBundleIdentifier,
+            profileName: context.resolvedProfile?.name,
             modelName: model.displayName,
             recordingMillis: recordingMillis,
             asrMillis: asrMillis,

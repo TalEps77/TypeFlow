@@ -546,6 +546,28 @@ final class MockContextReader: ContextReading {
     }
 }
 
+// MARK: - MockProfileManager
+
+/// Defaults to resolving the Default Profile, mirroring what the real
+/// `ProfileManager` always falls back to — the Default Profile's empty
+/// prompt override and enabled toggles make `PostProcessStage` behave
+/// identically to Epic 2/3 for any test that never overrides
+/// `resolvedProfile`.
+@MainActor
+final class MockProfileManager: ProfileResolving {
+    var resolvedProfile: Profile = Profile.makeDefault()
+    var resolveCallCount = 0
+    var lastBundleIdentifier: String?
+    var lastProfilesEnabled: Bool?
+
+    func resolve(bundleIdentifier: String?, profilesEnabled: Bool) -> Profile {
+        resolveCallCount += 1
+        lastBundleIdentifier = bundleIdentifier
+        lastProfilesEnabled = profilesEnabled
+        return resolvedProfile
+    }
+}
+
 // MARK: - MockTranscriptPipeline
 
 /// Identity by default (AD-2): unless a test sets `transform`, it returns its
@@ -612,7 +634,8 @@ extension AppState {
         /// behavior. `mocks.transcriptPipeline` is still created either way,
         /// for tests that don't need this and read/configure it directly.
         transcriptPipelineOverride: TranscriptPipelining? = nil,
-        contextReader: MockContextReader = MockContextReader()
+        contextReader: MockContextReader = MockContextReader(),
+        profileManager: MockProfileManager = MockProfileManager()
     ) -> (appState: AppState, mocks: TestMocks) {
         // AppState.hasPerformedStartupGlobally is a process-level static that
         // performStartup() only ever flips true. Reset it here (rather than
@@ -645,7 +668,8 @@ extension AppState {
             historyStore: historyStore,
             transcriptPipeline: transcriptPipeline,
             postProcessService: postProcessService,
-            contextReader: contextReader
+            contextReader: contextReader,
+            profileManager: profileManager
         )
         let appState = AppState(
             audioEngine: audioEngine,
@@ -659,6 +683,7 @@ extension AppState {
             historyStore: historyStore,
             transcriptPipeline: transcriptPipelineOverride ?? transcriptPipeline,
             axContextReader: contextReader,
+            profileManager: profileManager,
             permissionManager: permissionManager,
             skipSystemIntegration: true
         )
@@ -680,4 +705,5 @@ struct TestMocks {
     let transcriptPipeline: MockTranscriptPipeline
     let postProcessService: MockPostProcessService
     let contextReader: MockContextReader
+    let profileManager: MockProfileManager
 }

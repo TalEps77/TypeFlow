@@ -23,6 +23,12 @@ struct TranscriptContext {
     /// Populated from Epic 4 onwards; `nil` until then.
     let targetBundleIdentifier: String?
 
+    /// The Profile resolved from `targetBundleIdentifier` at recording start
+    /// (Story 4.2). `nil` until Epic 4; `PostProcessStage` treats a `nil`
+    /// Profile the same as one with every toggle on and no prompt override,
+    /// so existing callers that never pass this keep Epic 2/3's behavior.
+    let resolvedProfile: Profile?
+
     /// Placeholder token -> the original text it stands in for, for stages that
     /// hide spans from the LLM and restore them afterwards (AD-3).
     var protectedSpans: [String: String]
@@ -32,11 +38,13 @@ struct TranscriptContext {
 
     init(
         rawTranscript: String,
-        targetBundleIdentifier: String? = nil
+        targetBundleIdentifier: String? = nil,
+        resolvedProfile: Profile? = nil
     ) {
         self.rawTranscript = rawTranscript
         self.currentText = rawTranscript
         self.targetBundleIdentifier = targetBundleIdentifier
+        self.resolvedProfile = resolvedProfile
         self.protectedSpans = [:]
         self.reports = []
     }
