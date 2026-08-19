@@ -43,7 +43,7 @@ development_status:
 
   epic-2: in-progress
   2-1-transcript-pipeline-scaffolding-with-a-proven-identity-guara: review
-  2-2-postprocessservice-llm-client-with-a-hard-deadline-and-trans: backlog
+  2-2-postprocessservice-llm-client-with-a-hard-deadline-and-trans: review
   2-3-wire-post-processing-into-the-pipeline-behind-a-master-toggl: backlog
   2-4-post-processing-settings-tab: backlog
   epic-2-retrospective: optional

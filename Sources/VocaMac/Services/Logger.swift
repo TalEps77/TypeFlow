@@ -20,6 +20,7 @@ enum LogCategory: String {
     case updateChecker = "UpdateChecker"
     case onboarding = "Onboarding"
     case pipeline = "Pipeline"
+    case postProcess = "PostProcess"
     case general = "General"
 }
 

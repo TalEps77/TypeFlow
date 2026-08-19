@@ -146,6 +146,11 @@ protocol TextInjecting: AnyObject {
     func inject(text: String, preserveClipboard: Bool)
 }
 
+// MARK: - PostProcessing
+//
+// Declared alongside its vocabulary in Services/PostProcessService.swift.
+// The app's only network boundary (AD-6).
+
 // MARK: - TranscriptPipelining
 
 /// The ordered post-ASR transform chain (AD-1). Runs on the main actor because
