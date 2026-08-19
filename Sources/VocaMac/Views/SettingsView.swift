@@ -43,6 +43,11 @@ struct SettingsView: View {
                     Label("Profiles", systemImage: "person.crop.rectangle.stack")
                 }
 
+            VocabularySettingsTab()
+                .tabItem {
+                    Label("Vocabulary", systemImage: "character.book.closed")
+                }
+
             DebugTab()
                 .tabItem {
                     Label("Debug", systemImage: "ladybug")
