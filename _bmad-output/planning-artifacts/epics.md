@@ -432,16 +432,18 @@ So that I can recover text and build trust in the post-processing.
 - Manual: dictate ten times, browse the list, search for a term, delete one record, verify the count.
 - Manual: set retention to 5, dictate three more, confirm the oldest are pruned.
 
-**Known gap — "target app" reads "Unknown app" until Epic 4:**
-The first acceptance criterion asks for the target app in each row, but nothing
-populates `HistoryRecord.targetBundleId` at this point in the sequence: the
-frontmost application is not captured until Story 4.1. Every row and detail pane
-therefore shows "Unknown app" for records written before that story lands. This
-is a sequencing artifact, not a defect — the field, the schema, and the UI that
-reads it are all in place and start showing real values as soon as 4.1 begins
-populating them. Records written before then keep `nil` permanently; they are
-not backfilled. Accepted knowingly rather than resequenced, because pulling 4.1
-forward would drag Profile resolution with it.
+**Known gap — "target app" read "Unknown app" until Epic 4 (closed by Story 4.1):**
+The first acceptance criterion asks for the target app in each row, but at the
+time this story shipped nothing populated `HistoryRecord.targetBundleId` yet:
+the frontmost application was not captured until Story 4.1. Every row and
+detail pane showed "Unknown app" for records written before that story landed.
+This was a sequencing artifact, not a defect — the field, the schema, and the
+UI that reads it were all in place from the start and began showing real
+values as soon as 4.1 started populating them. Story 4.1 now captures the
+frontmost application's bundle identifier at recording start (via
+`AXContextReader`) and threads it through to `HistoryRecord.targetBundleId`.
+Records written before Story 4.1 keep `nil` permanently; they were not
+backfilled.
 
 ### Story 3.3: Re-paste a previous transcription
 
