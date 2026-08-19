@@ -441,6 +441,47 @@ final class MockTextInjector: TextInjecting {
         undoLastInjectionCallCount += 1
         return undoLastInjectionResult
     }
+
+    // MARK: - Selection (Story 6.2)
+
+    /// What `readSelectionResult()` answers. Defaults to "nothing selected",
+    /// which is the Command Mode abort case every test that does not opt in
+    /// should see.
+    var selectionResult: Result<SelectionSnapshot, SelectionError> = .failure(.noSelection)
+
+    var readSelectionCallCount = 0
+
+    /// What `replaceSelection` answers once the snapshot checks are skipped
+    /// (there is no real AX element to compare against here).
+    var replaceSelectionResult: Result<Void, SelectionError> = .success(())
+
+    var replaceSelectionCallCount = 0
+    var lastReplacementText: String?
+
+    /// Convenience for the common case: pretend `text` is selected.
+    ///
+    /// The element is a system-wide `AXUIElement` used purely as an opaque
+    /// token — nothing in these tests reads through it.
+    func stubSelection(_ text: String) {
+        selectionResult = .success(SelectionSnapshot(
+            element: AXUIElementCreateSystemWide(),
+            text: text,
+            range: CFRange(location: 0, length: text.utf16.count),
+            processIdentifier: 1234,
+            bundleIdentifier: "com.apple.TextEdit"
+        ))
+    }
+
+    func readSelectionResult() -> Result<SelectionSnapshot, SelectionError> {
+        readSelectionCallCount += 1
+        return selectionResult
+    }
+
+    func replaceSelection(_ text: String, replacing snapshot: SelectionSnapshot) -> Result<Void, SelectionError> {
+        replaceSelectionCallCount += 1
+        lastReplacementText = text
+        return replaceSelectionResult
+    }
 }
 
 // MARK: - MockStatsManager

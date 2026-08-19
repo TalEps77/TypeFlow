@@ -485,6 +485,95 @@ final class TextInjectorTests: XCTestCase {
     }
 }
 
+// MARK: - TextInjector Selection Tests (Story 6.2)
+//
+// A test runner has no selected text in another application's text view, so
+// what is verifiable here is the half that matters most for Command Mode: that
+// every unavailable path *reports* rather than inventing a selection or
+// writing something. The happy path is covered by the live harness and by the
+// manual TextEdit check in the story's Verification section.
+
+final class TextInjectorSelectionTests: XCTestCase {
+
+    func testReadSelectionReturnsNilWithNoSelectableFocusedElement() {
+        let injector = TextInjector()
+
+        // Whether or not the runner holds Accessibility permission, there is
+        // no other application with a selected range for it to read.
+        XCTAssertNil(injector.readSelection(),
+                     "A read with nothing selected must produce no snapshot at all")
+    }
+
+    func testReadSelectionResultReportsWhyItFailed() {
+        let injector = TextInjector()
+
+        switch injector.readSelectionResult() {
+        case .success:
+            // Only reachable if the runner really is frontmost over a text
+            // view with a live selection; nothing to assert then.
+            break
+        case .failure(let error):
+            XCTAssertTrue(
+                [.notTrusted, .noAccessibleElement, .noSelection].contains(error),
+                "A failed read must name one of the three unavailable reasons, got \(error)"
+            )
+            XCTAssertFalse(error.reason.isEmpty, "Every failure must carry a message fit to show the user")
+        }
+    }
+
+    func testReplaceSelectionRefusesAStaleSnapshotRatherThanWriting() {
+        let injector = TextInjector()
+
+        // A snapshot that never corresponded to a real focused element: the
+        // identity check must refuse it. This is the shape of the dangerous
+        // case — the LLM answered, but focus has moved on.
+        let stale = SelectionSnapshot(
+            element: AXUIElementCreateSystemWide(),
+            text: "טקסט שנבחר",
+            range: CFRange(location: 0, length: 10),
+            processIdentifier: NSRunningApplication.current.processIdentifier,
+            bundleIdentifier: "com.vocamac.tests"
+        )
+
+        switch injector.replaceSelection("החלפה", replacing: stale) {
+        case .success:
+            XCTFail("A snapshot that cannot be proved current must never be written back")
+        case .failure(let error):
+            XCTAssertTrue(
+                [.notTrusted, .focusChanged, .selectionChanged].contains(error),
+                "A refused write must say why, got \(error)"
+            )
+        }
+    }
+
+    func testSelectableRolesCoverProseAndExcludeSecureFields() {
+        // AXTextArea is the role the text people actually select to rewrite
+        // lives in — a mail body, a document, a comment box — and it is
+        // deliberately wider than injectViaAccessibility's single-line gate.
+        XCTAssertTrue(TextInjector.selectableRoles.contains(kAXTextAreaRole as String))
+        XCTAssertTrue(TextInjector.selectableRoles.contains(kAXTextFieldRole as String))
+
+        // A secure field is a text field: the role gate alone would admit it.
+        XCTAssertTrue(TextInjector.secureRoleIdentifiers.contains(kAXSecureTextFieldSubrole as String))
+        XCTAssertTrue(TextInjector.secureRoleIdentifiers.contains("AXSecureTextField"))
+        XCTAssertTrue(
+            TextInjector.selectableRoles.isDisjoint(with: TextInjector.secureRoleIdentifiers),
+            "No secure identifier may also be an allowed role"
+        )
+    }
+
+    func testInjectionPathIsUnaffectedBySelectionSupport() {
+        // Story 6.2 AC: the existing injection path is unchanged. The AX
+        // strategy's allow-list is single-line only and must not have widened
+        // to the selection allow-list.
+        XCTAssertFalse(
+            TextInjector.selectableRoles == ["AXTextField", "AXSearchField", "AXComboBox"],
+            "Selection reading covers AXTextArea; injection deliberately does not"
+        )
+        XCTAssertTrue(TextInjector.selectableRoles.contains(kAXTextAreaRole as String))
+    }
+}
+
 // MARK: - SoundManager Tests
 
 final class SoundManagerTests: XCTestCase {

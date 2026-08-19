@@ -164,6 +164,28 @@ protocol TextInjecting: AnyObject {
     /// changing nothing — when it cannot be performed safely.
     @discardableResult
     func undoLastInjection() -> Bool
+
+    /// Story 6.2: read the current selection, with the reason it could not be
+    /// read. Command Mode has to tell the user *why* nothing happened, so the
+    /// failing case carries a reason rather than being a bare `nil`.
+    ///
+    /// The returned text is the user's document content: transient, never
+    /// logged, never persisted (AD-5).
+    func readSelectionResult() -> Result<SelectionSnapshot, SelectionError>
+
+    /// Story 6.2: replace that selection. Refuses unless focus and the
+    /// selected text are still exactly what the snapshot recorded, and
+    /// reports every failure rather than swallowing it.
+    @discardableResult
+    func replaceSelection(_ text: String, replacing snapshot: SelectionSnapshot) -> Result<Void, SelectionError>
+}
+
+extension TextInjecting {
+    /// The `readSelection()` shape Story 6.2's AC names: `nil` when there is
+    /// no selection or no accessible focused element.
+    func readSelection() -> SelectionSnapshot? {
+        try? readSelectionResult().get()
+    }
 }
 
 // MARK: - PostProcessing

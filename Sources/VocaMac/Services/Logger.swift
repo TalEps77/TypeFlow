@@ -25,6 +25,9 @@ enum LogCategory: String {
     case profiles = "Profiles"
     case dictionary = "Dictionary"
     case snippets = "Snippets"
+    /// Epic 6. Never carries the selected text or the rewrite — only lengths
+    /// and outcomes (AD-5).
+    case commandMode = "CommandMode"
     case general = "General"
 }
 

@@ -3,10 +3,74 @@
 //
 // Injects transcribed text at the cursor position in any application
 // using the clipboard (NSPasteboard) + simulated Cmd+V keystroke approach.
+//
+// Story 6.2 added selection read/replace for Command Mode. It is additive:
+// `inject(text:preserveClipboard:)`, its role gate, its pasteboard
+// snapshot/restore and its changeCount guard are untouched.
 
 import Foundation
 import AppKit
 import Carbon.HIToolbox
+
+// MARK: - Selection vocabulary (Story 6.2)
+
+/// What was selected, and in exactly which element, at the moment
+/// `readSelection()` ran.
+///
+/// It exists because Command Mode reads a selection, then suspends for as long
+/// as an LLM round trip takes, then writes back. "Write to whatever is focused
+/// now" is not good enough across that gap — the user may have clicked into
+/// another field, or another document, or edited the selection. The snapshot
+/// is what lets the write prove it is replacing the same text in the same
+/// place (the pattern `undoViaAccessibility` already uses).
+///
+/// AD-5: `text` is the user's document content. It is transient — held for the
+/// one operation that needs it, never logged (not even truncated), never
+/// persisted, and never placed on a `HistoryRecord`.
+struct SelectionSnapshot {
+    let element: AXUIElement
+    let text: String
+    let range: CFRange
+    let processIdentifier: pid_t
+    let bundleIdentifier: String?
+}
+
+/// Why a selection could not be read or replaced. Every case is a reason to
+/// abort and change nothing (AD-4) — Command Mode has no safe fallback,
+/// because its fallback would mean pasting a spoken instruction over the
+/// user's text.
+enum SelectionError: Error, Equatable {
+    /// No accessible focused element, or one this reader will not touch
+    /// (wrong role, or a secure field).
+    case noAccessibleElement
+    /// There is a focused element, but nothing is selected in it.
+    case noSelection
+    /// Accessibility permission has not been granted.
+    case notTrusted
+    /// Focus moved to a different element between read and write.
+    case focusChanged
+    /// The selection is no longer the text that was read.
+    case selectionChanged
+    /// The Accessibility write itself was refused by the target.
+    case writeRejected(Int32)
+    /// The write was accepted and did nothing. Some multi-line text views —
+    /// terminals and code editors especially — return `.success` for a
+    /// `kAXSelectedTextAttribute` write and silently discard it, which is
+    /// exactly the failure that must not be reported as a rewrite.
+    case writeNotApplied
+
+    var reason: String {
+        switch self {
+        case .noAccessibleElement: return "no accessible text element is focused"
+        case .noSelection:         return "nothing is selected"
+        case .notTrusted:          return "Accessibility permission has not been granted"
+        case .focusChanged:        return "focus moved to a different field"
+        case .selectionChanged:    return "the selection changed"
+        case .writeRejected(let code): return "the app refused the edit (AX error \(code))"
+        case .writeNotApplied:     return "the app accepted the edit but did not apply it"
+        }
+    }
+}
 
 final class TextInjector {
 
@@ -506,6 +570,222 @@ final class TextInjector {
 
         VocaLogger.debug(.textInjector, "AX: kAXSelectedTextAttribute write failed (\(setResult.rawValue)) — element may be read-only")
         return nil
+    }
+
+    // MARK: - Selection read/replace (Story 6.2)
+    //
+    // Deliberately separate from the injection path above. Injection inserts
+    // text the user just spoke; this replaces text the user already has, which
+    // is destructive, so every step here refuses rather than guesses.
+
+    /// Roles whose selection Command Mode is willing to read and rewrite.
+    ///
+    /// Wider than `injectViaAccessibility`'s single-line allow-list, because
+    /// the text people select to rewrite is overwhelmingly in an `AXTextArea`
+    /// — a mail body, a document, a comment box. Still an allow-list rather
+    /// than a deny-list, for the same reason `AXContextReader` uses one: a
+    /// role we have never heard of gets no read at all (MAJOR 2 there).
+    static let selectableRoles: Set<String> = [
+        kAXTextAreaRole as String,
+        kAXTextFieldRole as String,
+        "AXSearchField",
+        "AXComboBox"
+    ]
+
+    /// Role/subrole identifiers that mask their contents and must never be
+    /// read, mirroring `AXContextReader.secureRoleIdentifiers`.
+    static let secureRoleIdentifiers: Set<String> = [
+        kAXSecureTextFieldSubrole as String,
+        "AXSecureTextField"
+    ]
+
+    /// Read the current selection in the frontmost application, with the
+    /// reason it could not be read. `readSelection()` — the `nil`-returning
+    /// shape Story 6.2's AC names — is the protocol extension over this.
+    ///
+    /// The selected text is returned to the caller and never logged (AD-5);
+    /// only its length and the failure reasons reach the log.
+    func readSelectionResult() -> Result<SelectionSnapshot, SelectionError> {
+        let result = computeSelectionResult()
+        if case .failure(let error) = result {
+            VocaLogger.debug(.textInjector, "Selection read unavailable — \(error.reason)")
+        }
+        return result
+    }
+
+    private func computeSelectionResult() -> Result<SelectionSnapshot, SelectionError> {
+        guard AXIsProcessTrusted() else { return .failure(.notTrusted) }
+
+        // Command Mode is invoked by a global hotkey, so the app the user
+        // selected text in is the frontmost one. If that is us — the hotkey
+        // pressed with our own settings or History window key — there is
+        // nothing meaningful to rewrite (the same reasoning as MINOR 9 in
+        // AXContextReader).
+        guard let frontmost = NSWorkspace.shared.frontmostApplication,
+              frontmost.processIdentifier != NSRunningApplication.current.processIdentifier else {
+            return .failure(.noAccessibleElement)
+        }
+        let processIdentifier = frontmost.processIdentifier
+
+        guard let element = focusedSelectableElement(processIdentifier: processIdentifier) else {
+            return .failure(.noAccessibleElement)
+        }
+        guard let range = selectedTextRange(of: element) else {
+            return .failure(.noSelection)
+        }
+        guard range.length > 0 else {
+            return .failure(.noSelection)
+        }
+
+        var selectedRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedRef) == .success,
+              let text = selectedRef as? String,
+              !text.isEmpty else {
+            return .failure(.noSelection)
+        }
+
+        VocaLogger.debug(.textInjector, "Read a selection of \(text.utf16.count) UTF-16 units for Command Mode")
+        return .success(SelectionSnapshot(
+            element: element,
+            text: text,
+            range: range,
+            processIdentifier: processIdentifier,
+            bundleIdentifier: frontmost.bundleIdentifier
+        ))
+    }
+
+    /// Replace the snapshot's selection with `text`.
+    ///
+    /// Refuses — changing nothing — unless focus is still on the very element
+    /// the snapshot came from and the selection still reads back as exactly
+    /// the text that was read. That is the same proof `undoViaAccessibility`
+    /// demands before it deletes anything, and here it is what stops a rewrite
+    /// landing in a field the user moved to while the LLM was thinking.
+    ///
+    /// Failure is returned, never swallowed (Story 6.2 AC).
+    @discardableResult
+    func replaceSelection(_ text: String, replacing snapshot: SelectionSnapshot) -> Result<Void, SelectionError> {
+        guard AXIsProcessTrusted() else { return .failure(.notTrusted) }
+
+        guard let focused = focusedElement(processIdentifier: snapshot.processIdentifier),
+              CFEqual(focused, snapshot.element) else {
+            return .failure(.focusChanged)
+        }
+
+        // AD-5: read back, compare, drop. The comparison happens on this stack
+        // frame and neither string is logged.
+        var currentRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(focused, kAXSelectedTextAttribute as CFString, &currentRef) == .success,
+              let current = currentRef as? String,
+              current == snapshot.text else {
+            return .failure(.selectionChanged)
+        }
+
+        let countBefore = intAttribute(kAXNumberOfCharactersAttribute, of: focused)
+
+        let result = AXUIElementSetAttributeValue(focused, kAXSelectedTextAttribute as CFString, text as CFTypeRef)
+        guard result == .success else {
+            VocaLogger.warning(.commandMode, "Selection replace refused by the target (AX error \(result.rawValue))")
+            return .failure(.writeRejected(result.rawValue))
+        }
+
+        // A `.success` that changed nothing is the failure mode that matters:
+        // multi-line text views in terminals and editors accept this write and
+        // discard it (the same behaviour that keeps them off
+        // `injectViaAccessibility`'s allow-list). Character count is the one
+        // cheap, app-agnostic way to tell "applied" from "accepted".
+        if let countBefore,
+           let countAfter = intAttribute(kAXNumberOfCharactersAttribute, of: focused) {
+            let expected = countBefore - snapshot.text.utf16.count + text.utf16.count
+            guard countAfter == expected else {
+                VocaLogger.warning(.commandMode, "Selection replace was accepted but the document length did not change as expected (\(countAfter) vs \(expected))")
+                return .failure(.writeNotApplied)
+            }
+        }
+
+        VocaLogger.info(.commandMode, "Replaced a \(snapshot.text.utf16.count)-unit selection with \(text.utf16.count) units")
+        return .success(())
+    }
+
+    /// The focused element of `processIdentifier`'s application, pid-verified,
+    /// with no role gate — the identity check `replaceSelection` needs.
+    ///
+    /// Anchored on the application's own element rather than
+    /// `AXUIElementCreateSystemWide()`, and re-checked with `AXUIElementGetPid`
+    /// afterwards, for the reason AXContextReader documents (MAJOR 1): a
+    /// system-wide focused element may belong to some other process entirely.
+    private func focusedElement(processIdentifier: pid_t) -> AXUIElement? {
+        var focusedRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            AXUIElementCreateApplication(processIdentifier),
+            kAXFocusedUIElementAttribute as CFString,
+            &focusedRef
+        ) == .success,
+            let focusedRef,
+            CFGetTypeID(focusedRef) == AXUIElementGetTypeID() else {
+            return nil
+        }
+
+        // swiftlint:disable force_cast
+        let element = focusedRef as! AXUIElement
+        // swiftlint:enable force_cast
+
+        var elementProcessIdentifier: pid_t = 0
+        guard AXUIElementGetPid(element, &elementProcessIdentifier) == .success,
+              elementProcessIdentifier == processIdentifier else {
+            return nil
+        }
+        return element
+    }
+
+    /// Same, plus the role allow-list and the secure-field refusal. Role is
+    /// inspected before any value is copied, so a password field's contents
+    /// never cross the process boundary.
+    private func focusedSelectableElement(processIdentifier: pid_t) -> AXUIElement? {
+        guard let element = focusedElement(processIdentifier: processIdentifier) else { return nil }
+
+        guard let role = stringAttribute(kAXRoleAttribute, of: element) else { return nil }
+        let subrole = stringAttribute(kAXSubroleAttribute, of: element)
+
+        if Self.secureRoleIdentifiers.contains(role) { return nil }
+        if let subrole, Self.secureRoleIdentifiers.contains(subrole) { return nil }
+        guard Self.selectableRoles.contains(role) else {
+            VocaLogger.debug(.textInjector, "Selection read: skipping role '\(role)'")
+            return nil
+        }
+        return element
+    }
+
+    private func stringAttribute(_ attribute: String, of element: AXUIElement) -> String? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &ref) == .success else { return nil }
+        return ref as? String
+    }
+
+    private func intAttribute(_ attribute: String, of element: AXUIElement) -> Int? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &ref) == .success,
+              let number = ref as? NSNumber else {
+            return nil
+        }
+        return number.intValue
+    }
+
+    private func selectedTextRange(of element: AXUIElement) -> CFRange? {
+        var rangeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeRef) == .success,
+              let rangeRef,
+              CFGetTypeID(rangeRef) == AXValueGetTypeID() else {
+            return nil
+        }
+
+        // swiftlint:disable force_cast
+        let rangeValue = rangeRef as! AXValue
+        // swiftlint:enable force_cast
+
+        var range = CFRange()
+        guard AXValueGetValue(rangeValue, .cfRange, &range) else { return nil }
+        return range
     }
 
     // MARK: - Strategy 2: Clipboard + Cmd+V
