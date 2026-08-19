@@ -171,3 +171,20 @@ protocol StatsManaging: AnyObject {
     func recordTranscription(_ transcription: VocaTranscription)
     func resetStats()
 }
+
+// MARK: - HistoryRecording
+//
+// Persists every dictation locally (AD-10, FR-8). Never carries Cursor
+// Context — see HistoryRecord.swift and AD-5.
+
+@MainActor
+protocol HistoryRecording: AnyObject {
+    var records: [HistoryRecord] { get }
+    var retentionLimit: Int { get set }
+    var objectWillChangePublisher: AnyPublisher<Void, Never> { get }
+
+    func record(_ record: HistoryRecord)
+    func delete(_ id: UUID)
+    func deleteAll()
+    func search(_ query: String) -> [HistoryRecord]
+}

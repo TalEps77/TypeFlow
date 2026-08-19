@@ -435,6 +435,47 @@ final class MockStatsManager: StatsManaging, ObservableObject {
     }
 }
 
+// MARK: - MockHistoryStore
+
+@MainActor
+final class MockHistoryStore: HistoryRecording, ObservableObject {
+    @Published var records: [HistoryRecord] = []
+    var retentionLimit: Int = 0
+    var recordCallCount = 0
+    var lastRecordedRecord: HistoryRecord?
+    var deleteCallCount = 0
+    var deleteAllCallCount = 0
+
+    var objectWillChangePublisher: AnyPublisher<Void, Never> {
+        objectWillChange.eraseToAnyPublisher()
+    }
+
+    func record(_ record: HistoryRecord) {
+        recordCallCount += 1
+        lastRecordedRecord = record
+        records.insert(record, at: 0)
+    }
+
+    func delete(_ id: UUID) {
+        deleteCallCount += 1
+        records.removeAll { $0.id == id }
+    }
+
+    func deleteAll() {
+        deleteAllCallCount += 1
+        records.removeAll()
+    }
+
+    func search(_ query: String) -> [HistoryRecord] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return records }
+        return records.filter {
+            $0.rawTranscript.localizedCaseInsensitiveContains(trimmed) ||
+            $0.finalText.localizedCaseInsensitiveContains(trimmed)
+        }
+    }
+}
+
 // MARK: - MockTranscriptPipeline
 
 /// Identity by default (AD-2): unless a test sets `transform`, it returns its
@@ -502,6 +543,7 @@ extension AppState {
         let cursorOverlay = MockCursorOverlay()
         let textInjector = MockTextInjector()
         let statsManager = MockStatsManager()
+        let historyStore = MockHistoryStore()
         let transcriptPipeline = MockTranscriptPipeline()
 
         let mocks = TestMocks(
@@ -514,6 +556,7 @@ extension AppState {
             whisperService: whisperService,
             textInjector: textInjector,
             statsManager: statsManager,
+            historyStore: historyStore,
             transcriptPipeline: transcriptPipeline
         )
         let appState = AppState(
@@ -525,6 +568,7 @@ extension AppState {
             soundManager: soundManager,
             cursorOverlay: cursorOverlay,
             statsManager: statsManager,
+            historyStore: historyStore,
             transcriptPipeline: transcriptPipeline,
             permissionManager: permissionManager,
             skipSystemIntegration: true
@@ -543,5 +587,6 @@ struct TestMocks {
     let whisperService: MockWhisperService
     let textInjector: MockTextInjector
     let statsManager: MockStatsManager
+    let historyStore: MockHistoryStore
     let transcriptPipeline: MockTranscriptPipeline
 }

@@ -134,6 +134,7 @@ final class AppState: ObservableObject {
     let soundManager: SoundPlaying
     let cursorOverlay: CursorOverlayManaging
     let statsManager: StatsManaging
+    let historyStore: HistoryRecording
     let transcriptPipeline: TranscriptPipelining
     let updateChecker = UpdateChecker()
     let permissionManager: any PermissionManaging
@@ -191,6 +192,7 @@ final class AppState: ObservableObject {
         soundManager: SoundPlaying = SoundManager(),
         cursorOverlay: CursorOverlayManaging,
         statsManager: StatsManaging,
+        historyStore: HistoryRecording,
         transcriptPipeline: TranscriptPipelining? = nil,
         permissionManager: (any PermissionManaging)? = nil,
         skipSystemIntegration: Bool = false
@@ -203,6 +205,7 @@ final class AppState: ObservableObject {
         self.soundManager = soundManager
         self.cursorOverlay = cursorOverlay
         self.statsManager = statsManager
+        self.historyStore = historyStore
         self.transcriptPipeline = transcriptPipeline ?? TranscriptPipeline.production()
         self.permissionManager = permissionManager ?? PermissionManager(audioEngine: audioEngine, hotKeyManager: hotKeyManager)
         self.skipSystemIntegration = skipSystemIntegration
@@ -238,7 +241,8 @@ final class AppState: ObservableObject {
     @MainActor
     private static let sharedProductionInstance = AppState(
         cursorOverlay: CursorOverlayManager(),
-        statsManager: StatsManager()
+        statsManager: StatsManager(),
+        historyStore: HistoryStore()
     )
 
     /// Convenience factory for creating AppState with all real services.
@@ -647,12 +651,14 @@ final class AppState: ObservableObject {
             let trimmedText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
             // AD-1: the single seam for every post-ASR text transformation.
             // With no stages enabled this returns trimmedText unchanged (AD-2).
-            let finalText = await transcriptPipeline.run(TranscriptContext(rawTranscript: trimmedText)).currentText
+            let pipelineContext = await transcriptPipeline.run(TranscriptContext(rawTranscript: trimmedText))
+            let finalText = pipelineContext.currentText
             if !finalText.isEmpty {
                 textInjector.inject(
                     text: finalText,
                     preserveClipboard: preserveClipboard
                 )
+                recordHistory(context: pipelineContext, model: result.modelUsed)
             } else {
                 VocaLogger.info(.appState, "Transcription produced no usable text (silence or blank audio)")
             }
@@ -672,6 +678,24 @@ final class AppState: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Persist the completed dictation (FR-8). `context.rawTranscript` and
+    /// `context.currentText` are exactly what was injected; per AD-5, nothing
+    /// about Cursor Context is read or passed here — HistoryRecord has no
+    /// field that could hold it.
+    private func recordHistory(context: TranscriptContext, model: ModelSize) {
+        let didFallback = context.reports.contains { report in
+            if case .failed = report.outcome { return true }
+            return false
+        }
+        historyStore.record(HistoryRecord(
+            rawTranscript: context.rawTranscript,
+            finalText: context.currentText,
+            targetBundleId: context.targetBundleIdentifier,
+            modelName: model.displayName,
+            didFallback: didFallback
+        ))
     }
 
     private func startAudioEngine(
