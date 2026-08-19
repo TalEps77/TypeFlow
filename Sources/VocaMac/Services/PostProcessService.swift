@@ -24,6 +24,26 @@ enum PostProcessError: Error, Equatable {
     /// shown as reference (MAJOR 4, AD-5).
     case echoedCursorContext(sharedCharacters: Int)
 
+    // MARK: Command Mode (Story 6.3)
+    //
+    // Command Mode overwrites text the user already has, so its rejections are
+    // its own: the cleanup validator's length band and similarity floor are
+    // tuned for an operation that must *not* change the wording, and a rewrite
+    // legitimately does. These three are what remains once "the output must
+    // resemble the input" is dropped.
+
+    /// The rewrite ran away with itself. Not a similarity check — an expansion
+    /// is a legitimate instruction — just a ceiling no honest rewrite reaches.
+    case commandOutputTooLong(selectionCharacters: Int, outputCharacters: Int)
+
+    /// The model handed back the spoken instruction instead of applying it.
+    /// This is the one failure Command Mode exists to prevent: pasting "make
+    /// this shorter" over the user's paragraph (AD-4).
+    case commandEchoedInstruction
+
+    /// A reasoning block leaked into the answer.
+    case commandLeakedReasoning
+
     /// Short, actionable, and safe to show in the settings UI or write to a log.
     var reason: String {
         switch self {
@@ -49,6 +69,15 @@ enum PostProcessError: Error, Equatable {
             // it straight into a log line, which is the exact thing this
             // rejection exists to prevent (AD-5).
             return "output repeated \(sharedCharacters) characters of the surrounding document"
+        case .commandOutputTooLong(let selection, let output):
+            return "rewrite length \(output) is disproportionate to the \(selection)-character selection"
+        case .commandEchoedInstruction:
+            // Reports only that it happened. The instruction is the user's
+            // speech and the output is derived from their document; neither
+            // belongs in a log line (AD-5).
+            return "model repeated the spoken instruction instead of applying it"
+        case .commandLeakedReasoning:
+            return "model leaked a reasoning block into the rewrite"
         }
     }
 }
@@ -164,6 +193,37 @@ enum PostProcessRequestBuilder {
     /// hits our own cap long before it could hit the server's.
     static func maxTokens(forInputCharacterCount inputCharacterCount: Int) -> Int {
         max(256, inputCharacterCount * 2)
+    }
+
+    /// Command Mode's request (Story 6.3). A separate builder rather than a
+    /// flag on `body(...)`: it carries a different system prompt, a different
+    /// user-message shape, and a token cap sized off the *selection* rather
+    /// than off a transcript.
+    static func commandBody(
+        selection: String,
+        instruction: String,
+        systemPrompt: String,
+        configuration: PostProcessConfiguration
+    ) -> ChatCompletionRequest {
+        ChatCompletionRequest(
+            model: configuration.model,
+            messages: [
+                .init(role: "system", content: systemPrompt),
+                .init(role: "user", content: Prompts.commandUserMessage(selection: selection, instruction: instruction))
+            ],
+            temperature: configuration.temperature,
+            maxTokens: commandMaxTokens(forSelectionCharacterCount: selection.count),
+            stream: false
+        )
+    }
+
+    /// More generous than `maxTokens(forInputCharacterCount:)`, because a
+    /// rewrite may legitimately be asked to expand where a cleanup may not —
+    /// but still a ceiling, so a runaway completion stops at ours rather than
+    /// at the server's, where a truncated answer is indistinguishable from a
+    /// complete one (BLOCKER 1's reasoning, applied here).
+    static func commandMaxTokens(forSelectionCharacterCount selectionCharacterCount: Int) -> Int {
+        max(512, selectionCharacterCount * 3)
     }
 
     static func urlRequest(url: URL, body: ChatCompletionRequest, timeout: TimeInterval) throws -> URLRequest {
@@ -391,6 +451,117 @@ enum PostProcessResponseValidator {
     }
 }
 
+// MARK: - Command Mode response validation (Story 6.3)
+
+/// Command Mode's acceptance rules, kept apart from
+/// `PostProcessResponseValidator` on purpose.
+///
+/// That validator's job is to prove the model *cleaned* a transcript rather
+/// than answering it, so it insists the output stay inside a 0.5–2.0 length
+/// band and score above a bigram-similarity floor against the input. A rewrite
+/// breaks both by design — "תקצר את זה למשפט אחד" is supposed to come back
+/// much shorter, and "make this formal" is supposed to come back differently
+/// worded. Reusing the cleanup rules here would reject the feature working
+/// correctly; loosening them there would let a bad cleanup through. So the two
+/// stay separate, and nothing below touches the cleanup validator.
+///
+/// What is left, once "the output must resemble the input" is dropped, is a
+/// set of bounded sanity checks: the answer must be whole, non-empty, not the
+/// instruction, not a reasoning block, and not runaway long. Anything else
+/// aborts the operation and changes nothing (AD-4).
+enum PostProcessCommandValidator {
+
+    /// Ceiling on how much longer than the selection a rewrite may be. Set
+    /// where a genuine "expand this into a paragraph" still fits and a model
+    /// that has started generating an essay does not.
+    static let maximumLengthRatio = 4.0
+
+    /// Floor for the ceiling, so rewriting a three-word selection into a
+    /// proper sentence is not rejected for arithmetic reasons.
+    static let minimumLengthCeiling = 400
+
+    /// Above this bigram similarity to the *instruction*, the output is the
+    /// instruction rather than a rewrite. Deliberately high: an instruction
+    /// and a rewrite of the same short Hebrew sentence share real vocabulary,
+    /// and a false positive here costs the user a retry while a false negative
+    /// costs them their paragraph.
+    static let instructionEchoSimilarity = 0.9
+
+    /// Markers of a leaked reasoning block. Qwen-family models emit these when
+    /// a thinking variant is loaded by mistake, and the text after them is not
+    /// a rewrite at all.
+    static let reasoningMarkers = ["<think>", "</think>"]
+
+    static func isWithinLengthCeiling(selection: String, output: String) -> Bool {
+        let ceiling = max(minimumLengthCeiling, Int(Double(selection.count) * maximumLengthRatio))
+        return output.count <= ceiling
+    }
+
+    /// Reuses `PostProcessResponseValidator.bigramSimilarity` rather than
+    /// carrying a second copy of it — the measure is the same, only what it is
+    /// measured against differs.
+    static func echoesInstruction(output: String, instruction: String) -> Bool {
+        let normalizedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedInstruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedInstruction.isEmpty else { return false }
+        if normalizedOutput.caseInsensitiveCompare(normalizedInstruction) == .orderedSame { return true }
+        return PostProcessResponseValidator.bigramSimilarity(normalizedOutput, normalizedInstruction) >= instructionEchoSimilarity
+    }
+
+    static func leaksReasoning(_ output: String) -> Bool {
+        reasoningMarkers.contains { output.localizedCaseInsensitiveContains($0) }
+    }
+
+    /// Turns a raw HTTP answer into either a rewrite fit to overwrite the
+    /// user's selection with, or the reason it was refused. Never returns text
+    /// it has not checked.
+    static func validate(
+        data: Data,
+        statusCode: Int,
+        selection: String,
+        instruction: String
+    ) -> Result<String, PostProcessError> {
+        guard (200...299).contains(statusCode) else {
+            return .failure(.httpStatus(statusCode))
+        }
+
+        let decoded: ChatCompletionResponse
+        do {
+            decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+        } catch {
+            return .failure(.malformedResponse("could not decode chat completion"))
+        }
+
+        guard let choices = decoded.choices, !choices.isEmpty else {
+            return .failure(.malformedResponse("no choices in response"))
+        }
+        guard let raw = choices[0].message?.content else {
+            return .failure(.malformedResponse("no message content in first choice"))
+        }
+        // A rewrite cut off at the token cap would replace the selection with
+        // half a sentence — worse than not running at all.
+        if let finishReason = choices[0].finishReason, finishReason != "stop" {
+            return .failure(.malformedResponse("model stopped early: \(finishReason)"))
+        }
+
+        let rewritten = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rewritten.isEmpty else {
+            return .failure(.emptyContent)
+        }
+        guard !leaksReasoning(rewritten) else {
+            return .failure(.commandLeakedReasoning)
+        }
+        guard !echoesInstruction(output: rewritten, instruction: instruction) else {
+            return .failure(.commandEchoedInstruction)
+        }
+        guard isWithinLengthCeiling(selection: selection, output: rewritten) else {
+            return .failure(.commandOutputTooLong(selectionCharacters: selection.count, outputCharacters: rewritten.count))
+        }
+
+        return .success(rewritten)
+    }
+}
+
 // MARK: - Protocol
 
 /// Declared here rather than in ServiceProtocols.swift only because the
@@ -409,6 +580,20 @@ protocol PostProcessing: AnyObject {
         systemPrompt: String,
         contextBefore: String?,
         contextAfter: String?,
+        configuration: PostProcessConfiguration
+    ) async -> Result<String, PostProcessError>
+
+    /// Story 6.3: rewrite `selection` according to `instruction`. A separate
+    /// requirement from `_clean` because everything about it differs — prompt,
+    /// message shape, token cap, and acceptance rules — and because a caller
+    /// must not be able to reach cleanup's identity fallback from here.
+    ///
+    /// `selection` is the user's document text (AD-5): it goes into one
+    /// request and is never logged or persisted on the way.
+    func _command(
+        selection: String,
+        instruction: String,
+        systemPrompt: String,
         configuration: PostProcessConfiguration
     ) async -> Result<String, PostProcessError>
 
@@ -441,6 +626,16 @@ extension PostProcessing {
     /// The `clean(text:prompt:)` shape, with the current settings supplied.
     func clean(text: String, systemPrompt: String) async -> Result<String, PostProcessError> {
         await _clean(text: text, systemPrompt: systemPrompt, contextBefore: nil, contextAfter: nil, configuration: PostProcessSettings.current().configuration)
+    }
+
+    /// Story 6.3, matching the `_clean`/`clean` idiom.
+    func command(
+        selection: String,
+        instruction: String,
+        systemPrompt: String = Prompts.commandModeSystemPrompt,
+        configuration: PostProcessConfiguration
+    ) async -> Result<String, PostProcessError> {
+        await _command(selection: selection, instruction: instruction, systemPrompt: systemPrompt, configuration: configuration)
     }
 }
 
@@ -519,6 +714,56 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
                 VocaLogger.info(.postProcess, String(format: "clean succeeded in %.2fs", elapsed))
             case .failure(let error):
                 VocaLogger.warning(.postProcess, "clean rejected — \(error.reason)")
+            }
+            return result
+        }
+    }
+
+    func _command(
+        selection: String,
+        instruction: String,
+        systemPrompt: String,
+        configuration: PostProcessConfiguration
+    ) async -> Result<String, PostProcessError> {
+        guard !selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !instruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failure(.emptyInput)
+        }
+        guard let url = PostProcessRequestBuilder.chatCompletionsURL(baseURL: configuration.baseURL) else {
+            return .failure(.invalidEndpoint(configuration.baseURL))
+        }
+
+        let body = PostProcessRequestBuilder.commandBody(
+            selection: selection,
+            instruction: instruction,
+            systemPrompt: systemPrompt,
+            configuration: configuration
+        )
+        let request: URLRequest
+        do {
+            request = try PostProcessRequestBuilder.urlRequest(url: url, body: body, timeout: configuration.timeout)
+        } catch {
+            return .failure(.malformedResponse("could not encode request"))
+        }
+
+        let startedAt = CFAbsoluteTimeGetCurrent()
+        switch await send(request, timeout: configuration.timeout) {
+        case .failure(let error):
+            VocaLogger.warning(.commandMode, "command failed — \(error.reason)")
+            return .failure(error)
+        case .success(let (data, statusCode)):
+            let result = PostProcessCommandValidator.validate(
+                data: data,
+                statusCode: statusCode,
+                selection: selection,
+                instruction: instruction
+            )
+            let elapsed = CFAbsoluteTimeGetCurrent() - startedAt
+            switch result {
+            case .success:
+                VocaLogger.info(.commandMode, String(format: "command succeeded in %.2fs", elapsed))
+            case .failure(let error):
+                VocaLogger.warning(.commandMode, "command rejected — \(error.reason)")
             }
             return result
         }

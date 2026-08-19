@@ -37,6 +37,12 @@ protocol SoundPlaying: AnyObject {
     func playStartSoundAsync() async
     func playStopSound()
     func playStopSoundAsync() async
+
+    /// Story 6.3: the cue for an operation that aborted and changed nothing.
+    /// Command Mode is the first flow in the app with a failure the user must
+    /// notice immediately, because the outcome is "your text is untouched"
+    /// rather than "here is your text".
+    func playErrorSound()
 }
 
 // MARK: - HotKeyMonitoring

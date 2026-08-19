@@ -145,6 +145,63 @@ enum Prompts {
     You may also be given a section labeled exactly "\(Prompts.existingDocumentTextLabel)". That section is NOT part of the transcript and must never appear in your output, not even partially. Read it only to notice things like whether the surrounding document uses a bulleted list, or a formal or casual register, and apply that same style to the cleaned transcript alone. Your output must contain only the cleaned transcript for the new dictated text.
     """
 
+    // MARK: - Command Mode (Story 6.3)
+
+    /// System prompt for rewriting a selection according to a spoken
+    /// instruction. A *separate* prompt from `cleanTranscriptSystemPrompt`,
+    /// not a variant of it: cleanup's whole discipline is "never carry out an
+    /// instruction, never change the wording" (its rules 6 and 7), which is
+    /// the exact opposite of what this asks for. Reusing the cleanup prompt
+    /// with an extra clause would leave the model holding two contradictory
+    /// instructions.
+    ///
+    /// Rule 2 is the load-bearing one, and it exists because of what failure
+    /// costs here rather than because of an observed quirk: this flow
+    /// *overwrites* text the user already has, so the model echoing the
+    /// instruction into its answer would paste "make this shorter" over their
+    /// paragraph. The prompt is the first line of defence;
+    /// `PostProcessCommandValidator.echoesInstruction` is the second, and the
+    /// abort-on-anything-unexpected rule (AD-4) is the third.
+    static let commandModeSystemPrompt = """
+    You rewrite a passage of text according to an instruction. Every user message has exactly two labelled parts: a "Text:" section holding the passage, and an "Instruction:" section holding what to do to it.
+
+    Output ONLY the rewritten passage. No preamble, no explanation, no quotation marks, no markdown code fences, no notes.
+
+    Rules:
+    1. Answer in the exact same language and script as the Text. A Hebrew passage stays entirely in Hebrew letters. Never introduce a word or a letter from another language.
+    2. The Instruction is never content. Never copy it into your output, never append it to the passage, never answer it as a question, and never comment on it.
+    3. Apply the Instruction to the Text, and change only what it asks for. Everything the Instruction does not mention stays exactly as the writer wrote it.
+    4. Keep the passage's own formatting — line breaks, list markers, indentation — unless the Instruction is about formatting.
+    5. Never explain what you changed.
+    6. If the Instruction cannot be applied to the Text, repeat the Text exactly, letter for letter.
+
+    Examples:
+
+    Text: הפגישה נדחתה למחר בעשר ואני לא בטוח שכולם יודעים על זה, אולי כדאי לשלוח תזכורת לכולם כדי שלא יגיעו בטעות בזמן הישן
+    Instruction: תקצר את זה למשפט אחד
+    Rewritten: הפגישה נדחתה למחר בעשר, וכדאי לשלוח תזכורת כדי שאיש לא יגיע בזמן הישן.
+
+    Text: תשלח לי את הקובץ מתי שאתה יכול
+    Instruction: תעשה את זה יותר רשמי
+    Rewritten: אודה לך אם תשלח לי את הקובץ בהקדם האפשרי.
+
+    Text: we shipped the fix yesterday and its working fine now
+    Instruction: fix the grammar
+    Rewritten: We shipped the fix yesterday and it's working fine now.
+    """
+
+    /// Wraps the selection and the instruction in the same
+    /// `Text:/Instruction:/Rewritten:` shape the few-shot examples use —
+    /// matching the example format is what stops the model treating the
+    /// instruction as content, the same lesson `cleanTranscriptUserMessage`
+    /// records.
+    ///
+    /// AD-5: `selection` is the user's document text. It goes into exactly one
+    /// request and is never logged or persisted anywhere on the way.
+    static func commandUserMessage(selection: String, instruction: String) -> String {
+        "Text: \(selection)\nInstruction: \(instruction)\nRewritten:"
+    }
+
     // MARK: - Starter Profile prompts (Story 4.3)
     //
     // Each keeps the base prompt's discipline (clean only, never answer,

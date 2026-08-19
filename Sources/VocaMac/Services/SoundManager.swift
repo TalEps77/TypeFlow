@@ -17,6 +17,9 @@ final class SoundManager: NSObject, NSSoundDelegate, @unchecked Sendable {
     /// Hollow bottle sound for recording stop
     private let stopSoundName = "Bottle"
 
+    /// The macOS error alert sound, for an operation that aborted (Story 6.3).
+    private let errorSoundName = "Basso"
+
     // MARK: - Properties
 
     /// Volume for sound effects (0.0 to 1.0)
@@ -55,6 +58,11 @@ final class SoundManager: NSObject, NSSoundDelegate, @unchecked Sendable {
     /// - Throws: May timeout if sound is stuck
     func playStopSoundAsync() async {
         await playSystemSoundAsync(stopSoundName)
+    }
+
+    /// Play the abort sound (synchronous, fire-and-forget)
+    func playErrorSound() {
+        playSystemSound(errorSoundName)
     }
 
     // MARK: - Private

@@ -1,14 +1,19 @@
 // CommandModeSettings.swift
 // VocaMac
 //
-// Command Mode's scalar settings, read straight from UserDefaults (AD-9) —
-// the same keys are bound with @AppStorage on AppState for the settings UI.
+// Command Mode's scalar settings (AD-9). Epic 6, Stories 6.1 and 6.3.
 //
-// Epic 6, Stories 6.1 and 6.3.
+// A namespace of keys and defaults rather than a value type with a `current()`
+// reader, unlike DictionarySettings and SnippetSettings: those are read by a
+// pipeline stage that must not depend on `AppState`, whereas everything here
+// is read through `AppState`'s own @AppStorage bindings and pushed to
+// `HotKeyManager`. There is no second reader to serve, so there is no snapshot
+// type to build. The command prompt is likewise not a setting — it is a
+// reviewable `static let` in Prompts.swift with no editor behind it.
 
 import Foundation
 
-struct CommandModeSettings: Equatable {
+enum CommandModeSettings {
 
     enum Key {
         static let enabled = "vocamac.commandMode.enabled"
@@ -38,32 +43,5 @@ struct CommandModeSettings: Equatable {
         /// Matches the dictation default so both gestures feel the same
         /// (Story 6.1 AC), and is separately configurable.
         static let activationMode = ActivationMode.pushToTalk
-    }
-
-    var isEnabled: Bool
-    var hotKeyCode: Int
-    var activationMode: ActivationMode
-
-    init(
-        isEnabled: Bool = Default.enabled,
-        hotKeyCode: Int = Default.hotKeyCode,
-        activationMode: ActivationMode = Default.activationMode
-    ) {
-        self.isEnabled = isEnabled
-        self.hotKeyCode = hotKeyCode
-        self.activationMode = activationMode
-    }
-
-    static func current(from defaults: UserDefaults = VocaDefaults.store) -> CommandModeSettings {
-        let storedMode = defaults.string(forKey: Key.activationMode).flatMap(ActivationMode.init(rawValue:))
-        return CommandModeSettings(
-            isEnabled: defaults.object(forKey: Key.enabled) != nil
-                ? defaults.bool(forKey: Key.enabled)
-                : Default.enabled,
-            hotKeyCode: defaults.object(forKey: Key.hotKeyCode) != nil
-                ? defaults.integer(forKey: Key.hotKeyCode)
-                : Default.hotKeyCode,
-            activationMode: storedMode ?? Default.activationMode
-        )
     }
 }

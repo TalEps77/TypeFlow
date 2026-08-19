@@ -202,6 +202,13 @@ final class AppState: ObservableObject {
     /// Dictionary Entry for it (Story 5.6) — never adds one silently.
     let correctionLearner: CorrectionLearning
 
+    /// The second route (AD-4, Story 6.3): reads the selection, asks the LLM
+    /// to rewrite it, writes it back — and on any failure changes nothing.
+    /// Deliberately not behind its own protocol: it is composed from
+    /// `textInjector` and `postProcessService`, both of which already are,
+    /// so a test controls it entirely through those two mocks.
+    let commandModeCoordinator: CommandModeCoordinator
+
     /// What the user has dismissed, so the same pair is never proposed
     /// again. Exposed directly (like `profileStore`/`dictionaryStore`
     /// above) so `dismissCorrectionCandidate` can record a dismissal.
@@ -266,6 +273,23 @@ final class AppState: ObservableObject {
     /// with a `nil` target app (MINOR 10).
     private var isStopping = false
 
+    /// Which of the two routes the in-flight recording belongs to (Story 6.3).
+    /// Both share one microphone, one `isRecording`, and one `appStatus`, so
+    /// this is what keeps the dictation key from stopping — and transcribing
+    /// into the document — a recording the Command Mode key started.
+    ///
+    /// Always `.dictation` unless a Command Mode operation is in flight, which
+    /// is what makes every guard below a no-op for an app whose user never
+    /// enables Command Mode.
+    private(set) var activeRecordingMode: HistoryRecord.Mode = .dictation
+
+    /// Command Mode's own re-entrancy generation, the counterpart to
+    /// `dictationGeneration` (MAJOR 2). A command operation suspends for as
+    /// long as ASR plus an LLM round trip; if it is abandoned in the meantime
+    /// — a force recovery, a device change, a new gesture — the old call must
+    /// not come back and write into the user's document.
+    private var commandGeneration = 0
+
     /// AudioEngine serializes its own lifecycle internally; this wrapper makes
     /// the intentional background handoff explicit for Dispatch's @Sendable API.
     private struct AudioEngineWorker: @unchecked Sendable {
@@ -323,6 +347,11 @@ final class AppState: ObservableObject {
         snippetStore: SnippetStore,
         correctionLearner: CorrectionLearning,
         dismissedCorrectionsStore: DismissedCorrectionsStore,
+        /// Only Command Mode reaches the LLM from `AppState` directly — every
+        /// other use goes through `transcriptPipeline`'s PostProcessStage
+        /// (AD-1). It is a parameter so a test can hand the coordinator the
+        /// same `MockPostProcessService` it configures.
+        postProcessService: PostProcessing = PostProcessService(),
         permissionManager: (any PermissionManaging)? = nil,
         skipSystemIntegration: Bool = false
     ) {
@@ -339,6 +368,10 @@ final class AppState: ObservableObject {
         self.snippetStore = snippetStore
         self.correctionLearner = correctionLearner
         self.dismissedCorrectionsStore = dismissedCorrectionsStore
+        self.commandModeCoordinator = CommandModeCoordinator(
+            textInjector: textInjector,
+            postProcessService: postProcessService
+        )
         self.transcriptPipeline = transcriptPipeline ?? TranscriptPipeline.production(dictionaryStore: dictionaryStore, snippetStore: snippetStore)
         self.axContextReader = axContextReader
         self.profileManager = profileManager
@@ -578,6 +611,16 @@ final class AppState: ObservableObject {
         audioEngine.onSilenceDetected = { [weak self] in
             Task { @MainActor in
                 guard let self = self else { return }
+                // Story 6.3: routed by which mode owns the in-flight
+                // recording, and gated on *that* mode's activation setting —
+                // the two hotkeys are configured independently.
+                if self.activeRecordingMode == .command {
+                    if self.commandActivationMode == .doubleTapToggle && self.isRecording {
+                        VocaLogger.info(.commandMode, "Silence detected — auto-stopping the command recording (double-tap mode)")
+                        await self.stopCommandRecordingAndRewrite()
+                    }
+                    return
+                }
                 if self.activationMode == .doubleTapToggle && self.isRecording {
                     VocaLogger.info(.appState, "Silence detected — auto-stopping recording (double-tap mode)")
                     await self.stopRecordingAndTranscribe()
@@ -594,7 +637,14 @@ final class AppState: ObservableObject {
             Task { @MainActor in
                 guard let self = self, self.isRecording else { return }
                 VocaLogger.info(.appState, "Max recording duration (\(self.maxRecordingDuration)s) reached — auto-stopping")
-                await self.stopRecordingAndTranscribe()
+                // Without this a Command Mode recording could never hit the
+                // duration limit: the dictation stop refuses it, and the
+                // recording would run to the hotkey safety timer instead.
+                if self.activeRecordingMode == .command {
+                    await self.stopCommandRecordingAndRewrite()
+                } else {
+                    await self.stopRecordingAndTranscribe()
+                }
             }
         }
 
@@ -630,6 +680,21 @@ final class AppState: ObservableObject {
         hotKeyManager.onRecordingStop = { [weak self] in
             Task { @MainActor in
                 await self?.stopRecordingAndTranscribe()
+            }
+        }
+
+        // Story 6.3: the second binding's own callbacks. Nothing here can
+        // reach the dictation path, and nothing in the dictation path can
+        // reach these.
+        hotKeyManager.onCommandStart = { [weak self] in
+            Task { @MainActor in
+                await self?.startCommandRecording()
+            }
+        }
+
+        hotKeyManager.onCommandStop = { [weak self] in
+            Task { @MainActor in
+                await self?.stopCommandRecordingAndRewrite()
             }
         }
 
@@ -774,8 +839,12 @@ final class AppState: ObservableObject {
         VocaLogger.warning(.appState, "Force recovery: resetting all state to idle (was appStatus=\(appStatus.rawValue), isRecording=\(isRecording))")
 
         // Invalidate any dictation still suspended in the pipeline (MAJOR 2)
-        // before touching anything else it might race with.
+        // before touching anything else it might race with. The same applies
+        // to a Command Mode operation suspended in ASR or the LLM: after a
+        // force recovery it must never come back and write into the user's
+        // document (Story 6.3).
         dictationGeneration += 1
+        commandGeneration += 1
         discardCapturedContext()
         isStopping = false
 
@@ -814,6 +883,12 @@ final class AppState: ObservableObject {
         capturedContext = nil
         capturedProfile = nil
         correctionLearner.cancelPendingObservation()
+        // Story 6.3: a Command Mode selection is document text held for one
+        // operation, and every reason this method exists applies to it just as
+        // it does to Cursor Context (AD-5). Dropping it here also means an
+        // abandoned command can never come back and write into the user's app.
+        commandModeCoordinator.discardSelection()
+        activeRecordingMode = .dictation
     }
 
     // MARK: - Recording Flow
@@ -878,6 +953,25 @@ final class AppState: ObservableObject {
         }
         capturedProfile = profileForThisRecording
 
+        activeRecordingMode = .dictation
+        guard await beginCapture() else {
+            // Nothing will consume what was captured a moment ago — drop it
+            // now rather than leaving it alive until the next dictation
+            // happens to overwrite it (BLOCKER 1, AD-5).
+            discardCapturedContext()
+            return
+        }
+    }
+
+    /// The half of starting a capture that both modes share, unchanged from
+    /// where it used to sit inline in `startRecording()`: flip to recording,
+    /// show the overlay, start the engine, and either play the start sound or
+    /// unwind the UI state.
+    ///
+    /// - Returns: `false` when the audio engine did not start, in which case
+    ///   the UI is already back to idle and the caller has only to release
+    ///   whatever it captured before calling.
+    private func beginCapture() async -> Bool {
         appStatus = .recording
         isRecording = true
         errorMessage = nil
@@ -899,25 +993,33 @@ final class AppState: ObservableObject {
 
         guard didStartRecording else {
             VocaLogger.warning(.appState, "Audio engine failed to start — resetting recording state")
-            // Nothing will consume what was captured a moment ago — drop it
-            // now rather than leaving it alive until the next dictation
-            // happens to overwrite it (BLOCKER 1, AD-5).
-            discardCapturedContext()
             isRecording = false
             audioLevel = 0.0
             cursorOverlay.hide()
             hotKeyManager.resetKeyState()
             appStatus = .idle
-            return
+            return false
         }
 
         // Play start sound after mic is active (fire-and-forget)
         if soundEffectsEnabled && isRecording && appStatus == .recording {
             soundManager.playStartSound()
         }
+        return true
     }
 
     func stopRecordingAndTranscribe() async {
+        // Story 6.3: both routes share one microphone and one `isRecording`,
+        // so without this the dictation key (or a silence auto-stop) would
+        // pick up a Command Mode recording and inject the spoken instruction
+        // into the document — the exact outcome AD-4 exists to prevent.
+        // `activeRecordingMode` is `.dictation` at all other times, so this is
+        // inert for anyone who never enables Command Mode.
+        guard activeRecordingMode == .dictation else {
+            VocaLogger.info(.appState, "stopRecordingAndTranscribe ignored — a Command Mode recording is in flight")
+            return
+        }
+
         // Accept stop if we're recording OR if the audio engine thinks
         // it's recording (covers stuck-state recovery scenarios where
         // isRecording and appStatus may be out of sync).
@@ -1072,6 +1174,241 @@ final class AppState: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - Command Mode (Story 6.3, AD-4)
+    //
+    // The second route. It shares the microphone, the overlay and the ASR call
+    // with dictation, and shares nothing else: it does not run the pipeline,
+    // it never injects, and — unlike every other flow in this app — it has no
+    // fallback. AD-2's "on failure, keep the raw transcript" is safe for
+    // dictation because unpolished text is still the user's text. Here the raw
+    // transcript is an *instruction*, and pasting "תקצר את זה למשפט אחד" over
+    // the paragraph the user selected would destroy it. So every failure path
+    // below aborts, changes nothing, and says so once.
+
+    /// Read the selection and start recording the instruction.
+    ///
+    /// The selection is read *before* the microphone opens, so a gesture with
+    /// nothing selected costs the user nothing but the message.
+    func startCommandRecording() async {
+        guard isCommandModeUsable else {
+            VocaLogger.info(.appState, "Command Mode gesture ignored — the binding is not usable")
+            return
+        }
+
+        // No recovery dance here, deliberately. `startRecording`'s
+        // press-again-to-recover behaviour is right for dictation, where the
+        // worst case is an extra transcript; for a destructive operation,
+        // "busy" means "do nothing and say so" (R-9's reasoning).
+        guard appStatus == .idle, !isRecording else {
+            refuseCommandMode("Command Mode is unavailable while a recording is in progress — nothing was changed.")
+            return
+        }
+        guard micPermission == .granted else {
+            refuseCommandMode("Microphone permission is required for Command Mode — nothing was changed.")
+            return
+        }
+
+        if case .failure(let error) = commandModeCoordinator.captureSelection() {
+            refuseCommandMode(error.userMessage)
+            return
+        }
+
+        commandGeneration += 1
+        activeRecordingMode = .command
+
+        guard await beginCapture() else {
+            // The engine never started, so nothing will ever consume the
+            // selection this gesture read (AD-5).
+            commandModeCoordinator.discardSelection()
+            activeRecordingMode = .dictation
+            return
+        }
+    }
+
+    /// Stop recording, transcribe the instruction, and hand both it and the
+    /// selection to the coordinator.
+    func stopCommandRecordingAndRewrite() async {
+        guard activeRecordingMode == .command else { return }
+        guard isRecording || appStatus == .recording else { return }
+
+        // Shared with dictation on purpose: a Command Mode stop and a
+        // max-duration auto-stop can both arrive before either suspends, and
+        // only one of them may consume the selection (MINOR 10's reasoning).
+        guard !isStopping else {
+            VocaLogger.info(.commandMode, "stopCommandRecordingAndRewrite re-entered while already stopping — ignoring")
+            return
+        }
+        isStopping = true
+        defer { isStopping = false }
+
+        let audioData = await stopAudioEngine()
+        isRecording = false
+        audioLevel = 0.0
+
+        if soundEffectsEnabled {
+            soundManager.playStopSound()
+        }
+        cursorOverlay.transitionToProcessing()
+
+        guard !audioData.isEmpty else {
+            abortCommandMode("Command Mode heard nothing — nothing was changed.")
+            return
+        }
+
+        appStatus = .processing
+        let generation = commandGeneration
+
+        let result: VocaTranscription
+        do {
+            let language = selectedLanguage == "auto" ? nil : selectedLanguage
+            result = try await whisperService.transcribe(
+                audioData: audioData,
+                language: language,
+                translate: translationEnabled,
+                vocabulary: customVocabulary
+            )
+        } catch {
+            guard generation == commandGeneration else { return }
+            abortCommandMode("Command Mode could not transcribe the instruction (\(error.localizedDescription)) — nothing was changed.")
+            return
+        }
+
+        // A newer gesture — or a force recovery — owns the selection now, and
+        // this one must not write anything into the user's document (MAJOR 2's
+        // reasoning, applied to the destructive route).
+        guard generation == commandGeneration else {
+            VocaLogger.warning(.commandMode, "Command generation changed during processing — discarding stale rewrite")
+            return
+        }
+
+        let instruction = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // The command prompt is a fixed, reviewable constant, not a setting:
+        // no AC asks for an editor, and the cleanup prompt's user-editable
+        // shape exists to serve Profiles, which Command Mode does not use.
+        // The endpoint/model/timeout *are* shared with post-processing —
+        // there is one local LLM, configured in one place.
+        let outcome = await commandModeCoordinator.rewrite(
+            instruction: instruction,
+            systemPrompt: Prompts.commandModeSystemPrompt,
+            configuration: PostProcessSettings.current().configuration
+        )
+
+        guard generation == commandGeneration else {
+            VocaLogger.warning(.commandMode, "Command generation changed while rewriting — discarding")
+            return
+        }
+
+        switch outcome {
+        case .failure(let error):
+            abortCommandMode(error.userMessage)
+        case .success(let completed):
+            recordCommandHistory(
+                instruction: instruction,
+                outcome: completed,
+                model: result.modelUsed,
+                recordingMillis: result.audioLengthSeconds * 1000,
+                asrMillis: result.duration * 1000
+            )
+            activeRecordingMode = .dictation
+            cursorOverlay.hide()
+            appStatus = .idle
+        }
+    }
+
+    /// How a Command Mode operation that already opened the microphone ends
+    /// badly: release the selection, put everything back, play the error cue,
+    /// and show one short message.
+    ///
+    /// The message never names the selection, the instruction, or the rewrite
+    /// (AD-5) — only what went wrong and that nothing was changed.
+    private func abortCommandMode(_ message: String) {
+        VocaLogger.warning(.commandMode, "Aborted — \(message)")
+        commandModeCoordinator.discardSelection()
+        activeRecordingMode = .dictation
+        isRecording = false
+        audioLevel = 0.0
+        cursorOverlay.hide()
+        hotKeyManager.resetKeyState()
+
+        // Gated like every other sound in the app. The message is what
+        // guarantees the abort is noticed when sounds are off.
+        if soundEffectsEnabled {
+            soundManager.playErrorSound()
+        }
+
+        appStatus = .error
+        showTransientCommandMessage(message)
+    }
+
+    /// How a Command Mode gesture that never got as far as opening the
+    /// microphone ends: say so, and change nothing else.
+    ///
+    /// Deliberately does **not** touch `isRecording`, the cursor overlay, or
+    /// the hotkey state, and only claims `appStatus` when it is idle. One of
+    /// the reasons to refuse is that a dictation is recording at that very
+    /// moment, and tearing that down — resetting *both* hotkey bindings, of
+    /// all things — would turn a refused Command Mode gesture into a lost
+    /// dictation.
+    private func refuseCommandMode(_ message: String) {
+        VocaLogger.warning(.commandMode, "Refused — \(message)")
+        commandModeCoordinator.discardSelection()
+
+        if soundEffectsEnabled {
+            soundManager.playErrorSound()
+        }
+
+        if appStatus == .idle {
+            appStatus = .error
+        }
+        showTransientCommandMessage(message)
+    }
+
+    /// Shows one message and clears it after three seconds, matching the
+    /// dictation failure path. Guarded on the message still being ours so a
+    /// later, more important error is not wiped by this one's timer.
+    private func showTransientCommandMessage(_ message: String) {
+        errorMessage = message
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+            guard let self, self.errorMessage == message else { return }
+            self.errorMessage = nil
+            if self.appStatus == .error {
+                self.appStatus = .idle
+            }
+        }
+    }
+
+    /// Writes the Command Mode record (Story 6.3 AC: distinguishable by its
+    /// mode field).
+    ///
+    /// `rawTranscript` and `finalText` both hold the **instruction**, never
+    /// the selection and never the rewrite. Both of those are derived from the
+    /// user's document, which AD-5 forbids persisting — and `finalText` is
+    /// exactly the field that would carry document text into history.json. The
+    /// instruction is the user's own speech, the same class of data every
+    /// dictation record already stores, and it is what makes the row useful:
+    /// it says what was asked for. `finalText` doubles as the list preview,
+    /// which is why it is the instruction rather than empty.
+    private func recordCommandHistory(
+        instruction: String,
+        outcome: CommandOutcome,
+        model: ModelSize,
+        recordingMillis: Double,
+        asrMillis: Double
+    ) {
+        historyStore.record(HistoryRecord(
+            rawTranscript: instruction,
+            finalText: instruction,
+            targetBundleId: outcome.targetBundleIdentifier,
+            profileName: nil,
+            modelName: model.displayName,
+            recordingMillis: recordingMillis,
+            asrMillis: asrMillis,
+            postProcessMillis: outcome.postProcessMillis,
+            didFallback: false,
+            mode: .command
+        ))
     }
 
     // MARK: - Correction Learning (Story 5.6)

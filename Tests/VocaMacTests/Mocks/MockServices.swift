@@ -95,6 +95,13 @@ final class MockSoundManager: SoundPlaying {
     func playStopSoundAsync() async {
         stopSoundAsyncCallCount += 1
     }
+
+    /// Story 6.3: the Command Mode abort cue.
+    var errorSoundCallCount = 0
+
+    func playErrorSound() {
+        errorSoundCallCount += 1
+    }
 }
 
 // MARK: - MockHotKeyManager
@@ -595,6 +602,36 @@ final class MockPostProcessService: PostProcessing {
         return cleanResult
     }
 
+    // MARK: - Command Mode (Story 6.3)
+
+    var commandResult: Result<String, PostProcessError> = .success("rewritten")
+
+    /// Simulates a slow backend on the command route, so a test can drive the
+    /// re-entrancy window the same way `cleanDelay` does for cleanup.
+    var commandDelay: TimeInterval = 0
+
+    var commandCallCount = 0
+    var lastCommandSelection: String?
+    var lastCommandInstruction: String?
+    var lastCommandSystemPrompt: String?
+
+    func _command(
+        selection: String,
+        instruction: String,
+        systemPrompt: String,
+        configuration: PostProcessConfiguration
+    ) async -> Result<String, PostProcessError> {
+        commandCallCount += 1
+        lastCommandSelection = selection
+        lastCommandInstruction = instruction
+        lastCommandSystemPrompt = systemPrompt
+        lastConfiguration = configuration
+        if commandDelay > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(commandDelay * 1_000_000_000))
+        }
+        return commandResult
+    }
+
     func testConnection(configuration: PostProcessConfiguration) async -> Result<String, PostProcessError> {
         testConnectionResult
     }
@@ -922,6 +959,7 @@ extension AppState {
             snippetStore: snippetStore,
             correctionLearner: correctionLearner,
             dismissedCorrectionsStore: dismissedCorrectionsStore,
+            postProcessService: postProcessService,
             permissionManager: permissionManager,
             skipSystemIntegration: true
         )
