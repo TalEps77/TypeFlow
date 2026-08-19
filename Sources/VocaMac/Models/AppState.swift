@@ -136,6 +136,7 @@ final class AppState: ObservableObject {
     let statsManager: StatsManaging
     let historyStore: HistoryRecording
     let transcriptPipeline: TranscriptPipelining
+    let axContextReader: ContextReading
     let updateChecker = UpdateChecker()
     let permissionManager: any PermissionManaging
 
@@ -161,6 +162,15 @@ final class AppState: ObservableObject {
     /// user's document (BLOCKER 2, Story 3.3 AC). This is the application to
     /// hand focus back to first.
     private(set) var lastNonSelfFrontmostApp: NSRunningApplication?
+
+    /// What `axContextReader.capture(...)` returned when the *current* (or
+    /// most recently finished) recording started — captured once, at that
+    /// moment, per AD-5. `stopRecordingAndTranscribe` reads this to build the
+    /// `TranscriptContext` for the pipeline; it is not re-captured at stop
+    /// time even if the user switched applications while dictating (Story 4.1
+    /// AC). Cleared once consumed so Cursor Context (Story 4.4) is never held
+    /// any longer than the one request that needs it.
+    private var capturedContext: CapturedContext?
 
     /// AudioEngine serializes its own lifecycle internally; this wrapper makes
     /// the intentional background handoff explicit for Dispatch's @Sendable API.
@@ -212,6 +222,7 @@ final class AppState: ObservableObject {
         statsManager: StatsManaging,
         historyStore: HistoryRecording,
         transcriptPipeline: TranscriptPipelining? = nil,
+        axContextReader: ContextReading,
         permissionManager: (any PermissionManaging)? = nil,
         skipSystemIntegration: Bool = false
     ) {
@@ -225,6 +236,7 @@ final class AppState: ObservableObject {
         self.statsManager = statsManager
         self.historyStore = historyStore
         self.transcriptPipeline = transcriptPipeline ?? TranscriptPipeline.production()
+        self.axContextReader = axContextReader
         self.permissionManager = permissionManager ?? PermissionManager(audioEngine: audioEngine, hotKeyManager: hotKeyManager)
         self.skipSystemIntegration = skipSystemIntegration
 
@@ -287,7 +299,8 @@ final class AppState: ObservableObject {
     private static let sharedProductionInstance = AppState(
         cursorOverlay: CursorOverlayManager(),
         statsManager: StatsManager(),
-        historyStore: HistoryStore()
+        historyStore: HistoryStore(),
+        axContextReader: AXContextReader()
     )
 
     /// Convenience factory for creating AppState with all real services.
@@ -623,6 +636,14 @@ final class AppState: ObservableObject {
         // still suspended in the pipeline from a previous one (MAJOR 2).
         dictationGeneration += 1
 
+        // AD-5: captured now, at the moment recording starts — not when it
+        // stops. The user may switch applications while dictating; only what
+        // was frontmost when they started speaking is the app they meant to
+        // dictate into. Cursor Context stays off (Story 4.4 turns it on
+        // behind its own toggles); this call still resolves the bundle
+        // identifier unconditionally (Story 4.1).
+        capturedContext = axContextReader.capture(readCursorContext: false)
+
         appStatus = .recording
         isRecording = true
         errorMessage = nil
@@ -710,9 +731,19 @@ final class AppState: ObservableObject {
             // Inject text at cursor position
             // by WhisperService to remove hallucination tokens like [BLANK_AUDIO])
             let trimmedText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Consume what was captured at recording start (AD-5) and clear it
+            // immediately — nothing here is held any longer than this one
+            // pipeline run needs it for.
+            let context = capturedContext
+            capturedContext = nil
+
             // AD-1: the single seam for every post-ASR text transformation.
             // With no stages enabled this returns trimmedText unchanged (AD-2).
-            let pipelineContext = await transcriptPipeline.run(TranscriptContext(rawTranscript: trimmedText))
+            let pipelineContext = await transcriptPipeline.run(TranscriptContext(
+                rawTranscript: trimmedText,
+                targetBundleIdentifier: context?.bundleIdentifier
+            ))
 
             // A new recording started while this one was suspended above —
             // discard the result. No injection, no history, no state change;

@@ -531,6 +531,21 @@ final class MockPostProcessService: PostProcessing {
     }
 }
 
+// MARK: - MockContextReader
+
+@MainActor
+final class MockContextReader: ContextReading {
+    var captureResult: CapturedContext = .empty
+    var captureCallCount = 0
+    var lastReadCursorContextRequested: Bool?
+
+    func capture(readCursorContext: Bool) -> CapturedContext {
+        captureCallCount += 1
+        lastReadCursorContextRequested = readCursorContext
+        return captureResult
+    }
+}
+
 // MARK: - MockTranscriptPipeline
 
 /// Identity by default (AD-2): unless a test sets `transform`, it returns its
@@ -596,7 +611,8 @@ extension AppState {
         /// postProcessService, ...)])` for a test that needs the actual seam
         /// behavior. `mocks.transcriptPipeline` is still created either way,
         /// for tests that don't need this and read/configure it directly.
-        transcriptPipelineOverride: TranscriptPipelining? = nil
+        transcriptPipelineOverride: TranscriptPipelining? = nil,
+        contextReader: MockContextReader = MockContextReader()
     ) -> (appState: AppState, mocks: TestMocks) {
         // AppState.hasPerformedStartupGlobally is a process-level static that
         // performStartup() only ever flips true. Reset it here (rather than
@@ -628,7 +644,8 @@ extension AppState {
             statsManager: statsManager,
             historyStore: historyStore,
             transcriptPipeline: transcriptPipeline,
-            postProcessService: postProcessService
+            postProcessService: postProcessService,
+            contextReader: contextReader
         )
         let appState = AppState(
             audioEngine: audioEngine,
@@ -641,6 +658,7 @@ extension AppState {
             statsManager: statsManager,
             historyStore: historyStore,
             transcriptPipeline: transcriptPipelineOverride ?? transcriptPipeline,
+            axContextReader: contextReader,
             permissionManager: permissionManager,
             skipSystemIntegration: true
         )
@@ -661,4 +679,5 @@ struct TestMocks {
     let historyStore: MockHistoryStore
     let transcriptPipeline: MockTranscriptPipeline
     let postProcessService: MockPostProcessService
+    let contextReader: MockContextReader
 }
