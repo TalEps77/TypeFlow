@@ -350,6 +350,10 @@ struct GeneralSettingsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+                Text("This is an accuracy hint for the recognizer, not a filter — speech in another language will still be transcribed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 // MAJOR 2: the menu bar's segmented control only has segments
                 // for Hebrew, English, and Auto. Say so where the choice is
                 // actually made, so a Spanish selection does not look broken

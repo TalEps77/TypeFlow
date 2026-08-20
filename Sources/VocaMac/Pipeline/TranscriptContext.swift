@@ -38,9 +38,10 @@ struct TranscriptContext {
     /// Auto. That order matters because detection is unreliable enough that an
     /// English-forced dictation was being reported as Hebrew (MEDIUM 1).
     ///
-    /// `PostProcessStage` reads this to pick the cleanup prompt variant. Before
-    /// it existed, every dictation got the Hebrew-only prompt, so English
-    /// self-correction never fired.
+    /// Used for `HistoryRecord.language` and the glossary gate (`AppState`),
+    /// where requested-wins-over-detected is the correct precedence.
+    /// `PostProcessStage` does *not* read this to pick the cleanup prompt
+    /// variant — see `scriptLanguage(of:)` below for why.
     let language: String?
 
     /// Text immediately before/after the caret, read via Accessibility at
@@ -107,5 +108,43 @@ struct TranscriptContext {
     /// True when no stage changed the text — the identity case (AD-2).
     var isUnchanged: Bool {
         currentText == rawTranscript
+    }
+}
+
+extension TranscriptContext {
+
+    /// A rough guess at which language a piece of text is actually written
+    /// in, judged purely from its script — never from `language` above, and
+    /// never from what the user selected in the toggle.
+    ///
+    /// `PostProcessStage` uses this instead of `language` to pick the
+    /// cleanup prompt variant. `language` is requested-wins-over-detected,
+    /// which is correct for `HistoryRecord` and the glossary gate, but wrong
+    /// here: a user who selects English and then dictates in Hebrew has
+    /// Whisper correctly transcribe Hebrew text, and running the *English*
+    /// cleanup prompt on it — wrong self-correction markers, wrong few-shot
+    /// examples — undoes exactly what the toggle was supposed to help with.
+    /// Deriving the prompt language from the transcript itself sidesteps the
+    /// toggle entirely for this one decision.
+    ///
+    /// Counts letters in the Hebrew Unicode block (U+0590–U+05FF) against
+    /// every letter seen; "he" once they are more than 30% of the letters,
+    /// "en" otherwise — including text with no letters at all (numbers only,
+    /// empty), which has nothing Hebrew to detect and falls back to the same
+    /// default `Prompts.cleanTranscriptSystemPrompt(for:)` already uses for
+    /// "not Hebrew".
+    static func scriptLanguage(of text: String) -> String {
+        var hebrewLetters = 0
+        var totalLetters = 0
+
+        for scalar in text.unicodeScalars where CharacterSet.letters.contains(scalar) {
+            totalLetters += 1
+            if (0x0590...0x05FF).contains(scalar.value) {
+                hebrewLetters += 1
+            }
+        }
+
+        guard totalLetters > 0 else { return "en" }
+        return Double(hebrewLetters) / Double(totalLetters) > 0.3 ? "he" : "en"
     }
 }

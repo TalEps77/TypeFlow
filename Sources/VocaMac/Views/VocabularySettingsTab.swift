@@ -101,6 +101,14 @@ struct VocabularySettingsTab: View {
                                 appState.dictionaryStore.delete(entry.id)
                             }
                             .padding(.vertical, 4)
+                            // The ScrollView's own overlay scroll indicator sits
+                            // right on top of the trailing edge, on top of
+                            // DeleteRowButton's − button, making it unclickable
+                            // (commit 53cc777 switched this list from `List` to
+                            // `ScrollView`/`LazyVStack`, which does not reserve
+                            // scrollbar gutter space the way `List` did). This
+                            // padding gives the button room clear of that overlay.
+                            .padding(.trailing, 14)
 
                             if entry.id != appState.dictionaryStore.entries.last?.id {
                                 Divider()
@@ -163,6 +171,9 @@ struct VocabularySettingsTab: View {
                                 appState.snippetStore.delete(snippet.id)
                             }
                             .padding(.vertical, 4)
+                            // Same overlay-scrollbar-over-the-delete-button issue
+                            // as the Dictionary list above.
+                            .padding(.trailing, 14)
 
                             if snippet.id != appState.snippetStore.snippets.last?.id {
                                 Divider()

@@ -244,6 +244,7 @@ struct MenuBarView: View {
                 .labelsHidden()
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 160)
+                .help("An accuracy hint for the recognizer, not a filter — speech in another language will still be transcribed.")
             }
 
             Spacer()

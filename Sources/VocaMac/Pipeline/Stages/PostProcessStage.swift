@@ -77,8 +77,14 @@ final class PostProcessStage: TranscriptStage {
         // the LLM a blank system prompt for every dictation into that app
         // (MINOR 15).
         let promptOverride = profile?.promptOverride.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        // The prompt variant is picked from the transcript's own script, not
+        // from `context.language` (which is requested-wins-over-detected,
+        // i.e. the toggle) — see `TranscriptContext.scriptLanguage(of:)`.
+        // A user who selects English but dictates in Hebrew gets Hebrew
+        // transcribed back correctly; the cleanup prompt must match that
+        // text, not the toggle they forgot to flip.
         let systemPrompt = promptOverride.isEmpty
-            ? PostProcessStage.languageAwarePrompt(settings.systemPrompt, language: context.language)
+            ? PostProcessStage.languageAwarePrompt(settings.systemPrompt, language: TranscriptContext.scriptLanguage(of: text))
             : promptOverride
 
         // Story 4.4: whatever is here was already gated by both the global
