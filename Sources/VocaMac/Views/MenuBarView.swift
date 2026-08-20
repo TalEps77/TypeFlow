@@ -126,7 +126,7 @@ struct MenuBarView: View {
                 .foregroundStyle(.blue)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("VocaMac")
+                Text("TypeFlow")
                     .font(.title3)
                     .fontWeight(.semibold)
 
@@ -340,7 +340,7 @@ struct MenuBarView: View {
                     action: { appState.requestInputMonitoringPermission() }
                 )
 
-                Text("Required to detect hotkey presses system-wide. Enable VocaMac in the list.")
+                Text("Required to detect hotkey presses system-wide. Enable TypeFlow in the list.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -475,7 +475,7 @@ struct MenuBarView: View {
             } label: {
                 HStack {
                     Image(systemName: "power")
-                    Text("Quit VocaMac")
+                    Text("Quit TypeFlow")
                     Spacer()
                     Text("⌘Q")
                         .foregroundStyle(.secondary)

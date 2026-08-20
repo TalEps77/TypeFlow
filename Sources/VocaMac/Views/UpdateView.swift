@@ -50,7 +50,7 @@ struct UpdateDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("VocaMac \(info.tagName) Available")
+                    Text("TypeFlow \(info.tagName) Available")
                         .font(.title2)
                         .fontWeight(.semibold)
                     Text(ByteCountFormatter.string(fromByteCount: Int64(info.dmgSize), countStyle: .file))
@@ -164,7 +164,7 @@ struct UpdateDetailView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Label("Download complete", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
-                Text("Open the DMG and drag VocaMac to Applications to replace the existing app.")
+                Text("Open the DMG and drag TypeFlow to Applications to replace the existing app.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button("Open DMG") {

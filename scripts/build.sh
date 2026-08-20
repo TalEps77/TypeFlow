@@ -15,7 +15,7 @@
 #                         Set to "-" to force ad-hoc signing.
 #
 # IMPORTANT: After the first build, grant Accessibility and Input Monitoring
-# permissions to VocaMac.app. With Developer ID signing, permissions persist
+# permissions to TypeFlow.app. With Developer ID signing, permissions persist
 # across rebuilds. With ad-hoc signing (no cert), permissions reset on every rebuild.
 
 set -euo pipefail
@@ -26,8 +26,14 @@ cd "$PROJECT_DIR"
 
 CONFIG="${1:-release}"
 BUNDLE_ID="com.vocamac.app"
+# APP_NAME is the internal executable/build-product name (Package.swift target,
+# xcodebuild scheme, Contents/MacOS binary filename) — stays "VocaMac" so it
+# keeps matching the unchanged bundle id, entitlements, and the pgrep -x check
+# in VocaMacApp.ensureSingleInstance. DISPLAY_NAME is the user-visible product
+# name (CFBundleName/CFBundleDisplayName) and the .app bundle's own folder name.
 APP_NAME="VocaMac"
-APP_DIR="${APP_NAME}.app"
+DISPLAY_NAME="TypeFlow"
+APP_DIR="${DISPLAY_NAME}.app"
 ENTITLEMENTS="VocaMac.entitlements"
 APP_VERSION="${APP_VERSION:-0.7.0}"
 
@@ -209,9 +215,9 @@ cat > "${APP_DIR}/Contents/Info.plist" << EOF
     <key>CFBundleIdentifier</key>
     <string>${BUNDLE_ID}</string>
     <key>CFBundleName</key>
-    <string>${APP_NAME}</string>
+    <string>${DISPLAY_NAME}</string>
     <key>CFBundleDisplayName</key>
-    <string>${APP_NAME}</string>
+    <string>${DISPLAY_NAME}</string>
     <key>CFBundleVersion</key>
     <string>${APP_VERSION}</string>
     <key>CFBundleShortVersionString</key>
@@ -227,7 +233,7 @@ cat > "${APP_DIR}/Contents/Info.plist" << EOF
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>VocaMac needs microphone access to capture your voice for transcription.</string>
+    <string>${DISPLAY_NAME} needs microphone access to capture your voice for transcription.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>
@@ -269,8 +275,8 @@ if [ "$FIRST_TIME" = true ]; then
     echo ""
     echo "⚠️  FIRST TIME SETUP:"
     echo "   1. Run: open ${APP_DIR}"
-    echo "   2. System Settings → Privacy & Security → Accessibility → add VocaMac.app → ON"
-    echo "   3. System Settings → Privacy & Security → Input Monitoring → add VocaMac.app → ON"
+    echo "   2. System Settings → Privacy & Security → Accessibility → add ${APP_DIR} → ON"
+    echo "   3. System Settings → Privacy & Security → Input Monitoring → add ${APP_DIR} → ON"
     echo "   4. Restart VocaMac: killall VocaMac && open ${APP_DIR}"
     if [ "$CODE_SIGN_IDENTITY" = "-" ]; then
         echo ""

@@ -94,7 +94,7 @@ struct GeneralSettingsTab: View {
                 HotKeySelectionControl(
                     keyCode: $appState.hotKeyCode,
                     pickerLabel: "Activation Key",
-                    footerText: "Choose a preset or record a key. VocaMac reserves this key while running.",
+                    footerText: "Choose a preset or record a key. TypeFlow reserves this key while running.",
                     reservedKeyCode: appState.commandModeEnabled ? appState.commandHotKeyCode : nil,
                     reservedKeyOwner: "Command Mode",
                     onCommit: { appState.syncHotKeyConfiguration() }
@@ -154,7 +154,7 @@ struct GeneralSettingsTab: View {
                     HotKeySelectionControl(
                         keyCode: $appState.commandHotKeyCode,
                         pickerLabel: "Command Key",
-                        footerText: "Must be a different key from the dictation hotkey. VocaMac reserves it while Command Mode is on — other apps will not see this key.",
+                        footerText: "Must be a different key from the dictation hotkey. TypeFlow reserves it while Command Mode is on — other apps will not see this key.",
                         reservedKeyCode: appState.hotKeyCode,
                         reservedKeyOwner: "dictation",
                         onCommit: { appState.syncCommandHotKeyConfiguration() }
@@ -234,12 +234,12 @@ struct GeneralSettingsTab: View {
 
                 let count = WhisperService.vocabularyTerms(from: appState.customVocabulary).count
                 Text(count == 0
-                    ? "Add names, jargon, or proper nouns (one per line, or comma-separated) that get mis-transcribed. VocaMac hints these to the model so it spells them right."
+                    ? "Add names, jargon, or proper nouns (one per line, or comma-separated) that get mis-transcribed. TypeFlow hints these to the model so it spells them right."
                     : "\(count) term\(count == 1 ? "" : "s"). Keep the list short, since the model can only use the first 50 to 100 words as a hint.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("For best results, enter terms in the language you dictate and set a matching Transcription Language above. In Auto-detect, the terms can also nudge which language VocaMac picks.")
+                Text("For best results, enter terms in the language you dictate and set a matching Transcription Language above. In Auto-detect, the terms can also nudge which language TypeFlow picks.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -715,7 +715,7 @@ struct AudioSettingsTab: View {
                     HStack(alignment: .top) {
                         Image(systemName: "info.circle")
                             .foregroundStyle(.blue)
-                        Text("You had tuned the sensitivity below, so VocaMac kept your Legacy (RMS threshold) setting and its value instead of switching you to Voice Activity Detection. Switching methods gives VAD its own separate sensitivity — your legacy value stays untouched and applies again if you switch back.")
+                        Text("You had tuned the sensitivity below, so TypeFlow kept your Legacy (RMS threshold) setting and its value instead of switching you to Voice Activity Detection. Switching methods gives VAD its own separate sensitivity — your legacy value stays untouched and applies again if you switch back.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -795,14 +795,14 @@ struct AudioSettingsTab: View {
                     HStack(alignment: .top) {
                         Image(systemName: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
-                        Text("\(selectedAudioDeviceDisplayName) is unavailable. VocaMac will use System Default until it reconnects.")
+                        Text("\(selectedAudioDeviceDisplayName) is unavailable. TypeFlow will use System Default until it reconnects.")
                             .foregroundStyle(.secondary)
                     }
                 } else if let selectedAudioDevice {
                     HStack {
                         Image(systemName: "mic.circle.fill")
                             .foregroundStyle(.blue)
-                        Text("VocaMac will record from \(selectedAudioDevice.name) without changing macOS' system default input.")
+                        Text("TypeFlow will record from \(selectedAudioDevice.name) without changing macOS' system default input.")
                             .foregroundStyle(.secondary)
                     }
                 } else {
@@ -815,7 +815,7 @@ struct AudioSettingsTab: View {
                 }
                 .controlSize(.small)
 
-                Text("Choose System Default to follow macOS, or pin VocaMac to a specific microphone.")
+                Text("Choose System Default to follow macOS, or pin TypeFlow to a specific microphone.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -841,9 +841,9 @@ struct AudioSettingsTab: View {
 
     private var systemDefaultInputDescription: String {
         if let defaultDevice = audioDevices.first(where: { $0.isDefault }) {
-            return "VocaMac will follow macOS' system default input: \(defaultDevice.name)."
+            return "TypeFlow will follow macOS' system default input: \(defaultDevice.name)."
         }
-        return "VocaMac will follow macOS' system default input."
+        return "TypeFlow will follow macOS' system default input."
     }
 
     private func audioDeviceLabel(for device: AudioDevice) -> String {
@@ -908,7 +908,7 @@ struct AboutTab: View {
                 .foregroundStyle(.blue)
 
             // App name and version
-            Text("VocaMac")
+            Text("TypeFlow")
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
@@ -1062,6 +1062,17 @@ struct DebugTab: View {
     @EnvironmentObject var appState: AppState
     @State private var logEntryCount: Int = VocaLogger.logEntryCount
 
+    /// When each permission was first observed `.denied`, tracked purely in
+    /// this View — `nil` once it's no longer denied. Drives the "still
+    /// stuck?" hint below once 30 seconds of polling have passed without the
+    /// user fixing it in System Settings. Permission polling itself already
+    /// re-renders this tab every few seconds while anything is denied (see
+    /// `PermissionManager.startPermissionPolling`), so no extra timer is
+    /// needed just to notice the elapsed time.
+    @State private var micDeniedSince: Date?
+    @State private var accessibilityDeniedSince: Date?
+    @State private var inputMonitoringDeniedSince: Date?
+
     var body: some View {
         Form {
             // Permissions
@@ -1093,11 +1104,18 @@ struct DebugTab: View {
                         .foregroundStyle(.secondary)
                 }
 
+                if let hint = longDeniedHint {
+                    Label(hint, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
                 HStack {
-                    Button("Re-check Permissions") {
-                        appState.checkPermissions()
+                    Button(action: { appState.checkPermissions() }) {
+                        Label("Re-check Permissions", systemImage: "arrow.clockwise")
                     }
                     .controlSize(.small)
+                    .buttonStyle(.bordered)
 
                     Spacer()
 
@@ -1106,14 +1124,14 @@ struct DebugTab: View {
                             .foregroundStyle(.red)
                     }
                     .controlSize(.small)
-                    .help("Reset all TCC permissions for VocaMac. The app will quit and you'll need to re-grant permissions on next launch.")
+                    .help("Reset all TCC permissions for TypeFlow. The app will quit and you'll need to re-grant permissions on next launch.")
                 }
 
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(.blue)
                         .font(.caption)
-                    Text("**Upgrading?** Permissions now persist across updates since VocaMac is signed with a Developer ID. If permissions ever appear stuck, use the Reset button above.")
+                    Text("**Upgrading?** Permissions now persist across updates since TypeFlow is signed with a Developer ID. If permissions ever appear stuck, use the Reset button above.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1166,18 +1184,18 @@ struct DebugTab: View {
             Section("Application") {
                 HStack {
                     Button(action: restartApp) {
-                        Label("Restart VocaMac", systemImage: "arrow.trianglehead.clockwise")
+                        Label("Restart TypeFlow", systemImage: "arrow.trianglehead.clockwise")
                     }
-                    .help("Quit and relaunch VocaMac")
+                    .help("Quit and relaunch TypeFlow")
 
                     Spacer()
 
                     Button(role: .destructive, action: {
                         NSApplication.shared.terminate(nil)
                     }) {
-                        Label("Quit VocaMac", systemImage: "power")
+                        Label("Quit TypeFlow", systemImage: "power")
                     }
-                    .help("Quit VocaMac")
+                    .help("Quit TypeFlow")
                 }
 
                 Text("Restart can help resolve issues with permissions or audio devices.")
@@ -1186,6 +1204,46 @@ struct DebugTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            updateDeniedSince(appState.micPermission, tracker: &micDeniedSince)
+            updateDeniedSince(appState.accessibilityPermission, tracker: &accessibilityDeniedSince)
+            updateDeniedSince(appState.inputMonitoringPermission, tracker: &inputMonitoringDeniedSince)
+        }
+        .onChange(of: appState.micPermission) { newValue in
+            updateDeniedSince(newValue, tracker: &micDeniedSince)
+        }
+        .onChange(of: appState.accessibilityPermission) { newValue in
+            updateDeniedSince(newValue, tracker: &accessibilityDeniedSince)
+        }
+        .onChange(of: appState.inputMonitoringPermission) { newValue in
+            updateDeniedSince(newValue, tracker: &inputMonitoringDeniedSince)
+        }
+    }
+
+    /// Records the moment a permission first reads `.denied`, and clears it
+    /// the moment it stops being denied — so a granted-then-revoked cycle
+    /// restarts the 30-second clock rather than firing the hint instantly.
+    private func updateDeniedSince(_ status: PermissionStatus, tracker: inout Date?) {
+        guard status == .denied else {
+            tracker = nil
+            return
+        }
+        if tracker == nil {
+            tracker = Date()
+        }
+    }
+
+    /// One concise sentence once *any* permission has read `.denied` for 30+
+    /// seconds of polling — long enough that "wait a moment" is no longer
+    /// good advice and the dev/ad-hoc-build fix (remove + re-add the app, or
+    /// `tccutil reset`) is what actually gets someone unstuck.
+    private var longDeniedHint: String? {
+        let now = Date()
+        let longDenied = [micDeniedSince, accessibilityDeniedSince, inputMonitoringDeniedSince]
+            .compactMap { $0 }
+            .contains { now.timeIntervalSince($0) >= 30 }
+        guard longDenied else { return nil }
+        return "Still denied after 30+ seconds? Remove TypeFlow from the list in System Settings and re-add it, or run tccutil reset All com.vocamac.app in Terminal (same as the Reset button below)."
     }
 
     // MARK: - Actions
@@ -1193,7 +1251,7 @@ struct DebugTab: View {
     private func resetPermissions() {
         let alert = NSAlert()
         alert.messageText = "Reset All Permissions?"
-        alert.informativeText = "This will clear all permission grants (Microphone, Accessibility, Input Monitoring) for VocaMac. The app will quit and you'll need to re-grant permissions on next launch.\n\nThis is useful when permissions appear stuck or aren't being recognized after an update."
+        alert.informativeText = "This will clear all permission grants (Microphone, Accessibility, Input Monitoring) for TypeFlow. The app will quit and you'll need to re-grant permissions on next launch.\n\nThis is useful when permissions appear stuck or aren't being recognized after an update."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Reset & Quit")
         alert.addButton(withTitle: "Cancel")

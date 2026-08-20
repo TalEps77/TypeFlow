@@ -49,7 +49,7 @@ struct ProfilesSettingsTab: View {
             Section("Cursor Context") {
                 Toggle("Read text near the cursor to match its style", isOn: $appState.contextCaptureEnabled)
 
-                Text("When on, VocaMac reads a small amount of text immediately before and after your cursor in the app you're dictating into — so the LLM can match its existing tone, punctuation, and formatting. This text is sent to the LLM for that one request only: it is never saved to History, never written to a log, and never stored anywhere. This also requires the Profile you're dictating into to have its own \"Read text around the cursor\" toggle on — both must be on for anything to be read.")
+                Text("When on, TypeFlow reads a small amount of text immediately before and after your cursor in the app you're dictating into — so the LLM can match its existing tone, punctuation, and formatting. This text is sent to the LLM for that one request only: it is never saved to History, never written to a log, and never stored anywhere. This also requires the Profile you're dictating into to have its own \"Read text around the cursor\" toggle on — both must be on for anything to be read.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -181,7 +181,7 @@ struct ProfilesSettingsTab: View {
             do {
                 let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
                 guard fileSize <= Self.maximumImportBytes else {
-                    importErrorMessage = "That file is too large to be a VocaMac Profiles export."
+                    importErrorMessage = "That file is too large to be a TypeFlow Profiles export."
                     return
                 }
 
@@ -211,7 +211,7 @@ struct ProfilesSettingsTab: View {
                     """
                 }
             } catch {
-                importErrorMessage = "That file isn't a valid VocaMac Profiles export: \(error.localizedDescription)"
+                importErrorMessage = "That file isn't a valid TypeFlow Profiles export: \(error.localizedDescription)"
             }
         }
     }

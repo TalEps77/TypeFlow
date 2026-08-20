@@ -53,7 +53,7 @@ struct PostProcessSettingsTab: View {
                     .textFieldStyle(.roundedBorder)
 
                 if !isEndpointLoopback {
-                    Label("This endpoint is not on localhost — VocaMac will send transcripts to it over the network.", systemImage: "exclamationmark.triangle.fill")
+                    Label("This endpoint is not on localhost — TypeFlow will send transcripts to it over the network.", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
@@ -135,7 +135,7 @@ struct PostProcessSettingsTab: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Your edits to the prompt will be replaced by the prompt VocaMac ships with.")
+            Text("Your edits to the prompt will be replaced by the prompt TypeFlow ships with.")
         }
     }
 

@@ -46,7 +46,7 @@ struct VocabularySettingsTab: View {
             Section("Correction Learning") {
                 Toggle("Notice when I hand-correct a word and suggest a Dictionary Entry", isOn: $appState.correctionLearningEnabled)
 
-                Text("Off by default. When on, VocaMac briefly re-reads the text field you just dictated into to see if you retyped a single word — nothing else about that field is ever saved, logged, or sent anywhere. A correction is only ever suggested below for you to approve or dismiss; it never adds itself to the Dictionary silently.")
+                Text("Off by default. When on, TypeFlow briefly re-reads the text field you just dictated into to see if you retyped a single word — nothing else about that field is ever saved, logged, or sent anywhere. A correction is only ever suggested below for you to approve or dismiss; it never adds itself to the Dictionary silently.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -284,13 +284,13 @@ struct VocabularySettingsTab: View {
             do {
                 let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
                 if size > maximumBytes {
-                    outcome = .failure("That file is \(size / 1024 / 1024)MB — far larger than any VocaMac export, so it was not opened.")
+                    outcome = .failure("That file is \(size / 1024 / 1024)MB — far larger than any TypeFlow export, so it was not opened.")
                 } else {
                     let data = try Data(contentsOf: url)
                     outcome = .success(try JSONDecoder().decode([Element].self, from: data))
                 }
             } catch {
-                outcome = .failure("That file isn't a valid VocaMac export: \(error.localizedDescription)")
+                outcome = .failure("That file isn't a valid TypeFlow export: \(error.localizedDescription)")
             }
             Task { @MainActor in completion(outcome) }
         }

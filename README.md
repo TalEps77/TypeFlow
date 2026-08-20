@@ -1,10 +1,12 @@
 <p align="center">
-  <img src="web/static/logo.png" alt="VocaMac" width="128" height="128">
+  <img src="web/static/logo.png" alt="TypeFlow" width="128" height="128">
 </p>
 
-<h1 align="center">VocaMac</h1>
+<h1 align="center">TypeFlow</h1>
 
 <p align="center"><strong>Your voice, your Mac, your privacy. Open-source dictation powered by AI.</strong></p>
+
+<p align="center"><em>TypeFlow is a fork of <a href="https://github.com/jatinkrmalik/vocamac">VocaMac</a> by jatinkrmalik, licensed under AGPL-3.0.</em></p>
 
 <div align="center">
   
@@ -41,14 +43,14 @@
 - **⚡ Native Apple Acceleration** - CoreML + Metal + Neural Engine acceleration on Apple Silicon. No manual setup.
 - **📊 Visual Feedback** - Menu bar icon changes color during recording and processing. Audio level indicator shows input.
 - **🔄 Auto-Updates** - Built-in update checker queries GitHub Releases on launch and lets you download and install the latest version in one click from within the app.
-- **⚙️ Configurable** - Choose hotkey presets or record a custom activation key reserved by VocaMac while it runs, models, languages, silence detection thresholds, and more.
+- **⚙️ Configurable** - Choose hotkey presets or record a custom activation key reserved by TypeFlow while it runs, models, languages, silence detection thresholds, and more.
 
 ---
 
 ## 📸 Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/popover-panel.png" alt="VocaMac Popover" width="400">
+  <img src="docs/screenshots/popover-panel.png" alt="TypeFlow Popover" width="400">
   <br>
   <em>Menu bar popover with status and controls</em>
 </p>

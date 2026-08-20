@@ -20,7 +20,7 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .welcome: return "Welcome to VocaMac"
+        case .welcome: return "Welcome to TypeFlow"
         case .permissions: return "Grant Permissions"
         case .hotkeyConfig: return "Configure Hotkey"
         case .quickTest: return "Quick Test"
@@ -142,7 +142,7 @@ struct OnboardingView: View {
                         .keyboardShortcut(.defaultAction)
                     } else {
                         Button(action: completeOnboarding) {
-                            Text("Start Using VocaMac")
+                            Text("Start Using TypeFlow")
                                 .font(.body)
                                 .fontWeight(.medium)
                                 .padding(.horizontal, 20)
@@ -207,7 +207,7 @@ struct WelcomeStep: View {
 
             // App name and tagline
             VStack(spacing: 8) {
-                Text("VocaMac")
+                Text("TypeFlow")
                     .font(.system(size: 40, weight: .bold))
 
                 Text("Your voice, your Mac, your privacy")
@@ -228,7 +228,7 @@ struct WelcomeStep: View {
 
             Spacer()
 
-            Text("This guide will set up VocaMac in just a few minutes.")
+            Text("This guide will set up TypeFlow in just a few minutes.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -252,7 +252,7 @@ struct PermissionsStep: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("VocaMac needs a few permissions to work properly.")
+            Text("TypeFlow needs a few permissions to work properly.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -292,7 +292,7 @@ struct PermissionsStep: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.yellow)
-                    Text("Some permissions are missing. VocaMac may not work correctly until all permissions are granted. You can set them later in Settings → Debug.")
+                    Text("Some permissions are missing. TypeFlow may not work correctly until all permissions are granted. You can set them later in Settings → Debug.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -614,7 +614,7 @@ struct HotkeyConfigStep: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Choose how to activate VocaMac.")
+            Text("Choose how to activate TypeFlow.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -655,7 +655,7 @@ struct HotkeyConfigStep: View {
                     HotKeySelectionControl(
                         keyCode: $appState.hotKeyCode,
                         pickerLabel: "Key",
-                        footerText: "VocaMac reserves this key while running.",
+                        footerText: "TypeFlow reserves this key while running.",
                         // The collision check runs in both directions or it is
                         // not a check (MAJOR 5). Onboarding can be reopened
                         // after Command Mode is enabled, and without this the
@@ -849,7 +849,7 @@ struct CompleteStep: View {
                     .font(.title)
                     .fontWeight(.bold)
 
-                Text("VocaMac is ready to use")
+                Text("TypeFlow is ready to use")
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
@@ -882,7 +882,7 @@ struct CompleteStep: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Launch at Login")
                             .font(.subheadline)
-                        Text("Start VocaMac automatically when you log in")
+                        Text("Start TypeFlow automatically when you log in")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -896,7 +896,7 @@ struct CompleteStep: View {
 
             Spacer()
 
-            Text("You can adjust settings anytime from the VocaMac menu.")
+            Text("You can adjust settings anytime from the TypeFlow menu.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

@@ -59,7 +59,7 @@ final class SettingsWindowManager: ObservableObject {
             backing: .buffered,
             defer: false
         )
-        window.title = "VocaMac Settings"
+        window.title = "TypeFlow Settings"
         window.contentView = NSHostingView(rootView: settingsView)
         window.center()
         window.isReleasedWhenClosed = false
@@ -108,7 +108,7 @@ final class HistoryWindowManager: ObservableObject {
             backing: .buffered,
             defer: false
         )
-        window.title = "VocaMac History"
+        window.title = "TypeFlow History"
         window.contentView = NSHostingView(rootView: historyView)
         window.center()
         window.isReleasedWhenClosed = false
@@ -164,7 +164,7 @@ final class OnboardingWindowManager: ObservableObject {
             backing: .buffered,
             defer: false
         )
-        window.title = "Welcome to VocaMac"
+        window.title = "Welcome to TypeFlow"
         window.contentView = NSHostingView(rootView: onboardingView)
         window.center()
         window.isReleasedWhenClosed = false
@@ -329,10 +329,10 @@ struct MenuBarIcon: View {
     private func makeMenuBarIcon() -> NSImage {
         let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
 
-        guard let baseImage = NSImage(systemSymbolName: iconName, accessibilityDescription: "VocaMac")?
+        guard let baseImage = NSImage(systemSymbolName: iconName, accessibilityDescription: "TypeFlow")?
             .withSymbolConfiguration(config) else {
             // Fallback to a basic mic if symbol lookup fails
-            return NSImage(systemSymbolName: "mic", accessibilityDescription: "VocaMac") ?? NSImage()
+            return NSImage(systemSymbolName: "mic", accessibilityDescription: "TypeFlow") ?? NSImage()
         }
 
         // Tint the icon with the status color
