@@ -33,16 +33,19 @@ APP_VERSION="${APP_VERSION:-0.7.0}"
 
 # Resolve signing identity:
 # 1. Use CODE_SIGN_IDENTITY env var if set
-# 2. Auto-detect Developer ID Application in the login keychain
-# 3. Fall back to ad-hoc signing (-)
+# 2. Auto-detect Developer ID Application, then Apple Development, in the login keychain
+# 3. Fall back to ad-hoc signing (-) — note: ad-hoc builds lose TCC grants on every rebuild
 if [ -z "${CODE_SIGN_IDENTITY+x}" ]; then
     DETECTED=$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)"/\1/' || true)
+    if [ -z "$DETECTED" ]; then
+        DETECTED=$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | sed 's/.*"\(.*\)"/\1/' || true)
+    fi
     if [ -n "$DETECTED" ]; then
         CODE_SIGN_IDENTITY="$DETECTED"
         echo "🔐 Auto-detected signing identity: $CODE_SIGN_IDENTITY"
     else
         CODE_SIGN_IDENTITY="-"
-        echo "⚠️  No Developer ID found — using ad-hoc signing"
+        echo "⚠️  No signing identity found — using ad-hoc signing (TCC grants will reset on every rebuild)"
     fi
 fi
 
