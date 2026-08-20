@@ -29,7 +29,9 @@ Packages/
 Package.resolved
 .swiftpm/
 
-# Built app bundle
+# Built app bundle (TypeFlow.app is current; VocaMac.app is the pre-rename
+# name — keep both so an old bundle can never be committed either)
+TypeFlow.app/
 VocaMac.app/
 
 # Distribution artifacts
@@ -45,4 +47,5 @@ bitbucket-pipelines.yml
 # Tool artifacts
 .desloppify/
 .claude/
+TypeFlow.app.bak/
 VocaMac.app.bak/

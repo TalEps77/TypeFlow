@@ -173,37 +173,35 @@ struct GeneralSettingsTab: View {
 
             // Language
             Section("Transcription Language") {
+                // Rows come from `DictationLanguage`, the same list the
+                // menu-bar quick toggle checks itself against (MAJOR 2) —
+                // hand-written rows here were what let the two drift apart.
                 Picker("Language", selection: $appState.selectedLanguage) {
-                    Text("Auto-detect").tag("auto")
+                    Text(DictationLanguage.auto.name).tag(DictationLanguage.auto.code)
                     Divider()
                     Group {
-                        Text("English").tag("en")
-                        Text("Hebrew").tag("he")
-                        Text("Spanish").tag("es")
-                        Text("French").tag("fr")
-                        Text("German").tag("de")
-                        Text("Italian").tag("it")
-                        Text("Portuguese").tag("pt")
-                        Text("Dutch").tag("nl")
+                        ForEach(DictationLanguage.primary) { Text($0.name).tag($0.code) }
+                        ForEach(DictationLanguage.secondary) { Text($0.name).tag($0.code) }
                     }
                     Divider()
                     Group {
-                        Text("Chinese").tag("zh")
-                        Text("Japanese").tag("ja")
-                        Text("Korean").tag("ko")
-                        Text("Hindi").tag("hi")
-                        Text("Arabic").tag("ar")
-                        Text("Russian").tag("ru")
-                        Text("Turkish").tag("tr")
-                        Text("Polish").tag("pl")
-                        Text("Swedish").tag("sv")
-                        Text("Ukrainian").tag("uk")
+                        ForEach(DictationLanguage.additional) { Text($0.name).tag($0.code) }
                     }
                 }
 
                 Text("Auto-detect works well for most cases. Set a specific language for better accuracy.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                // MAJOR 2: the menu bar's segmented control only has segments
+                // for Hebrew, English, and Auto. Say so where the choice is
+                // actually made, so a Spanish selection does not look broken
+                // the next time the menu is opened.
+                if !DictationLanguage.canQuickToggle(appState.selectedLanguage) {
+                    Text("The menu bar's quick toggle covers Hebrew, English, and Auto-detect. Other languages are shown there as a label and can only be changed here.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             // Translation
@@ -239,7 +237,13 @@ struct GeneralSettingsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("For best results, enter terms in the language you dictate and set a matching Transcription Language above. In Auto-detect, the terms can also nudge which language TypeFlow picks.")
+                // MAJOR 3: the old wording here sold the Auto-detect nudge as
+                // a feature. It was the bug — a Hebrew-leaning glossary
+                // prefilled ahead of language detection is the one decoding
+                // combination Epic 8 never tested, and it skewed the very
+                // detection it preceded. The glossary is now withheld in Auto
+                // as well as in English, so say where it applies.
+                Text("Enter terms in the language you dictate, and set a matching Transcription Language above. The glossary is only sent when a specific language other than English is selected — Auto-detect and English skip it, so it cannot skew language detection or steer an English recording toward Hebrew spellings.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -922,36 +926,49 @@ struct AboutTab: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
 
-            Button {
-                Task { @MainActor in
-                    await appState.updateChecker.checkForUpdates()
-                    switch appState.updateChecker.updateState {
-                    case .updateAvailable(let info), .updateAvailableViaHomebrew(let info, _):
-                        updateInfoForSheet = info
-                        showingUpdateSheet = true
-                    default:
-                        break
+            // BLOCKER 4: the "Check for Updates..." button is gone rather than
+            // disabled. It polled the upstream VocaMac repo and presented
+            // upstream's releases as TypeFlow updates — installing one would
+            // have replaced this build with an app that has none of its
+            // features. See `UpdateChecker.updatesEnabled` for the full
+            // reasoning and for what to restore this button alongside.
+            if UpdateChecker.updatesEnabled {
+                Button {
+                    Task { @MainActor in
+                        await appState.updateChecker.checkForUpdates()
+                        switch appState.updateChecker.updateState {
+                        case .updateAvailable(let info), .updateAvailableViaHomebrew(let info, _):
+                            updateInfoForSheet = info
+                            showingUpdateSheet = true
+                        default:
+                            break
+                        }
                     }
-                }
-            } label: {
-                if case .checking = appState.updateChecker.updateState {
-                    HStack(spacing: 6) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Checking for Updates...")
-                    }
-                    .font(.caption)
-                } else {
-                    Label("Check for Updates...", systemImage: "arrow.triangle.2.circlepath")
+                } label: {
+                    if case .checking = appState.updateChecker.updateState {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Checking for Updates...")
+                        }
                         .font(.caption)
+                    } else {
+                        Label("Check for Updates...", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                    }
                 }
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.blue)
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
 
-            Text(updateStatusText)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                Text(updateStatusText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Automatic updates are off in this build. Rebuild from source to update.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
 
             Divider()
                 .frame(width: 200)
@@ -1062,16 +1079,16 @@ struct DebugTab: View {
     @EnvironmentObject var appState: AppState
     @State private var logEntryCount: Int = VocaLogger.logEntryCount
 
-    /// When each permission was first observed `.denied`, tracked purely in
-    /// this View — `nil` once it's no longer denied. Drives the "still
-    /// stuck?" hint below once 30 seconds of polling have passed without the
-    /// user fixing it in System Settings. Permission polling itself already
-    /// re-renders this tab every few seconds while anything is denied (see
-    /// `PermissionManager.startPermissionPolling`), so no extra timer is
-    /// needed just to notice the elapsed time.
-    @State private var micDeniedSince: Date?
-    @State private var accessibilityDeniedSince: Date?
-    @State private var inputMonitoringDeniedSince: Date?
+    // The "denied since" clocks used to live here as @State (MINOR 3). That
+    // made the 30-second timer restart every time this tab appeared, so
+    // switching tabs — the natural thing to do while waiting on System
+    // Settings — reset it and the hint that says "denied for 30+ seconds"
+    // could take arbitrarily long to show, or never show at all. They now live
+    // on `PermissionManager`, set on the transition *into* `.denied`, where
+    // they outlive any view's lifetime. Permission polling still re-renders
+    // this tab every few seconds while anything is denied (see
+    // `PermissionManager.startPermissionPolling`), so no extra timer is needed
+    // just to notice the elapsed time.
 
     var body: some View {
         Form {
@@ -1204,46 +1221,28 @@ struct DebugTab: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear {
-            updateDeniedSince(appState.micPermission, tracker: &micDeniedSince)
-            updateDeniedSince(appState.accessibilityPermission, tracker: &accessibilityDeniedSince)
-            updateDeniedSince(appState.inputMonitoringPermission, tracker: &inputMonitoringDeniedSince)
-        }
-        .onChange(of: appState.micPermission) { newValue in
-            updateDeniedSince(newValue, tracker: &micDeniedSince)
-        }
-        .onChange(of: appState.accessibilityPermission) { newValue in
-            updateDeniedSince(newValue, tracker: &accessibilityDeniedSince)
-        }
-        .onChange(of: appState.inputMonitoringPermission) { newValue in
-            updateDeniedSince(newValue, tracker: &inputMonitoringDeniedSince)
-        }
     }
 
-    /// Records the moment a permission first reads `.denied`, and clears it
-    /// the moment it stops being denied — so a granted-then-revoked cycle
-    /// restarts the 30-second clock rather than firing the hint instantly.
-    private func updateDeniedSince(_ status: PermissionStatus, tracker: inout Date?) {
-        guard status == .denied else {
-            tracker = nil
-            return
-        }
-        if tracker == nil {
-            tracker = Date()
-        }
-    }
-
-    /// One concise sentence once *any* permission has read `.denied` for 30+
-    /// seconds of polling — long enough that "wait a moment" is no longer
-    /// good advice and the dev/ad-hoc-build fix (remove + re-add the app, or
-    /// `tccutil reset`) is what actually gets someone unstuck.
+    /// One concise hint once *any* permission has read `.denied` for 30+
+    /// seconds of polling — long enough that "wait a moment" is no longer good
+    /// advice and the remove-and-re-add fix is what actually gets someone
+    /// unstuck.
+    ///
+    /// The advice leads with removing the stale **VocaMac** row (MAJOR 4).
+    /// Accessibility and Input Monitoring grants are keyed to the bundle's
+    /// path, so renaming the bundle VocaMac.app → TypeFlow.app invalidated
+    /// every existing grant and left a row in System Settings pointing at an
+    /// app that is no longer there. That row is not harmless: it keeps its
+    /// toggle on, so the list *looks* like permission is granted while the app
+    /// asking for it is a different bundle.
+    ///
+    /// `tccutil reset` stays in the hint but is now the second suggestion, not
+    /// the first: it reliably clears Microphone, and is unreliable for
+    /// Accessibility specifically — it often reports success while the row and
+    /// its grant survive, which sends someone off believing they tried the fix.
     private var longDeniedHint: String? {
-        let now = Date()
-        let longDenied = [micDeniedSince, accessibilityDeniedSince, inputMonitoringDeniedSince]
-            .compactMap { $0 }
-            .contains { now.timeIntervalSince($0) >= 30 }
-        guard longDenied else { return nil }
-        return "Still denied after 30+ seconds? Remove TypeFlow from the list in System Settings and re-add it, or run tccutil reset All com.vocamac.app in Terminal (same as the Reset button below)."
+        guard let deniedFor = appState.longestPermissionDenialDuration, deniedFor >= 30 else { return nil }
+        return "Still denied after 30+ seconds? In System Settings → Privacy & Security, remove any \"VocaMac\" row from both Accessibility and Input Monitoring (left over from before the rename — its toggle stays on but grants nothing), then remove and re-add TypeFlow and toggle it on. Failing that, run tccutil reset All com.vocamac.app in Terminal (same as the Reset button below) — note it is unreliable for Accessibility specifically."
     }
 
     // MARK: - Actions
@@ -1301,7 +1300,7 @@ struct DebugTab: View {
 
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [.plainText]
-        savePanel.nameFieldStringValue = "VocaMac-Debug-\(ISO8601DateFormatter().string(from: Date()).prefix(19)).log"
+        savePanel.nameFieldStringValue = "TypeFlow-Debug-\(ISO8601DateFormatter().string(from: Date()).prefix(19)).log"
         savePanel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
 
         savePanel.begin { response in

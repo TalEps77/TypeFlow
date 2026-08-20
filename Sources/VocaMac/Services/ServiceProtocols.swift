@@ -86,6 +86,11 @@ protocol PermissionManaging: AnyObject {
     var accessibilityPermission: PermissionStatus { get set }
     var inputMonitoringPermission: PermissionStatus { get set }
     var allPermissionsGranted: Bool { get }
+    /// How long the longest-standing currently-denied permission has been
+    /// denied, `nil` when nothing is denied. Owned by the manager rather than
+    /// the Settings view that shows the hint, so switching tabs cannot restart
+    /// the clock (MINOR 3).
+    var longestPermissionDenialDuration: TimeInterval? { get }
     var onAllPermissionsGranted: (() -> Void)? { get set }
 
     var objectWillChangePublisher: AnyPublisher<Void, Never> { get }

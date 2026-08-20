@@ -251,29 +251,170 @@ header#title-block-header { padding-top: 2.5rem; }
 <div id="doc-wrap">
 <header id="title-block-header">
 <h1 class="title">Epic Breakdown — local-whisper</h1>
-<p class="subtitle">7 epics, 27 dev-agent-sized stories,
+<p class="subtitle">8 epics, 29 dev-agent-sized stories,
 dependency-ordered</p>
 </header>
 <nav id="TOC" role="doc-toc">
 <ul>
+<li><a href="#local-whisper---epic-breakdown"
+id="toc-local-whisper---epic-breakdown">local-whisper - Epic
+Breakdown</a>
+<ul>
 <li><a href="#overview" id="toc-overview">Overview</a></li>
-<li><a href="#requirements-inventory" id="toc-requirements-inventory">Requirements Inventory</a></li>
+<li><a href="#requirements-inventory"
+id="toc-requirements-inventory">Requirements Inventory</a>
+<ul>
+<li><a href="#functional-requirements"
+id="toc-functional-requirements">Functional Requirements</a></li>
+<li><a href="#nonfunctional-requirements"
+id="toc-nonfunctional-requirements">NonFunctional Requirements</a></li>
+<li><a href="#additional-requirements"
+id="toc-additional-requirements">Additional Requirements</a></li>
+<li><a href="#fr-coverage-map" id="toc-fr-coverage-map">FR Coverage
+Map</a></li>
+</ul></li>
 <li><a href="#epic-list" id="toc-epic-list">Epic List</a></li>
-<li><a href="#epic-1-hebrew-asr-accuracy" id="toc-epic-1-hebrew-asr-accuracy">Epic 1: Hebrew ASR Accuracy</a></li>
-<li><a href="#epic-2-llm-post-processing" id="toc-epic-2-llm-post-processing">Epic 2: LLM Post-Processing</a></li>
-<li><a href="#epic-3-transcription-history" id="toc-epic-3-transcription-history">Epic 3: Transcription
-History</a></li>
-<li><a href="#epic-4-profiles-and-cursor-context" id="toc-epic-4-profiles-and-cursor-context">Epic 4: Profiles and Cursor
-Context</a></li>
-<li><a href="#epic-5-dictionary-and-snippets" id="toc-epic-5-dictionary-and-snippets">Epic 5: Dictionary and
-Snippets</a></li>
+<li><a href="#epic-1-hebrew-asr-accuracy"
+id="toc-epic-1-hebrew-asr-accuracy">Epic 1: Hebrew ASR Accuracy</a>
+<ul>
+<li><a href="#story-11-register-the-side-loaded-ivritai-hebrew-model"
+id="toc-story-11-register-the-side-loaded-ivritai-hebrew-model">Story
+1.1: Register the side-loaded ivrit.ai Hebrew model</a></li>
+<li><a
+href="#story-12-handle-an-absent-side-loaded-model-and-restore-hebrew-to-the-language-picker"
+id="toc-story-12-handle-an-absent-side-loaded-model-and-restore-hebrew-to-the-language-picker">Story
+1.2: Handle an absent side-loaded model, and restore Hebrew to the
+language picker</a></li>
+<li><a href="#story-13-record-per-stage-latency-on-the-history-record"
+id="toc-story-13-record-per-stage-latency-on-the-history-record">Story
+1.3: Record per-stage latency on the History Record</a></li>
+</ul></li>
+<li><a href="#epic-2-llm-post-processing"
+id="toc-epic-2-llm-post-processing">Epic 2: LLM Post-Processing</a>
+<ul>
+<li><a
+href="#story-21-transcript-pipeline-scaffolding-with-a-proven-identity-guarantee"
+id="toc-story-21-transcript-pipeline-scaffolding-with-a-proven-identity-guarantee">Story
+2.1: Transcript pipeline scaffolding with a proven identity
+guarantee</a></li>
+<li><a
+href="#story-22-postprocessservice--llm-client-with-a-hard-deadline-and-transparent-fallback"
+id="toc-story-22-postprocessservice--llm-client-with-a-hard-deadline-and-transparent-fallback">Story
+2.2: PostProcessService — LLM client with a hard deadline and
+transparent fallback</a></li>
+<li><a
+href="#story-23-wire-post-processing-into-the-pipeline-behind-a-master-toggle"
+id="toc-story-23-wire-post-processing-into-the-pipeline-behind-a-master-toggle">Story
+2.3: Wire post-processing into the pipeline behind a master
+toggle</a></li>
+<li><a href="#story-24-post-processing-settings-tab"
+id="toc-story-24-post-processing-settings-tab">Story 2.4:
+Post-processing settings tab</a></li>
+</ul></li>
+<li><a href="#epic-3-transcription-history"
+id="toc-epic-3-transcription-history">Epic 3: Transcription History</a>
+<ul>
+<li><a
+href="#story-31-persist-every-dictation-via-a-shared-json-file-store"
+id="toc-story-31-persist-every-dictation-via-a-shared-json-file-store">Story
+3.1: Persist every dictation via a shared JSON file store</a></li>
+<li><a href="#story-32-browse-search-and-clear-history"
+id="toc-story-32-browse-search-and-clear-history">Story 3.2: Browse,
+search, and clear history</a></li>
+<li><a href="#story-33-re-paste-a-previous-transcription"
+id="toc-story-33-re-paste-a-previous-transcription">Story 3.3: Re-paste
+a previous transcription</a></li>
+<li><a href="#story-34-undo-the-last-injection"
+id="toc-story-34-undo-the-last-injection">Story 3.4: Undo the last
+injection</a></li>
+</ul></li>
+<li><a href="#epic-4-profiles-and-cursor-context"
+id="toc-epic-4-profiles-and-cursor-context">Epic 4: Profiles and Cursor
+Context</a>
+<ul>
+<li><a
+href="#story-41-capture-the-frontmost-application-at-recording-start"
+id="toc-story-41-capture-the-frontmost-application-at-recording-start">Story
+4.1: Capture the frontmost application at recording start</a></li>
+<li><a href="#story-42-resolve-a-profile-from-the-bundle-identifier"
+id="toc-story-42-resolve-a-profile-from-the-bundle-identifier">Story
+4.2: Resolve a Profile from the bundle identifier</a></li>
+<li><a
+href="#story-43-profiles-settings-tab-with-starter-profiles-and-json-export"
+id="toc-story-43-profiles-settings-tab-with-starter-profiles-and-json-export">Story
+4.3: Profiles settings tab with starter profiles and JSON
+export</a></li>
+<li><a href="#story-44-supply-cursor-context-to-the-llm-off-by-default"
+id="toc-story-44-supply-cursor-context-to-the-llm-off-by-default">Story
+4.4: Supply Cursor Context to the LLM, off by default</a></li>
+</ul></li>
+<li><a href="#epic-5-dictionary-and-snippets"
+id="toc-epic-5-dictionary-and-snippets">Epic 5: Dictionary and
+Snippets</a>
+<ul>
+<li><a href="#story-51-hebrew-normalization"
+id="toc-story-51-hebrew-normalization">Story 5.1: Hebrew
+normalization</a></li>
+<li><a href="#story-52-post-asr-dictionary-replacement"
+id="toc-story-52-post-asr-dictionary-replacement">Story 5.2: Post-ASR
+dictionary replacement</a></li>
+<li><a href="#story-53-dictionary-settings-ui-and-persistence"
+id="toc-story-53-dictionary-settings-ui-and-persistence">Story 5.3:
+Dictionary settings UI and persistence</a></li>
+<li><a href="#story-54-snippet-expansion-with-placeholder-protection"
+id="toc-story-54-snippet-expansion-with-placeholder-protection">Story
+5.4: Snippet expansion with placeholder protection</a></li>
+<li><a href="#story-55-snippets-settings-ui"
+id="toc-story-55-snippets-settings-ui">Story 5.5: Snippets settings
+UI</a></li>
+<li><a href="#story-56-propose-dictionary-entries-from-user-corrections"
+id="toc-story-56-propose-dictionary-entries-from-user-corrections">Story
+5.6: Propose Dictionary Entries from user corrections</a></li>
+</ul></li>
 <li><a href="#epic-6-command-mode" id="toc-epic-6-command-mode">Epic 6:
-Command Mode</a></li>
-<li><a href="#epic-7-responsive-capture" id="toc-epic-7-responsive-capture">Epic 7: Responsive Capture</a></li>
-<li><a href="#epic-8-rebrand-and-bilingual-dictation" id="toc-epic-8-rebrand-and-bilingual-dictation">Epic 8: Rebrand and
-Bilingual Dictation</a></li>
+Command Mode</a>
+<ul>
+<li><a href="#story-61-add-a-second-hotkey-binding"
+id="toc-story-61-add-a-second-hotkey-binding">Story 6.1: Add a second
+hotkey binding</a></li>
+<li><a href="#story-62-read-and-replace-the-selection-via-accessibility"
+id="toc-story-62-read-and-replace-the-selection-via-accessibility">Story
+6.2: Read and replace the selection via Accessibility</a></li>
+<li><a href="#story-63-rewrite-the-selection-by-voice"
+id="toc-story-63-rewrite-the-selection-by-voice">Story 6.3: Rewrite the
+selection by voice</a></li>
+</ul></li>
+<li><a href="#epic-7-responsive-capture"
+id="toc-epic-7-responsive-capture">Epic 7: Responsive Capture</a>
+<ul>
+<li><a
+href="#story-71-replace-the-rms-threshold-with-voice-activity-detection"
+id="toc-story-71-replace-the-rms-threshold-with-voice-activity-detection">Story
+7.1: Replace the RMS threshold with voice activity detection</a></li>
+<li><a href="#story-72-parallelize-long-recordings-with-vad-chunking"
+id="toc-story-72-parallelize-long-recordings-with-vad-chunking">Story
+7.2: Parallelize long recordings with VAD chunking</a></li>
+<li><a
+href="#story-73-streaming-partial-results--spike-then-implement-or-cut"
+id="toc-story-73-streaming-partial-results--spike-then-implement-or-cut">Story
+7.3: Streaming partial results — spike, then implement or cut</a></li>
+</ul></li>
+<li><a href="#epic-8-rebrand-and-bilingual-dictation"
+id="toc-epic-8-rebrand-and-bilingual-dictation">Epic 8: Rebrand and
+Bilingual Dictation</a>
+<ul>
+<li><a href="#story-81-rebrand-to-typeflow"
+id="toc-story-81-rebrand-to-typeflow">Story 8.1: Rebrand to
+"TypeFlow"</a></li>
+<li><a href="#story-82-bilingual-hebrew--english-dictation"
+id="toc-story-82-bilingual-hebrew--english-dictation">Story 8.2:
+Bilingual (Hebrew + English) dictation</a></li>
+</ul></li>
+</ul></li>
 </ul>
 </nav>
+<h1 id="local-whisper---epic-breakdown">local-whisper - Epic
+Breakdown</h1>
 <h2 id="overview">Overview</h2>
 <p>This document decomposes the PRD requirements and Architecture
 decisions into implementable stories. Every story is sized for a single
@@ -303,7 +444,7 @@ before the story.</li>
 </ul>
 <h2 id="requirements-inventory">Requirements Inventory</h2>
 <h3 id="functional-requirements">Functional Requirements</h3>
-<div class="table-scroll"><table>
+<table>
 <thead>
 <tr>
 <th>FR</th>
@@ -412,13 +553,9 @@ before the story.</li>
 <td>Show partial results while speaking</td>
 </tr>
 </tbody>
-</table></div>
+</table>
 <h3 id="nonfunctional-requirements">NonFunctional Requirements</h3>
-<div class="table-scroll"><table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
+<table>
 <thead>
 <tr>
 <th>NFR</th>
@@ -457,7 +594,7 @@ survive upgrade</td>
 <td>Licensing — AGPL-3.0 retained, no VoiceInk code copied</td>
 </tr>
 </tbody>
-</table></div>
+</table>
 <h3 id="additional-requirements">Additional Requirements</h3>
 <p>Architecture decisions AD-1 through AD-13 bind implementation. The
 load-bearing ones for story work: <strong>AD-1</strong> (one call in
@@ -468,12 +605,7 @@ does not fall back), <strong>AD-5</strong> (context never persisted),
 actors), <strong>AD-11</strong> (model support bypass),
 <strong>AD-13</strong> (identity is a test).</p>
 <h3 id="fr-coverage-map">FR Coverage Map</h3>
-<div class="table-scroll"><table>
-<colgroup>
-<col style="width: 33%" />
-<col style="width: 33%" />
-<col style="width: 33%" />
-</colgroup>
+<table>
 <thead>
 <tr>
 <th>Epic</th>
@@ -518,16 +650,9 @@ actors), <strong>AD-11</strong> (model support bypass),
 <td>NFR-3, NFR-4</td>
 </tr>
 </tbody>
-</table></div>
+</table>
 <h2 id="epic-list">Epic List</h2>
-<div class="table-scroll"><table>
-<colgroup>
-<col style="width: 20%" />
-<col style="width: 20%" />
-<col style="width: 20%" />
-<col style="width: 20%" />
-<col style="width: 20%" />
-</colgroup>
+<table>
 <thead>
 <tr>
 <th>#</th>
@@ -588,7 +713,7 @@ actors), <strong>AD-11</strong> (model support bypass),
 <td>—</td>
 </tr>
 </tbody>
-</table></div>
+</table>
 <p><strong>Recommended execution order:</strong> 1.1 → 1.2 → 2.1 → 2.2 →
 2.3 → 2.4 → 3.1 → 1.3 → 3.2 → 3.3 → 3.4 → 4.1 → 4.2 → 4.3 → 4.4 → 5.1 →
 5.2 → 5.3 → 5.4 → 5.5 → 5.6 → 6.1 → 6.2 → 6.3 → 7.1 → 7.2 → 7.3</p>
@@ -603,7 +728,7 @@ ASR stage produces materially better Hebrew than the current
 <code>large-v3-v20240930_626MB</code>. This is the one axis where the
 product can beat Wispr Flow outright rather than catch up to it. Covers
 FR-1, FR-2, FR-3.</p>
-<h3 id="story-1.1-register-the-side-loaded-ivrit.ai-hebrew-model">Story
+<h3 id="story-11-register-the-side-loaded-ivritai-hebrew-model">Story
 1.1: Register the side-loaded ivrit.ai Hebrew model</h3>
 <p>As a Hebrew dictation user, I want to select the ivrit.ai Hebrew
 model from the model picker, So that my transcripts are more accurate
@@ -638,7 +763,7 @@ and the ladder in <code>AppState.loadModel</code>
 <code>WhisperKit.recommendedModels()</code>, which never endorses a
 custom local model, <strong>When</strong> support is evaluated for the
 ivrit.ai entry, <strong>Then</strong> support is determined by
-<strong>on-disk presence</strong> rather than WhisperKit’s endorsement
+<strong>on-disk presence</strong> rather than WhisperKit's endorsement
 (AD-11), <strong>And</strong> the entry is present in
 <code>ModelSize.standardCatalog</code> (<code>:32</code>) so
 <code>AppState.modelCatalog()</code> (<code>:419</code>) surfaces
@@ -646,23 +771,28 @@ it.</p>
 <p><strong>Given</strong> the model is side-loaded and not downloadable,
 <strong>When</strong> the entry is shown or selected,
 <strong>Then</strong> no download is attempted for it,
-<strong>And</strong> existing models’ download behavior and the chip/RAM
+<strong>And</strong> existing models' download behavior and the chip/RAM
 recommendation logic are unchanged.</p>
-<p><strong>Verification:</strong> - Unit: <code>ModelSizeTests</code>
-covers the new case across all five metadata properties;
-<code>ModelManagerTests</code> covers <code>whisperKitModelName</code>
-and the on-disk support bypass with a temp directory. - Unit: a
-regression test asserts <code>modelSizeFromName</code> round-trips the
-new folder name. - Manual: with the real model directory present, select
-it, dictate a Hebrew sentence, confirm text appears. If the parallel
-model-acquisition effort has not delivered yet, verify against a
-directory stub containing the required CoreML component layout
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: <code>ModelSizeTests</code> covers the new case across all
+five metadata properties; <code>ModelManagerTests</code> covers
+<code>whisperKitModelName</code> and the on-disk support bypass with a
+temp directory.</li>
+<li>Unit: a regression test asserts <code>modelSizeFromName</code>
+round-trips the new folder name.</li>
+<li>Manual: with the real model directory present, select it, dictate a
+Hebrew sentence, confirm text appears. If the parallel model-acquisition
+effort has not delivered yet, verify against a directory stub containing
+the required CoreML component layout
 (<code>MelSpectrogram.mlmodelc</code>,
 <code>AudioEncoder.mlmodelc</code>, <code>TextDecoder.mlmodelc</code>,
 tokenizer files) and record that the end-to-end load check is pending
-real weights. - Manual: confirm existing models still download and
-load.</p>
-<h3 id="story-1.2-handle-an-absent-side-loaded-model-and-restore-hebrew-to-the-language-picker">Story
+real weights.</li>
+<li>Manual: confirm existing models still download and load.</li>
+</ul>
+<h3
+id="story-12-handle-an-absent-side-loaded-model-and-restore-hebrew-to-the-language-picker">Story
 1.2: Handle an absent side-loaded model, and restore Hebrew to the
 language picker</h3>
 <p>As a user whose model files are not yet in place, I want the app to
@@ -671,7 +801,7 @@ staring at a broken picker entry with no explanation.</p>
 <p><strong>Acceptance Criteria:</strong></p>
 <p><strong>Given</strong> the ivrit.ai model directory is missing or
 incomplete, <strong>When</strong> I open Settings → Models,
-<strong>Then</strong> the entry is marked “Not installed” and cannot be
+<strong>Then</strong> the entry is marked "Not installed" and cannot be
 selected, <strong>And</strong> the expected on-disk path is displayed so
 I can place the files, <strong>And</strong> no download is offered or
 attempted, <strong>And</strong> no crash or unhandled error occurs.</p>
@@ -682,24 +812,28 @@ starts, <strong>Then</strong>
 selects a known-good model instead, <strong>And</strong> exactly one
 clear message explains the fallback.</p>
 <p><strong>Given</strong> <code>selectedLanguage</code> defaults to
-<code>&quot;he&quot;</code> (<code>AppState.swift:105</code>) but the Settings
+<code>"he"</code> (<code>AppState.swift:105</code>) but the Settings
 language <code>Picker</code> (<code>SettingsView.swift:110-135</code>)
 has <strong>no Hebrew option</strong> — a pre-existing defect that makes
 Hebrew unrecoverable once the picker is touched, <strong>When</strong> I
 open the language picker, <strong>Then</strong> Hebrew is present and
-selectable, <strong>And</strong> selecting it stores <code>&quot;he&quot;</code>,
+selectable, <strong>And</strong> selecting it stores <code>"he"</code>,
 <strong>And</strong> the previously-stored value is preserved on upgrade
-(NFR-5). <em>(The “selecting it stores <code>&quot;he&quot;</code>” clause has no
-automated test — it is verified manually only, per the picker’s manual
+(NFR-5). <em>(The "selecting it stores <code>"he"</code>" clause has no
+automated test — it is verified manually only, per the picker's manual
 verification step below.)</em></p>
-<p><strong>Verification:</strong> - Unit: model-support evaluation
-against a temp directory in three states — complete, partially complete,
-absent. - Unit: startup fallback selects a valid model when the
-configured one is unavailable. - Manual: rename the model directory,
-relaunch, confirm the “Not installed” state, the displayed path, and the
-fallback message. - Manual: open the language picker, select Hebrew,
-relaunch, confirm it persisted.</p>
-<h3 id="story-1.3-record-per-stage-latency-on-the-history-record">Story
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: model-support evaluation against a temp directory in three
+states — complete, partially complete, absent.</li>
+<li>Unit: startup fallback selects a valid model when the configured one
+is unavailable.</li>
+<li>Manual: rename the model directory, relaunch, confirm the "Not
+installed" state, the displayed path, and the fallback message.</li>
+<li>Manual: open the language picker, select Hebrew, relaunch, confirm
+it persisted.</li>
+</ul>
+<h3 id="story-13-record-per-stage-latency-on-the-history-record">Story
 1.3: Record per-stage latency on the History Record</h3>
 <p>As someone deciding between a large model and a smaller model plus an
 LLM, I want to see how long each stage actually took, So that I choose
@@ -717,17 +851,21 @@ zero rather than a missing field.</p>
 <p><strong>Given</strong> I have dictated with two different ASR models,
 <strong>When</strong> I open the history view, <strong>Then</strong>
 each record shows its model and its ASR duration, <strong>And</strong>
-the two models’ typical latencies are directly comparable.</p>
+the two models' typical latencies are directly comparable.</p>
 <p><strong>Given</strong> timing instrumentation is added,
 <strong>When</strong> dictation runs, <strong>Then</strong> measurement
 adds no perceptible latency and introduces no main-thread stalls
 (NFR-4).</p>
-<p><strong>Verification:</strong> - Unit: timing fields populate
-correctly, including the zero case for skipped stages. - Manual: dictate
-five sentences on each of two models; confirm ASR durations are recorded
-and differ as expected. - Manual: confirm the memory ceiling question
-(NFR-3, R-7) can now be investigated — record peak memory with the
-ivrit.ai model loaded alongside LM Studio running Qwen3-4B Q4.</p>
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: timing fields populate correctly, including the zero case for
+skipped stages.</li>
+<li>Manual: dictate five sentences on each of two models; confirm ASR
+durations are recorded and differ as expected.</li>
+<li>Manual: confirm the memory ceiling question (NFR-3, R-7) can now be
+investigated — record peak memory with the ivrit.ai model loaded
+alongside LM Studio running Qwen3-4B Q4.</li>
+</ul>
 <hr />
 <h2 id="epic-2-llm-post-processing">Epic 2: LLM Post-Processing</h2>
 <p>Introduce the pipeline substrate and the LLM stage that turns a Raw
@@ -735,7 +873,8 @@ Transcript into send-ready text. This is the largest single product gap
 versus Wispr Flow, and the epic is structured so the risky part (the
 LLM) lands on top of a proven-inert foundation. Covers FR-4, FR-5, FR-6,
 FR-7.</p>
-<h3 id="story-2.1-transcript-pipeline-scaffolding-with-a-proven-identity-guarantee">Story
+<h3
+id="story-21-transcript-pipeline-scaffolding-with-a-proven-identity-guarantee">Story
 2.1: Transcript pipeline scaffolding with a proven identity
 guarantee</h3>
 <p>As a developer, I want an ordered, testable pipeline between
@@ -773,14 +912,19 @@ input.</p>
 <strong>When</strong> it runs, <strong>Then</strong> no
 <code>actor</code> is introduced anywhere and no strict-concurrency
 flags are enabled.</p>
-<p><strong>Verification:</strong> - Unit: the identity corpus test; a
-stage-failure test using a deliberately-throwing test stage confirming
-pass-through and a recorded outcome. - Unit:
-<code>MockTranscriptPipeline</code> added to
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: the identity corpus test; a stage-failure test using a
+deliberately-throwing test stage confirming pass-through and a recorded
+outcome.</li>
+<li>Unit: <code>MockTranscriptPipeline</code> added to
 <code>MockServices.swift</code> and threaded through
-<code>TestMocks</code>/<code>makeTestState</code> (AD-7). - Manual:
-dictate before and after the change; output must be identical.</p>
-<h3 id="story-2.2-postprocessservice-llm-client-with-a-hard-deadline-and-transparent-fallback">Story
+<code>TestMocks</code>/<code>makeTestState</code> (AD-7).</li>
+<li>Manual: dictate before and after the change; output must be
+identical.</li>
+</ul>
+<h3
+id="story-22-postprocessservice--llm-client-with-a-hard-deadline-and-transparent-fallback">Story
 2.2: PostProcessService — LLM client with a hard deadline and
 transparent fallback</h3>
 <p>As a user, I want the local LLM contacted safely, So that a slow or
@@ -818,14 +962,19 @@ separately unit-tested, <strong>And</strong> default prompts live as
 <strong>When</strong> any request is issued, <strong>Then</strong> it
 targets only the configured loopback endpoint, and the app remains fully
 functional with no internet route.</p>
-<p><strong>Verification:</strong> - Unit: prompt construction; response
-validation across every rejection case; the length-ratio guard at its
-boundaries. - Unit: timeout behavior with a stubbed slow transport;
-connection-refused behavior. - Manual: with LM Studio stopped, call
-“Test connection” and confirm an actionable failure. With it running,
-confirm success. - Manual: disable all network interfaces; confirm the
-app still dictates normally.</p>
-<h3 id="story-2.3-wire-post-processing-into-the-pipeline-behind-a-master-toggle">Story
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: prompt construction; response validation across every
+rejection case; the length-ratio guard at its boundaries.</li>
+<li>Unit: timeout behavior with a stubbed slow transport;
+connection-refused behavior.</li>
+<li>Manual: with LM Studio stopped, call "Test connection" and confirm
+an actionable failure. With it running, confirm success.</li>
+<li>Manual: disable all network interfaces; confirm the app still
+dictates normally.</li>
+</ul>
+<h3
+id="story-23-wire-post-processing-into-the-pipeline-behind-a-master-toggle">Story
 2.3: Wire post-processing into the pipeline behind a master toggle</h3>
 <p>As a user, I want my Hebrew transcripts cleaned, punctuated, and
 self-corrections resolved, So that what lands at my cursor is ready to
@@ -838,7 +987,7 @@ sentence-final punctuation present.</p>
 <p><strong>Given</strong> I dictate a spoken enumeration,
 <strong>When</strong> post-processing runs, <strong>Then</strong> the
 result is formatted as a list.</p>
-<p><strong>Given</strong> I dictate “נפגש בשתיים… בעצם בשלוש”,
+<p><strong>Given</strong> I dictate "נפגש בשתיים… בעצם בשלוש",
 <strong>When</strong> post-processing runs, <strong>Then</strong> the
 injected text contains only the corrected time.</p>
 <p><strong>Given</strong> I dictate a question, <strong>When</strong>
@@ -853,15 +1002,18 @@ byte-identical to before this epic (AD-2, AD-13).</p>
 Transcript is injected with no modal and no dialog, <strong>And</strong>
 the Raw Transcript is retained alongside the Final Text for the History
 Record.</p>
-<p><strong>Verification:</strong> - Unit: <code>PostProcessStage</code>
-with a mock service covering success, each failure mode, and the
-disabled path. - Manual: dictate five real Hebrew sentences with fillers
-and a self-correction; confirm the cleanup and that meaning is unchanged
-(SM-C1 — if you find yourself checking the LLM’s work, the prompt is too
-aggressive; note this and tune). - Manual: stop LM Studio mid-session,
-dictate, confirm raw text appears with no interruption and only the
-timeout’s delay.</p>
-<h3 id="story-2.4-post-processing-settings-tab">Story 2.4:
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: <code>PostProcessStage</code> with a mock service covering
+success, each failure mode, and the disabled path.</li>
+<li>Manual: dictate five real Hebrew sentences with fillers and a
+self-correction; confirm the cleanup and that meaning is unchanged
+(SM-C1 — if you find yourself checking the LLM's work, the prompt is too
+aggressive; note this and tune).</li>
+<li>Manual: stop LM Studio mid-session, dictate, confirm raw text
+appears with no interruption and only the timeout's delay.</li>
+</ul>
+<h3 id="story-24-post-processing-settings-tab">Story 2.4:
 Post-processing settings tab</h3>
 <p>As a user, I want to configure and verify the LLM connection, So that
 I can point at my own setup and confirm it works without guessing.</p>
@@ -879,28 +1031,32 @@ timeout, and temperature are editable and persisted under
 defaults are <code>http://localhost:1234</code>, Qwen3-4B-Instruct, a
 low single-digit-second timeout, and temperature 0.</p>
 <p><strong>Given</strong> the system prompt is editable,
-<strong>When</strong> I modify it and then choose “Restore default”,
+<strong>When</strong> I modify it and then choose "Restore default",
 <strong>Then</strong> the documented default from
 <code>Models/Prompts.swift</code> is restored.</p>
-<p><strong>Given</strong> I press “Test connection”,
+<p><strong>Given</strong> I press "Test connection",
 <strong>When</strong> LM Studio is reachable, <strong>Then</strong>
-success is reported along with the responding model’s identifier,
+success is reported along with the responding model's identifier,
 <strong>And</strong> when it is unreachable, the failure reason is
 actionable — refused, timed out, or the HTTP status,
 <strong>And</strong> in neither case does the UI block or become
 stuck.</p>
-<p><strong>Verification:</strong> - Unit: settings persistence
-round-trip; restore-to-default. - Manual: change the endpoint to a wrong
-port, test connection, confirm an actionable error and a responsive UI;
-change it back, confirm success. - Manual: relaunch and confirm all
-settings persisted.</p>
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: settings persistence round-trip; restore-to-default.</li>
+<li>Manual: change the endpoint to a wrong port, test connection,
+confirm an actionable error and a responsive UI; change it back, confirm
+success.</li>
+<li>Manual: relaunch and confirm all settings persisted.</li>
+</ul>
 <hr />
 <h2 id="epic-3-transcription-history">Epic 3: Transcription History</h2>
 <p>Persist what the app produced, so nothing is lost, injections can be
 re-pasted or retracted, and later features have the substrate they need.
 The cheapest epic in the plan and a precondition for Story 5.6. Covers
 FR-3, FR-8, FR-9, FR-10, FR-11.</p>
-<h3 id="story-3.1-persist-every-dictation-via-a-shared-json-file-store">Story
+<h3
+id="story-31-persist-every-dictation-via-a-shared-json-file-store">Story
 3.1: Persist every dictation via a shared JSON file store</h3>
 <p>As a user, I want every transcript saved locally, So that nothing the
 app produced is ever lost.</p>
@@ -911,8 +1067,8 @@ is added under <code>Sources/VocaMac/Stores/</code> (AD-10),
 atomically to <code>~/Library/Application Support/VocaMac/</code>, on a
 serial <code>.utility</code> queue, without blocking the caller —
 modeled on <code>StatsManager.swift:24-38</code>.</p>
-<p><strong>Given</strong> the store’s file is corrupt or unreadable,
-<strong>When</strong> it loads, <strong>Then</strong> the type’s empty
+<p><strong>Given</strong> the store's file is corrupt or unreadable,
+<strong>When</strong> it loads, <strong>Then</strong> the type's empty
 value is returned and the failure is logged, <strong>And</strong> the
 app does not crash and startup is not blocked.</p>
 <p><strong>Given</strong> a dictation completes, <strong>When</strong>
@@ -929,12 +1085,16 @@ serialized record contains no context payload.</p>
 <p><strong>Given</strong> history is local-only, <strong>When</strong>
 records are stored, <strong>Then</strong> they are never transmitted and
 are excluded from any diagnostic export.</p>
-<p><strong>Verification:</strong> - Unit: <code>JSONFileStore</code>
-round-trip, atomic write, corrupt-file recovery, concurrent-save safety.
-- Unit: <code>HistoryRecord</code> encode/decode; the no-context-field
-assertion. - Manual: dictate three times, quit, relaunch, confirm all
-three records are present with correct metadata.</p>
-<h3 id="story-3.2-browse-search-and-clear-history">Story 3.2: Browse,
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: <code>JSONFileStore</code> round-trip, atomic write,
+corrupt-file recovery, concurrent-save safety.</li>
+<li>Unit: <code>HistoryRecord</code> encode/decode; the no-context-field
+assertion.</li>
+<li>Manual: dictate three times, quit, relaunch, confirm all three
+records are present with correct metadata.</li>
+</ul>
+<h3 id="story-32-browse-search-and-clear-history">Story 3.2: Browse,
 search, and clear history</h3>
 <p>As a user, I want to review what I dictated and see what the LLM
 changed, So that I can recover text and build trust in the
@@ -945,7 +1105,7 @@ it loads, <strong>Then</strong> records are listed newest-first with
 timestamp, target app, and a text preview.</p>
 <p><strong>Given</strong> I select a record, <strong>When</strong> its
 detail is shown, <strong>Then</strong> both the Raw Transcript and the
-Final Text are visible, making the LLM’s edit inspectable.</p>
+Final Text are visible, making the LLM's edit inspectable.</p>
 <p><strong>Given</strong> I type in the search field,
 <strong>When</strong> the query changes, <strong>Then</strong> the list
 filters to matching records.</p>
@@ -954,25 +1114,29 @@ filters to matching records.</p>
 <strong>Then</strong> I can delete an individual record, delete all, and
 set a retention limit, <strong>And</strong> the retention limit is
 enforced automatically as new records arrive.</p>
-<p><strong>Verification:</strong> - Unit: search filtering including
-Hebrew queries; retention enforcement at the boundary. - Manual: dictate
-ten times, browse the list, search for a term, delete one record, verify
-the count. - Manual: set retention to 5, dictate three more, confirm the
-oldest are pruned.</p>
-<p><strong>Known gap — “target app” read “Unknown app” until Epic 4
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: search filtering including Hebrew queries; retention
+enforcement at the boundary.</li>
+<li>Manual: dictate ten times, browse the list, search for a term,
+delete one record, verify the count.</li>
+<li>Manual: set retention to 5, dictate three more, confirm the oldest
+are pruned.</li>
+</ul>
+<p><strong>Known gap — "target app" read "Unknown app" until Epic 4
 (closed by Story 4.1):</strong> The first acceptance criterion asks for
 the target app in each row, but at the time this story shipped nothing
 populated <code>HistoryRecord.targetBundleId</code> yet: the frontmost
 application was not captured until Story 4.1. Every row and detail pane
-showed “Unknown app” for records written before that story landed. This
+showed "Unknown app" for records written before that story landed. This
 was a sequencing artifact, not a defect — the field, the schema, and the
 UI that reads it were all in place from the start and began showing real
 values as soon as 4.1 started populating them. Story 4.1 now captures
-the frontmost application’s bundle identifier at recording start (via
+the frontmost application's bundle identifier at recording start (via
 <code>AXContextReader</code>) and threads it through to
 <code>HistoryRecord.targetBundleId</code>. Records written before Story
 4.1 keep <code>nil</code> permanently; they were not backfilled.</p>
-<h3 id="story-3.3-re-paste-a-previous-transcription">Story 3.3: Re-paste
+<h3 id="story-33-re-paste-a-previous-transcription">Story 3.3: Re-paste
 a previous transcription</h3>
 <p>As a user whose injection landed in the wrong window, I want to
 re-paste it where I actually meant it to go, So that I do not have to
@@ -985,7 +1149,7 @@ current cursor via the same <code>TextInjector</code> path as a live
 dictation.</p>
 <p><strong>Given</strong> I am in the history view,
 <strong>When</strong> I choose re-paste on any listed record,
-<strong>Then</strong> that record’s Final Text is injected.</p>
+<strong>Then</strong> that record's Final Text is injected.</p>
 <p><strong>Given</strong> a re-paste occurs, <strong>When</strong> it
 completes, <strong>Then</strong> <strong>no duplicate History Record is
 created</strong>.</p>
@@ -993,11 +1157,14 @@ created</strong>.</p>
 <strong>When</strong> re-paste uses the clipboard strategy,
 <strong>Then</strong> the prior clipboard contents are restored exactly
 as in a normal injection.</p>
-<p><strong>Verification:</strong> - Unit: re-paste calls the injector
-with the expected text and creates no new record. - Manual: dictate into
-TextEdit, switch to another app, re-paste from the menu bar, confirm the
-text lands and the clipboard is restored.</p>
-<h3 id="story-3.4-undo-the-last-injection">Story 3.4: Undo the last
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: re-paste calls the injector with the expected text and creates
+no new record.</li>
+<li>Manual: dictate into TextEdit, switch to another app, re-paste from
+the menu bar, confirm the text lands and the clipboard is restored.</li>
+</ul>
+<h3 id="story-34-undo-the-last-injection">Story 3.4: Undo the last
 injection</h3>
 <p>As a user whose text landed somewhere it should not have, I want to
 retract it immediately, So that a misfire is not something I have to
@@ -1020,19 +1187,24 @@ retracted precisely.</p>
 <strong>When</strong> undo runs, <strong>Then</strong> ⌘Z is
 synthesized, and inconsistent behavior across applications is an
 accepted, documented limitation.</p>
-<p><strong>Verification:</strong> - Unit: the safety-window and
-frontmost-app guards; the unavailable state. - Manual: dictate into
-TextEdit (AX path) and undo — text removed. Dictate into a terminal
-(clipboard path) and undo — note actual behavior. - Manual: dictate,
-switch apps, confirm undo is unavailable rather than firing into the
-wrong window.</p>
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: the safety-window and frontmost-app guards; the unavailable
+state.</li>
+<li>Manual: dictate into TextEdit (AX path) and undo — text removed.
+Dictate into a terminal (clipboard path) and undo — note actual
+behavior.</li>
+<li>Manual: dictate, switch apps, confirm undo is unavailable rather
+than firing into the wrong window.</li>
+</ul>
 <hr />
 <h2 id="epic-4-profiles-and-cursor-context">Epic 4: Profiles and Cursor
 Context</h2>
 <p>Make the same utterance produce app-appropriate text — casual in
 chat, formal in mail, identifier-shaped in an editor — using only local
 signals. Covers FR-12, FR-13, FR-14.</p>
-<h3 id="story-4.1-capture-the-frontmost-application-at-recording-start">Story
+<h3
+id="story-41-capture-the-frontmost-application-at-recording-start">Story
 4.1: Capture the frontmost application at recording start</h3>
 <p>As a user who switches windows while thinking, I want the app to
 remember where I started dictating, So that my text is shaped for the
@@ -1041,7 +1213,7 @@ app I was actually aiming at.</p>
 <p><strong>Given</strong> <code>AXContextReader</code> is added as a
 <code>@MainActor</code> service with a protocol in
 <code>ServiceProtocols.swift</code> (AD-7), <strong>When</strong>
-recording starts, <strong>Then</strong> the frontmost application’s
+recording starts, <strong>Then</strong> the frontmost application's
 bundle identifier is captured at that moment via
 <code>NSWorkspace</code> — <strong>not</strong> when recording stops
 (AD-5).</p>
@@ -1054,15 +1226,18 @@ used.</p>
 identifier is recorded and the pipeline proceeds normally.</p>
 <p><strong>Given</strong> the captured identifier flows through the
 pipeline, <strong>When</strong> the History Record is written,
-<strong>Then</strong> the bundle identifier is persisted (Story 3.1’s
+<strong>Then</strong> the bundle identifier is persisted (Story 3.1's
 field is populated for real).</p>
-<p><strong>Verification:</strong> - Unit: capture-at-start semantics
-with a mock reader; the nil path. - Manual: start dictating in TextEdit,
-switch to Safari mid-utterance, release; confirm the history record
-names TextEdit.</p>
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: capture-at-start semantics with a mock reader; the nil
+path.</li>
+<li>Manual: start dictating in TextEdit, switch to Safari mid-utterance,
+release; confirm the history record names TextEdit.</li>
+</ul>
 <p><strong>Accepted deviation — protocol placement (Stories 4.1,
 4.2):</strong> The first acceptance criterion asks for
-<code>AXContextReader</code>’s protocol in
+<code>AXContextReader</code>'s protocol in
 <code>ServiceProtocols.swift</code> (AD-7). <code>ContextReading</code>
 is instead declared in <code>AXContextReader.swift</code>, alongside the
 vocabulary it is written in terms of (<code>CapturedContext</code>);
@@ -1074,12 +1249,12 @@ mocked and threaded through <code>TestMocks</code> /
 follows the precedent set by <code>PostProcessing</code> in Epic 2,
 which was placed in <code>PostProcessService.swift</code> for the same
 reason and reviewed as acceptable there: splitting a protocol from the
-types in its own signatures makes both files harder to read, and AD-7’s
+types in its own signatures makes both files harder to read, and AD-7's
 substance — every service is behind a protocol, and every protocol has a
 mock — is fully met. Deliberate, consistent across the three services
-that have done it, and not to be “fixed” by a later pass without also
+that have done it, and not to be "fixed" by a later pass without also
 moving <code>PostProcessing</code>.</p>
-<h3 id="story-4.2-resolve-a-profile-from-the-bundle-identifier">Story
+<h3 id="story-42-resolve-a-profile-from-the-bundle-identifier">Story
 4.2: Resolve a Profile from the bundle identifier</h3>
 <p>As a user, I want each application mapped to a dictation Profile, So
 that the LLM is told what kind of text this app expects.</p>
@@ -1091,12 +1266,12 @@ captured bundle identifier resolves to a matching Profile,
 <strong>And</strong> when no Profile matches, the Default Profile is
 used.</p>
 <p><strong>Given</strong> a Profile is resolved, <strong>When</strong>
-post-processing runs, <strong>Then</strong> the Profile’s prompt
-override steers the LLM, <strong>And</strong> the Profile’s per-feature
+post-processing runs, <strong>Then</strong> the Profile's prompt
+override steers the LLM, <strong>And</strong> the Profile's per-feature
 toggles for post-processing and context capture are honored.</p>
 <p><strong>Given</strong> Profiles are disabled entirely,
 <strong>When</strong> a dictation runs, <strong>Then</strong> the
-Default Profile always applies and behavior matches Epic 2’s.</p>
+Default Profile always applies and behavior matches Epic 2's.</p>
 <p><strong>Given</strong> a Profile is resolved, <strong>When</strong>
 the History Record is written, <strong>Then</strong> the Profile name is
 persisted.</p>
@@ -1104,12 +1279,17 @@ persisted.</p>
 <strong>When</strong> profile management operations run,
 <strong>Then</strong> it can be edited but <strong>not
 deleted</strong>.</p>
-<p><strong>Verification:</strong> - Unit: resolution for a matching id,
-a non-matching id, an empty profile set, and the disabled state;
-default-profile deletion is rejected. - Manual: create a Profile bound
-to TextEdit with a distinctive prompt; dictate into TextEdit and into
-another app; confirm the outputs differ as the prompts dictate.</p>
-<h3 id="story-4.3-profiles-settings-tab-with-starter-profiles-and-json-export">Story
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: resolution for a matching id, a non-matching id, an empty
+profile set, and the disabled state; default-profile deletion is
+rejected.</li>
+<li>Manual: create a Profile bound to TextEdit with a distinctive
+prompt; dictate into TextEdit and into another app; confirm the outputs
+differ as the prompts dictate.</li>
+</ul>
+<h3
+id="story-43-profiles-settings-tab-with-starter-profiles-and-json-export">Story
 4.3: Profiles settings tab with starter profiles and JSON export</h3>
 <p>As a user, I want to create and manage Profiles without editing
 files, So that tuning per-app behavior is a normal settings task.</p>
@@ -1132,11 +1312,15 @@ Profiles are written as a single JSON file, <strong>And</strong>
 importing that file restores them, <strong>And</strong> an import of a
 malformed file is rejected with a clear message rather than corrupting
 existing Profiles.</p>
-<p><strong>Verification:</strong> - Unit: CRUD operations; export/import
-round-trip; malformed-import rejection. - Manual: create a Profile via
-the running-apps picker, restart, confirm persistence; export, delete
-all, import, confirm restoration.</p>
-<h3 id="story-4.4-supply-cursor-context-to-the-llm-off-by-default">Story
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: CRUD operations; export/import round-trip; malformed-import
+rejection.</li>
+<li>Manual: create a Profile via the running-apps picker, restart,
+confirm persistence; export, delete all, import, confirm
+restoration.</li>
+</ul>
+<h3 id="story-44-supply-cursor-context-to-the-llm-off-by-default">Story
 4.4: Supply Cursor Context to the LLM, off by default</h3>
 <p>As a user dictating into an existing document, I want the LLM to see
 what surrounds my cursor, So that the inserted text matches the register
@@ -1165,13 +1349,17 @@ persisted record contains the context payload.</p>
 <p><strong>Given</strong> context is read on the main thread,
 <strong>When</strong> capture runs, <strong>Then</strong> it adds
 negligible latency and never blocks injection (NFR-4).</p>
-<p><strong>Verification:</strong> - Unit: budget truncation; the
-both-toggles-required gate; the no-readable-context path. - Unit: the
-privacy assertion — capture context, run a full pipeline, inspect logs
-and the persisted record for leakage. - Manual: enable context, dictate
-into the middle of an existing Hebrew paragraph, confirm the insertion
-matches surrounding register. - Manual: confirm the feature is off on a
-fresh profile.</p>
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: budget truncation; the both-toggles-required gate; the
+no-readable-context path.</li>
+<li>Unit: the privacy assertion — capture context, run a full pipeline,
+inspect logs and the persisted record for leakage.</li>
+<li>Manual: enable context, dictate into the middle of an existing
+Hebrew paragraph, confirm the insertion matches surrounding
+register.</li>
+<li>Manual: confirm the feature is off on a fresh profile.</li>
+</ul>
 <hr />
 <h2 id="epic-5-dictionary-and-snippets">Epic 5: Dictionary and
 Snippets</h2>
@@ -1179,7 +1367,7 @@ Snippets</h2>
 into fixed text blocks. Both operate on the transcript; both depend on
 correct Hebrew normalization, which is why that lands first as its own
 story. Covers FR-15 through FR-20.</p>
-<h3 id="story-5.1-hebrew-normalization">Story 5.1: Hebrew
+<h3 id="story-51-hebrew-normalization">Story 5.1: Hebrew
 normalization</h3>
 <p>As a developer, I want a correct, pure Hebrew normalizer, So that
 every fuzzy match in this epic compares like with like.</p>
@@ -1201,12 +1389,16 @@ match in this epic (NFR-6), <strong>When</strong> it is tested,
 variant pairs asserting that variants of the same word normalize
 identically, <strong>And</strong> the functions are side-effect free and
 require no audio, no LLM, and no AX.</p>
-<p><strong>Verification:</strong> - Unit: a variant-pair table covering
-each transformation independently and in combination; idempotence
-(normalizing twice equals normalizing once); the Latin pass-through;
-empty and whitespace input. - No manual step — this story is pure logic
-and stands entirely on its tests.</p>
-<h3 id="story-5.2-post-asr-dictionary-replacement">Story 5.2: Post-ASR
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: a variant-pair table covering each transformation
+independently and in combination; idempotence (normalizing twice equals
+normalizing once); the Latin pass-through; empty and whitespace
+input.</li>
+<li>No manual step — this story is pure logic and stands entirely on its
+tests.</li>
+</ul>
+<h3 id="story-52-post-asr-dictionary-replacement">Story 5.2: Post-ASR
 dictionary replacement</h3>
 <p>As a user with domain terms Whisper keeps getting wrong, I want them
 corrected automatically after transcription, So that I stop fixing the
@@ -1237,13 +1429,15 @@ and ordered so results are reproducible.</p>
 <p><strong>Given</strong> the Dictionary is empty or the feature is
 disabled, <strong>When</strong> the stage runs, <strong>Then</strong> it
 returns its input unchanged (AD-2).</p>
-<p><strong>Verification:</strong> - Unit: exact match; near-match at,
-above, and below threshold; the no-substring-match guard;
-whitespace/punctuation preservation; overlapping-entry determinism;
-empty-dictionary identity. - Manual: add a term you know is
-mis-transcribed, dictate a sentence containing it, confirm
-correction.</p>
-<h3 id="story-5.3-dictionary-settings-ui-and-persistence">Story 5.3:
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: exact match; near-match at, above, and below threshold; the
+no-substring-match guard; whitespace/punctuation preservation;
+overlapping-entry determinism; empty-dictionary identity.</li>
+<li>Manual: add a term you know is mis-transcribed, dictate a sentence
+containing it, confirm correction.</li>
+</ul>
+<h3 id="story-53-dictionary-settings-ui-and-persistence">Story 5.3:
 Dictionary settings UI and persistence</h3>
 <p>As a user, I want to curate my Dictionary in settings, So that
 maintaining it is not a file-editing exercise.</p>
@@ -1256,7 +1450,7 @@ or more trigger variants.</p>
 <code>JSONFileStore</code> (AD-10), <strong>When</strong> I restart the
 app, <strong>Then</strong> my entries are intact.</p>
 <p><strong>Given</strong> the existing Vocabulary
-(<code>promptTokens</code>, <code>&quot;Glossary: &quot;</code>) is a different
+(<code>promptTokens</code>, <code>"Glossary: "</code>) is a different
 mechanism operating before transcription, <strong>When</strong> I manage
 Dictionary Entries, <strong>Then</strong> the Dictionary is clearly
 distinct from it in the UI, <strong>And</strong> the existing Vocabulary
@@ -1264,11 +1458,14 @@ is <strong>not modified</strong> (NFR-5).</p>
 <p><strong>Given</strong> portability matters, <strong>When</strong> I
 export, <strong>Then</strong> the Dictionary is written as JSON
 alongside Profiles and Snippets, and imports round-trip.</p>
-<p><strong>Verification:</strong> - Unit: CRUD; persistence round-trip;
-export/import. - Manual: add three entries, restart, confirm
-persistence; confirm the existing Vocabulary field is untouched and
-still biases the decoder.</p>
-<h3 id="story-5.4-snippet-expansion-with-placeholder-protection">Story
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: CRUD; persistence round-trip; export/import.</li>
+<li>Manual: add three entries, restart, confirm persistence; confirm the
+existing Vocabulary field is untouched and still biases the
+decoder.</li>
+</ul>
+<h3 id="story-54-snippet-expansion-with-placeholder-protection">Story
 5.4: Snippet expansion with placeholder protection</h3>
 <p>As a user, I want a spoken cue to expand into a fixed block of text,
 So that signatures and boilerplate do not have to be dictated or
@@ -1302,12 +1499,15 @@ transcript all expand.</p>
 <p><strong>Given</strong> post-processing is disabled,
 <strong>When</strong> I speak a Cue, <strong>Then</strong> the Snippet
 still expands — Snippets do not require the LLM.</p>
-<p><strong>Verification:</strong> - Unit: single cue; multiple cues;
-multi-line body preservation; normalization-tolerant matching; the
-dropped-placeholder rejection path; expansion with post-processing off.
-- Manual: define a signature snippet, dictate its cue with
-post-processing on, confirm the body is verbatim and unmangled.</p>
-<h3 id="story-5.5-snippets-settings-ui">Story 5.5: Snippets settings
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: single cue; multiple cues; multi-line body preservation;
+normalization-tolerant matching; the dropped-placeholder rejection path;
+expansion with post-processing off.</li>
+<li>Manual: define a signature snippet, dictate its cue with
+post-processing on, confirm the body is verbatim and unmangled.</li>
+</ul>
+<h3 id="story-55-snippets-settings-ui">Story 5.5: Snippets settings
 UI</h3>
 <p>As a user, I want to manage cue-to-text mappings in settings, So that
 I can add and adjust boilerplate easily.</p>
@@ -1322,10 +1522,13 @@ export as JSON alongside Profiles and the Dictionary.</p>
 <p><strong>Given</strong> cues must be unambiguous,
 <strong>When</strong> I enter a Cue that collides with an existing one,
 <strong>Then</strong> it is rejected with a clear message.</p>
-<p><strong>Verification:</strong> - Unit: CRUD; collision rejection;
-export/import round-trip. - Manual: create a multi-line snippet,
-restart, confirm the body survived line breaks exactly.</p>
-<h3 id="story-5.6-propose-dictionary-entries-from-user-corrections">Story
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: CRUD; collision rejection; export/import round-trip.</li>
+<li>Manual: create a multi-line snippet, restart, confirm the body
+survived line breaks exactly.</li>
+</ul>
+<h3 id="story-56-propose-dictionary-entries-from-user-corrections">Story
 5.6: Propose Dictionary Entries from user corrections</h3>
 <p>As a user, I want the app to notice when I fix a word by hand, So
 that my Dictionary builds itself instead of needing curation.</p>
@@ -1333,7 +1536,7 @@ that my Dictionary builds itself instead of needing curation.</p>
 <p><strong>Acceptance Criteria:</strong></p>
 <p><strong>Given</strong> correction learning is enabled — <strong>it is
 off by default</strong>, <strong>When</strong> text has been injected,
-<strong>Then</strong> the text field’s content is re-read after a short
+<strong>Then</strong> the text field's content is re-read after a short
 delay and diffed against what was injected.</p>
 <p><strong>Given</strong> a small, localized, word-level difference is
 found, <strong>When</strong> it is evaluated, <strong>Then</strong> it
@@ -1349,20 +1552,24 @@ diffuse differences produce no candidate.</p>
 <p><strong>Given</strong> the feature proves noisy in practice,
 <strong>When</strong> it is evaluated, <strong>Then</strong> it remains
 off by default and shipping it loud is not an option (PRD §9.3).</p>
-<p><strong>Verification:</strong> - Unit: candidate detection for a
-single-word edit; rejection of large/diffuse diffs; dismissal
-persistence; the disabled path producing nothing. - Manual: dictate a
-sentence, immediately retype one word correctly, confirm exactly one
-sensible candidate is proposed. - Manual: dictate, then type a full new
-paragraph; confirm <strong>no</strong> candidates are proposed. If this
-produces noise, record it and leave the feature off.</p>
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: candidate detection for a single-word edit; rejection of
+large/diffuse diffs; dismissal persistence; the disabled path producing
+nothing.</li>
+<li>Manual: dictate a sentence, immediately retype one word correctly,
+confirm exactly one sensible candidate is proposed.</li>
+<li>Manual: dictate, then type a full new paragraph; confirm
+<strong>no</strong> candidates are proposed. If this produces noise,
+record it and leave the feature off.</li>
+</ul>
 <hr />
 <h2 id="epic-6-command-mode">Epic 6: Command Mode</h2>
 <p>Act on selected text by voice instead of inserting new text. The one
 flow that deliberately inverts the fallback rule, because pasting a
-spoken instruction over a user’s selection would be destructive. Covers
+spoken instruction over a user's selection would be destructive. Covers
 FR-21, FR-22.</p>
-<h3 id="story-6.1-add-a-second-hotkey-binding">Story 6.1: Add a second
+<h3 id="story-61-add-a-second-hotkey-binding">Story 6.1: Add a second
 hotkey binding</h3>
 <p>As a user, I want a separate hotkey for commanding, So that dictating
 and rewriting are distinct gestures.</p>
@@ -1383,19 +1590,22 @@ push-to-talk and double-tap conventions as the existing hotkey,
 <strong>Then</strong> the UI rejects it with a clear message,
 <strong>And</strong> the shipped default for Command Mode does not
 conflict with the Dictation Mode default.</p>
-<p><strong>Given</strong> the input path is the app’s most load-bearing
+<p><strong>Given</strong> the input path is the app's most load-bearing
 (R-5), <strong>When</strong> this story lands, <strong>Then</strong>
 existing <code>HotKeyManagerConfigurationTests</code> and
 <code>HotKeyManagerResetStateTests</code> still pass,
 <strong>And</strong> new tests using the <code>_handleTestEvent</code>
 escape hatch (<code>HotKeyManager.swift:458</code>) cover both bindings,
 including interleaved and stuck-key cases.</p>
-<p><strong>Verification:</strong> - Unit: both bindings fire their own
-callbacks; interleaved presses; stuck-key recovery on each; collision
-rejection. - Manual: configure both hotkeys, exercise dictation
-repeatedly, confirm zero regression in the existing flow. This is the
-highest-regression-risk story in the plan — smoke it hard.</p>
-<h3 id="story-6.2-read-and-replace-the-selection-via-accessibility">Story
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: both bindings fire their own callbacks; interleaved presses;
+stuck-key recovery on each; collision rejection.</li>
+<li>Manual: configure both hotkeys, exercise dictation repeatedly,
+confirm zero regression in the existing flow. This is the
+highest-regression-risk story in the plan — smoke it hard.</li>
+</ul>
+<h3 id="story-62-read-and-replace-the-selection-via-accessibility">Story
 6.2: Read and replace the selection via Accessibility</h3>
 <p>As a developer, I want reliable selection read and write, So that
 Command Mode can operate on what the user actually highlighted.</p>
@@ -1418,12 +1628,15 @@ story lands, <strong>Then</strong> the existing
 pasteboard snapshot/restore, and its changeCount guard are
 <strong>unchanged</strong>, <strong>And</strong> existing
 <code>TextInjectorTests</code> still pass.</p>
-<p><strong>Verification:</strong> - Unit: selection read returns nil
-without a focused element; write-failure reporting; existing injection
-tests unaffected. - Manual: select text in TextEdit, confirm read and
-replace work; repeat in a non-AX-writable target and confirm the failure
-is reported.</p>
-<h3 id="story-6.3-rewrite-the-selection-by-voice">Story 6.3: Rewrite the
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: selection read returns nil without a focused element;
+write-failure reporting; existing injection tests unaffected.</li>
+<li>Manual: select text in TextEdit, confirm read and replace work;
+repeat in a non-AX-writable target and confirm the failure is
+reported.</li>
+</ul>
+<h3 id="story-63-rewrite-the-selection-by-voice">Story 6.3: Rewrite the
 selection by voice</h3>
 <p>As a user, I want to select text, speak an instruction, and have the
 text rewritten, So that editing is as fast as dictating.</p>
@@ -1449,20 +1662,25 @@ nothing</strong>, <strong>And</strong> the existing error sound plays,
 <strong>When</strong> the History Record is written,
 <strong>Then</strong> it is distinguishable from a Dictation Mode record
 by its mode field.</p>
-<p><strong>Verification:</strong> - Unit: the happy path with mocks;
-each abort precondition asserting <strong>no</strong> write occurred;
-the mode field on the record. - Manual: select a clumsy Hebrew
-paragraph, say “make this shorter and more formal”, confirm in-place
-rewrite. - Manual: with <strong>no</strong> selection, press the hotkey
-and speak — confirm the error sound and that nothing anywhere was
-modified. - Manual: stop LM Studio, select text, run a command — confirm
-the selection is untouched.</p>
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: the happy path with mocks; each abort precondition asserting
+<strong>no</strong> write occurred; the mode field on the record.</li>
+<li>Manual: select a clumsy Hebrew paragraph, say "make this shorter and
+more formal", confirm in-place rewrite.</li>
+<li>Manual: with <strong>no</strong> selection, press the hotkey and
+speak — confirm the error sound and that nothing anywhere was
+modified.</li>
+<li>Manual: stop LM Studio, select text, run a command — confirm the
+selection is untouched.</li>
+</ul>
 <hr />
 <h2 id="epic-7-responsive-capture">Epic 7: Responsive Capture</h2>
 <p>Stop cutting people off mid-sentence, transcribe long recordings
 faster, and show progress while speaking. Independent of Epics 2-6 and
 safely pullable forward. Covers FR-23, FR-24, FR-25.</p>
-<h3 id="story-7.1-replace-the-rms-threshold-with-voice-activity-detection">Story
+<h3
+id="story-71-replace-the-rms-threshold-with-voice-activity-detection">Story
 7.1: Replace the RMS threshold with voice activity detection</h3>
 <p>As a user who pauses mid-sentence and sometimes speaks quietly, I
 want the app to know the difference between silence and thinking, So
@@ -1470,7 +1688,7 @@ that it stops cutting me off.</p>
 <p><strong>Acceptance Criteria:</strong></p>
 <p><strong>Given</strong> a <code>VoiceActivityDetecting</code> protocol
 is added with a WhisperKit <code>EnergyVAD</code>-backed implementation
-and an <code>RMSThresholdDetector</code> preserving today’s behavior,
+and an <code>RMSThresholdDetector</code> preserving today's behavior,
 <strong>When</strong> <code>AudioEngine</code> evaluates the stop
 condition, <strong>Then</strong> only the threshold comparison at
 <code>AudioEngine.swift:486-495</code> delegates to the detector.</p>
@@ -1495,14 +1713,19 @@ sensitivity and silence duration are configurable, <strong>And</strong>
 <strong>When</strong> it executes, <strong>Then</strong> it holds no UI
 state, takes no contended locks, and is allocation-free in steady
 state.</p>
-<p><strong>Verification:</strong> - Unit: detector classification over
-synthetic buffers — speech, silence, low-amplitude speech; the RMS
-detector reproduces today’s threshold behavior exactly. - Manual:
-dictate a 60-second Hebrew passage with deliberate pauses; confirm no
-premature stop. Repeat whispering. - Manual: switch to the RMS detector
-and confirm the old behavior returns. - Manual: watch the cursor overlay
-throughout; confirm the level animation is unchanged.</p>
-<h3 id="story-7.2-parallelize-long-recordings-with-vad-chunking">Story
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: detector classification over synthetic buffers — speech,
+silence, low-amplitude speech; the RMS detector reproduces today's
+threshold behavior exactly.</li>
+<li>Manual: dictate a 60-second Hebrew passage with deliberate pauses;
+confirm no premature stop. Repeat whispering.</li>
+<li>Manual: switch to the RMS detector and confirm the old behavior
+returns.</li>
+<li>Manual: watch the cursor overlay throughout; confirm the level
+animation is unchanged.</li>
+</ul>
+<h3 id="story-72-parallelize-long-recordings-with-vad-chunking">Story
 7.2: Parallelize long recordings with VAD chunking</h3>
 <p>As a user dictating long passages, I want long recordings transcribed
 faster, So that a two-minute dictation does not feel like a two-minute
@@ -1515,7 +1738,7 @@ is currently <code>nil</code> (<code>WhisperService.swift:178</code>),
 <strong>Then</strong> long recordings are chunked on speech boundaries
 and transcribed concurrently.</p>
 <p><strong>Given</strong> a recording substantially longer than
-Whisper’s 30-second window, <strong>When</strong> it is transcribed,
+Whisper's 30-second window, <strong>When</strong> it is transcribed,
 <strong>Then</strong> it completes measurably faster than with
 sequential chunking, <strong>And</strong> accuracy is equal or
 better.</p>
@@ -1526,14 +1749,19 @@ is <strong>no regression</strong> in latency or accuracy.</p>
 R-7), <strong>When</strong> parallel chunks are processed,
 <strong>Then</strong> peak memory remains within a safe margin on 24 GB
 with the ivrit.ai model loaded.</p>
-<p><strong>Verification:</strong> - Unit: <code>DecodingOptions</code>
-construction asserts the chunking strategy (note:
-<code>WhisperServiceTests</code> currently tests only pure static
-helpers — this may need the first test that inspects options
-construction). - Manual: time a 90-second Hebrew dictation before and
-after; record both numbers using Story 1.3’s instrumentation. - Manual:
-time ten short dictations before and after; confirm no regression. -
-Manual: monitor peak memory during a long parallel transcription.</p>
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Unit: <code>DecodingOptions</code> construction asserts the chunking
+strategy (note: <code>WhisperServiceTests</code> currently tests only
+pure static helpers — this may need the first test that inspects options
+construction).</li>
+<li>Manual: time a 90-second Hebrew dictation before and after; record
+both numbers using Story 1.3's instrumentation.</li>
+<li>Manual: time ten short dictations before and after; confirm no
+regression.</li>
+<li>Manual: monitor peak memory during a long parallel
+transcription.</li>
+</ul>
 <p><strong>Known limitations (as delivered — documented, not
 fixed):</strong></p>
 <ul>
@@ -1550,10 +1778,11 @@ chunk.</strong> When the transcription language is <code>nil</code>,
 WhisperKit detects the language separately for each chunk, so a long
 mixed-language dictation can switch script mid-transcript between
 chunks. Low impact in practice: <code>selectedLanguage</code> defaults
-to <code>&quot;he&quot;</code> (Hebrew), so the language is normally pinned and
+to <code>"he"</code> (Hebrew), so the language is normally pinned and
 per-chunk detection never runs.</li>
 </ul>
-<h3 id="story-7.3-streaming-partial-results-spike-then-implement-or-cut">Story
+<h3
+id="story-73-streaming-partial-results--spike-then-implement-or-cut">Story
 7.3: Streaming partial results — spike, then implement or cut</h3>
 <p>As a user, I want to see transcription progress while I speak, So
 that long dictations do not feel like dead air.</p>
@@ -1565,24 +1794,24 @@ that long dictations do not feel like dead air.</p>
 <code>setupEngine()</code>) constructs its own
 <code>AVAudioEngine</code>, acquires its own input node, installs its
 own tap, and calls <code>engine.start()</code> — entirely independent
-of, and in direct conflict with, <code>AudioEngine</code>’s own
+of, and in direct conflict with, <code>AudioEngine</code>'s own
 installed tap on the same physical input device (R-1; confirmed by
 reading WhisperKit 0.18.0 source, not by running the conflict live).
 There is no supported way to hand <code>AudioStreamTranscriber</code> an
 already-running engine and tap, so using it means either re-architecting
-<code>AudioEngine</code> to hand capture ownership to WhisperKit’s
+<code>AudioEngine</code> to hand capture ownership to WhisperKit's
 <code>AudioProcessor</code> — an AD-8-violating rewrite of the
 Bluetooth, device-selection, and exception-catching logic Epics 1-6
-depend on — or reimplementing <code>AudioStreamTranscriber</code>’s
+depend on — or reimplementing <code>AudioStreamTranscriber</code>'s
 segment-confirmation, VAD-gating, and early-stop logic from scratch
-against <code>AudioEngine</code>’s own captured buffer. Both are the
+against <code>AudioEngine</code>'s own captured buffer. Both are the
 re-architecture the spike-phase criterion below says to cut on, so the
 feature was cut per that explicit branch and no streaming code was
 written.</p>
 <p><strong>Acceptance Criteria — spike phase (do this
 first):</strong></p>
 <p><strong>Given</strong> <code>AudioStreamTranscriber</code> may own
-its own audio capture and conflict with <code>AudioEngine</code>’s
+its own audio capture and conflict with <code>AudioEngine</code>'s
 installed tap (R-1), <strong>When</strong> the spike is performed,
 <strong>Then</strong> the conflict is definitively characterized,
 <strong>And</strong> if resolving it requires re-architecting capture,
@@ -1627,14 +1856,17 @@ unimplemented concurrency protection, <strong>When</strong> this story
 touches <code>WhisperService</code>, <strong>Then</strong> the lock is
 either genuinely used or deleted — the misleading comment does not
 survive.</p>
-<p><strong>Verification:</strong> - Spike: document the
-capture-ownership finding before writing feature code. If it is a
-conflict, stop and close the story. - Unit:
-no-partial-text-reaches-injector assertion; the streaming-off identity
-path. - Manual: dictate a 60-second passage with streaming on; confirm
-partials appear and only the final text is injected. - Manual:
-transcribe identical audio with streaming on and off; compare final text
-and timings.</p>
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Spike: document the capture-ownership finding before writing feature
+code. If it is a conflict, stop and close the story.</li>
+<li>Unit: no-partial-text-reaches-injector assertion; the streaming-off
+identity path.</li>
+<li>Manual: dictate a 60-second passage with streaming on; confirm
+partials appear and only the final text is injected.</li>
+<li>Manual: transcribe identical audio with streaming on and off;
+compare final text and timings.</li>
+</ul>
 <p>Only the spike bullet was performed; the remaining bullets were not,
 because the implementation phase was cut (see <strong>Outcome</strong>
 above).</p>
@@ -1646,10 +1878,10 @@ the PRD): give the app its own public identity, and let the same install
 dictate both Hebrew and English. Covers no FR/NFR from the original
 inventory — both are additive, post-launch requests layered on the
 finished Epics 1-7 product.</p>
-<h3 id="story-8.1-rebrand-to-typeflow">Story 8.1: Rebrand to
-“TypeFlow”</h3>
-<p>As the maintainer of this fork, I want the app’s user-visible
-identity to read “TypeFlow” instead of “VocaMac”, So that it has its own
+<h3 id="story-81-rebrand-to-typeflow">Story 8.1: Rebrand to
+"TypeFlow"</h3>
+<p>As the maintainer of this fork, I want the app's user-visible
+identity to read "TypeFlow" instead of "VocaMac", So that it has its own
 public name while everything that would break if renamed — bundle id,
 on-disk data, git history, internal types — stays exactly as it was.</p>
 <p><strong>Acceptance Criteria:</strong></p>
@@ -1657,10 +1889,10 @@ on-disk data, git history, internal types — stays exactly as it was.</p>
 <strong>When</strong> the app is built and run, <strong>Then</strong>
 the Settings, Onboarding, and History window titles, the menu bar header
 and quit/restart labels, the About tab, permission/error/tooltip text
-that names the app, and the README’s title/tagline/features intro all
-read “TypeFlow”, <strong>And</strong> the top of the README states the
-fork relationship: “TypeFlow is a fork of VocaMac by jatinkrmalik,
-licensed under AGPL-3.0.”</p>
+that names the app, and the README's title/tagline/features intro all
+read "TypeFlow", <strong>And</strong> the top of the README states the
+fork relationship: "TypeFlow is a fork of VocaMac by jatinkrmalik,
+licensed under AGPL-3.0."</p>
 <p><strong>Given</strong> the bundle identifier, the
 <code>~/Library/Application Support/VocaMac/</code> data path (models,
 history, profiles, dictionary), git history, and the ~9,500 LOC of
@@ -1674,32 +1906,83 @@ Swift type is renamed.</p>
 internal executable name and the user-visible product name from one
 <code>APP_NAME</code> variable, <strong>When</strong> the generator is
 updated, <strong>Then</strong> it is split into
-<code>APP_NAME=&quot;VocaMac&quot;</code> (executable filename, xcodebuild scheme,
+<code>APP_NAME="VocaMac"</code> (executable filename, xcodebuild scheme,
 entitlements — unchanged, so
-<code>VocaMacApp.ensureSingleInstance</code>’s
-<code>pgrep -x &quot;VocaMac&quot;</code> keeps matching the real binary) and
-<code>DISPLAY_NAME=&quot;TypeFlow&quot;</code> (<code>CFBundleName</code>,
+<code>VocaMacApp.ensureSingleInstance</code>'s
+<code>pgrep -x "VocaMac"</code> keeps matching the real binary) and
+<code>DISPLAY_NAME="TypeFlow"</code> (<code>CFBundleName</code>,
 <code>CFBundleDisplayName</code>,
 <code>NSMicrophoneUsageDescription</code>), <strong>And</strong> the
 delivered bundle folder itself is named from <code>DISPLAY_NAME</code>
-(<code>APP_DIR=&quot;${DISPLAY_NAME}.app&quot;</code>), so the shipped app is
+(<code>APP_DIR="${DISPLAY_NAME}.app"</code>), so the shipped app is
 <code>TypeFlow.app</code> containing an unchanged <code>VocaMac</code>
-executable and <code>com.vocamac.app</code> identifier.</p>
+executable and <code>com.vocamac.app</code> identifier,
+<strong>And</strong> that definition lives in exactly one place —
+<code>scripts/app-name.sh</code> — sourced by <code>build.sh</code>,
+<code>dist.sh</code>, <code>install.sh</code>, <code>uninstall.sh</code>
+and the <code>Makefile</code>, with the four workflow YAMLs and both
+Homebrew casks updated to match.</p>
+<p><em>(AC amended after Epic 8 adversarial review, BLOCKER 1.
+<code>build.sh</code> began emitting <code>TypeFlow.app</code> while
+every consumer still looked for <code>VocaMac.app</code>: CI's
+<code>test -d</code>, all three release/nightly/pr-build codesign and
+packaging steps, <code>dist.sh</code>'s DMG staging and AppleScript
+layout, <code>install.sh</code>'s copy to /Applications,
+<code>uninstall.sh</code>'s cleanup,
+<code>make run</code>/<code>make clean</code>, and both cask
+<code>app</code> stanzas. A stale pre-rebrand <code>VocaMac.app/</code>
+also sat untracked at the repo root, so <code>make run</code> and
+<code>install.sh</code> launched the <strong>old</strong> app. Deleted,
+and <code>.gitignore</code> now ignores both names — it previously
+ignored only <code>VocaMac.app/</code>, so the first build after the
+rename dropped an untracked multi-GB <code>TypeFlow.app/</code> where a
+<code>git add -A</code> would have committed it (BLOCKER 2).)</em></p>
+<p><strong>Given</strong> Accessibility and Input Monitoring grants are
+keyed to the bundle's <strong>path</strong>, so renaming the folder
+invalidates every existing grant and strands a <code>VocaMac</code> row
+in System Settings whose toggle stays on while granting nothing,
+<strong>When</strong> an existing install is upgraded,
+<strong>Then</strong> the stuck-permission hint,
+<code>install.sh</code>, <code>uninstall.sh</code>, and the README all
+lead with "remove the old VocaMac row from both Accessibility and Input
+Monitoring, then add TypeFlow", with <code>tccutil reset</code> demoted
+to a second suggestion and noted as unreliable for Accessibility
+specifically, <strong>And</strong> <code>install.sh</code> removes a
+leftover <code>/Applications/VocaMac.app</code> itself rather than
+leaving two apps sharing one bundle id.</p>
+<p><em>(AC added after Epic 8 adversarial review, MAJOR 4 + MINOR
+4.)</em></p>
+<p><strong>Given</strong> the inherited update checker polls
+<code>jatinkrmalik/vocamac/releases/latest</code> while this fork has no
+release repo of its own, <strong>When</strong> an upstream release
+compares as newer, <strong>Then</strong> nothing happens: update
+checking is switched off behind
+<code>UpdateChecker.updatesEnabled = false</code>, the Settings "Check
+for Updates…" button is gone, and the menu-bar banner is gated on the
+same flag.</p>
+<p><em>(AC added after Epic 8 adversarial review, BLOCKER 4. Left on,
+the app would have shown "TypeFlow 0.7.x Available", handed the user a
+DMG containing upstream's <code>VocaMac.app</code>, and told them to
+drag it into /Applications — replacing this build with one that has none
+of Epics 1-8 while keeping the same bundle id and Application Support
+directory. The Homebrew branch had the same defect from the other side.
+The machinery is intact and tested behind the flag, since the fix is a
+real fork release repo, not a different endpoint.)</em></p>
 <p><strong>Given</strong> renaming the SwiftPM product/target to
-“TypeFlow” was evaluated first, <strong>When</strong> the cascade was
+"TypeFlow" was evaluated first, <strong>When</strong> the cascade was
 checked, <strong>Then</strong> it was rejected: the product name drives
-xcodebuild’s scheme and the Contents/MacOS binary filename
-(<code>scripts/build.sh</code>’s <code>-scheme VocaMac</code> and
-<code>BINARY=&quot;.../${APP_NAME}&quot;</code>), and the target name is the Swift
+xcodebuild's scheme and the Contents/MacOS binary filename
+(<code>scripts/build.sh</code>'s <code>-scheme VocaMac</code> and
+<code>BINARY=".../${APP_NAME}"</code>), and the target name is the Swift
 module every one of the ~35 files in <code>Tests/VocaMacTests/</code>
 imports via <code>@testable import VocaMac</code> — renaming either
 cascades into the build script and every test file for zero user-visible
 gain, so <code>Package.swift</code> is untouched and the rename happens
 only at the <code>.app</code>-bundle-and-Info.plist layer.</p>
-<p><strong>Given</strong> SettingsView’s Debug tab has a permission
-“Re-check Permissions” affordance that blended in next to the more
-prominent “Reset All Permissions” button, <strong>When</strong> the
-Debug tab is viewed, <strong>Then</strong> “Re-check Permissions”
+<p><strong>Given</strong> SettingsView's Debug tab has a permission
+"Re-check Permissions" affordance that blended in next to the more
+prominent "Reset All Permissions" button, <strong>When</strong> the
+Debug tab is viewed, <strong>Then</strong> "Re-check Permissions"
 carries a matching icon and <code>.bordered</code> style so it reads as
 equally actionable, <strong>And</strong> once any permission has read
 <code>.denied</code> for 30+ seconds of polling, a red hint appears next
@@ -1707,21 +1990,40 @@ to the existing denied-permissions text telling the user (dev/ad-hoc
 builds) to remove and re-add the app in System Settings, or run
 <code>tccutil reset All com.vocamac.app</code> — the same fix the Reset
 button already performs.</p>
-<p><strong>Verification:</strong> - Build: <code>swift build</code>
-clean; the typecheck harness shows no new errors beyond the pre-existing
-<code>HistoryStoreTests.swift:61</code> cast bug. - Manual: grep
-confirms every remaining <code>VocaMac</code> string in
-<code>Views/</code>, <code>App/</code>, and
-<code>scripts/build.sh</code> is internal (header comments, log
-messages, the process-match string, default export/debug-log filenames,
-the Application Support path) — none of it user-visible. - Manual:
-<code>ensureSingleInstance</code>’s <code>pgrep -x &quot;VocaMac&quot;</code>
-still matches the actual <code>Contents/MacOS/VocaMac</code> executable
-name after the bundle-name split.</p>
-<h3 id="story-8.2-bilingual-hebrew-english-dictation">Story 8.2:
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Build: <code>swift build</code> clean. <strong>Post-review:</strong>
+<code>swift test</code> now actually runs and is green (763 tests, ~14s)
+— the earlier "typecheck harness" note stood in for a suite that could
+not be executed, and the <code>HistoryStoreTests.swift:61</code> cast
+bug it excused was fixed in e473210.</li>
+<li>Build: <code>./scripts/build.sh</code> produces
+<code>TypeFlow.app</code> with
+<code>CFBundleName</code>/<code>CFBundleDisplayName</code> = TypeFlow,
+<code>CFBundleExecutable</code> = VocaMac,
+<code>CFBundleIdentifier</code> = com.vocamac.app; the bundled
+executable launches and is killable by
+<code>killall VocaMac</code>.</li>
+<li>Manual: grep confirms every remaining <code>VocaMac</code> string in
+<code>Views/</code>, <code>App/</code>, and the scripts is internal
+(header comments, log messages, the process-match string, the
+Application Support path) — none of it user-visible. Default
+export/debug-log filenames were still <code>VocaMac-*</code> and are now
+<code>TypeFlow-*</code> (MINOR 2).</li>
+<li>Manual: <code>ensureSingleInstance</code>'s
+<code>pgrep -x "VocaMac"</code> still matches the actual
+<code>Contents/MacOS/VocaMac</code> executable name after the
+bundle-name split.</li>
+<li>Post-review: permission-denial clocks moved from <code>@State</code>
+on the Debug tab to <code>PermissionManager</code>, so switching tabs no
+longer restarts the 30-second timer (MINOR 3), and permission polling
+slows to 30s after all grants rather than stopping, so a mid-session
+revoke is noticed (MINOR 5).</li>
+</ul>
+<h3 id="story-82-bilingual-hebrew--english-dictation">Story 8.2:
 Bilingual (Hebrew + English) dictation</h3>
 <p>As a user who dictates in both Hebrew and English, I want a fast way
-to tell the app which language I’m speaking, So that I don’t have to dig
+to tell the app which language I'm speaking, So that I don't have to dig
 into the 19-language Settings picker every time I switch.</p>
 <p><strong>Empirical test performed first (throwaway harness,
 scratchpad-only, never touched the repo):</strong>
@@ -1729,14 +2031,14 @@ scratchpad-only, never touched the repo):</strong>
 English and one Hebrew clip, transcribed through the real ivrit-ai model
 at the real decoding options (<code>DecodingOptions</code> mirrored
 exactly from <code>WhisperService.decodingOptions</code>). Verdict:
-<strong>the ivrit.ai Hebrew fine-tune’s English quality is good</strong>
-— with <code>language: &quot;en&quot;</code> forced, the English clip transcribed
-perfectly (“The quarterly report is due next Tuesday at 03:30.”). Hebrew
-with <code>language: &quot;he&quot;</code> or auto both transcribed correctly. The
-one caveat: WhisperKit’s <code>detectLanguage</code> (true auto-detect,
+<strong>the ivrit.ai Hebrew fine-tune's English quality is good</strong>
+— with <code>language: "en"</code> forced, the English clip transcribed
+perfectly ("The quarterly report is due next Tuesday at 03:30."). Hebrew
+with <code>language: "he"</code> or auto both transcribed correctly. The
+one caveat: WhisperKit's <code>detectLanguage</code> (true auto-detect,
 <code>language: nil</code>) is unreliable for language
 <em>identification</em> on this fine-tune — it mislabeled the English
-clip’s <code>detectedLanguage</code> as <code>&quot;he&quot;</code> even though
+clip's <code>detectedLanguage</code> as <code>"he"</code> even though
 the decoded <em>text</em> was still correct English. This is a labeling
 quirk, not a transcription-quality problem, and is documented rather
 than worked around (fixing language-ID bias inside a third-party
@@ -1749,60 +2051,141 @@ reload-on-toggle) and adds a fast menu-bar toggle over the same
 <code>AppState.selectedLanguage</code> the existing 19-language Settings
 picker already used — a menu bar quick-switch, not a new decoding
 path.</p>
-<p><strong>Given</strong> the menu bar toggle, <strong>When</strong> I
-open the popover, <strong>Then</strong> a three-way עב/EN/Auto segmented
-control sits under the header, bound to <code>selectedLanguage</code>,
-and reflects whatever is currently selected (including a value picked
-from the full Settings list).</p>
+<p><strong>Given</strong> the menu bar toggle, and that the segmented
+control has three segments while Settings offers nineteen choices over
+the same key, <strong>When</strong> I open the popover,
+<strong>Then</strong> a three-way עב/EN/Auto segmented control sits
+under the header bound to <code>selectedLanguage</code> whenever the
+stored value is one of those three, <strong>And</strong> a stored value
+outside them (any of the other sixteen Settings languages) is rendered
+as a read-only "&lt;Language&gt; — change in Settings" label instead,
+because a segmented picker whose selection is outside its own tags shows
+nothing highlighted and silently rewrites the user's choice the moment a
+segment is touched, <strong>And</strong> a Profile that pins a language
+for the frontmost app is shown the same way — "EN — from Slack Profile"
+— since that override, not the toggle, is what the next dictation will
+use.</p>
+<p><em>(AC amended after Epic 8 adversarial review, MAJOR 2 + MEDIUM 3.
+The original wording — "reflects whatever is currently selected
+(including a value picked from the full Settings list)" — described
+behavior a three-segment control cannot have.
+<code>DictationLanguage</code> is now the single list both surfaces
+read.)</em></p>
 <p><strong>Given</strong> a Profile may need to force a language
-regardless of the toggle (e.g. a Slack Profile always in English),
+regardless of the toggle (e.g. a Slack Profile always in English),
 <strong>When</strong> <code>Profile</code> gains an optional
 <code>language: String?</code> field (<code>nil</code> = follow the
 app-wide toggle, following the same optional-with-default pattern as its
-other fields), <strong>Then</strong>
-<code>AppState.stopRecordingAndTranscribe()</code> resolves
-<code>capturedProfile?.language ?? selectedLanguage</code> before
-mapping <code>&quot;auto&quot;</code> to <code>nil</code>, <strong>And</strong> a
-“Language for this Profile” picker in the Profiles settings tab exposes
-App Default / Hebrew / English / Auto-detect.</p>
+other fields), <strong>Then</strong> the resolved language is
+<code>capturedProfile?.language ?? selectedLanguage</code>, captured at
+<strong>recording start</strong> alongside the Profile and the bundle
+identifier — not read at stop time, where a mid-recording toggle flip
+retroactively changed the language of speech already captured (MEDIUM 2)
+— before mapping <code>"auto"</code> to <code>nil</code>,
+<strong>And</strong> a "Language for this Profile" picker in the
+Profiles settings tab exposes App Default / Hebrew / English /
+Auto-detect, <strong>And</strong> Command Mode resolves its
+instruction's language the same way rather than ignoring Profiles (MINOR
+8).</p>
 <p><strong>Given</strong> the custom Vocabulary glossary is written with
 Hebrew dictation in mind, <strong>When</strong> the resolved language
-for a recording is explicitly <code>&quot;en&quot;</code>, <strong>Then</strong>
-the vocabulary/<code>promptTokens</code> hint is not passed to
-WhisperKit for that recording (Auto mode still gets it, since the
-language isn’t known until decode completes — there is nothing to gate
-on yet).</p>
+for a recording is explicitly <code>"en"</code> <strong>or is
+Auto</strong>, <strong>Then</strong> the
+vocabulary/<code>promptTokens</code> hint is not passed to WhisperKit
+for that recording.</p>
+<p><em>(AC amended after Epic 8 adversarial review, MAJOR 3. The
+original carved out Auto — "Auto mode still gets it, since the language
+isn't known until decode completes" — which is exactly the defect:
+passing <code>promptTokens</code> with <code>language: nil</code> makes
+<code>decodingOptions</code> set <code>usePrefillPrompt: true</code>
+alongside <code>detectLanguage: true</code>, so a Hebrew glossary was
+prefilled ahead of the language detection it then skewed. That
+combination was never tested. Auto now decodes with
+<code>usePrefillPrompt: false</code>, the shipped path, and
+<code>DecodingOptionsLanguageTests.testDecodingOptionsTable</code> pins
+the whole he/en/auto × glossary/none table.)</em></p>
 <p><strong>Given</strong> dictations should show what language was
 actually used, <strong>When</strong> a <code>HistoryRecord</code> is
 written, <strong>Then</strong> it carries a new optional
-<code>language: String?</code> populated from
-<code>VocaTranscription.detectedLanguage</code> — <code>nil</code>-safe
-for every record written before this story — and both the History list
-row and detail view display it when present.</p>
+<code>language: String?</code> holding the <strong>requested</strong>
+language whenever one was requested, falling back to
+<code>VocaTranscription.detectedLanguage</code> only in Auto —
+<code>nil</code>-safe for every record written before this story — and
+both the History list row and detail view display it as a name
+("Hebrew", not "HE"/"he").</p>
+<p><em>(AC amended after Epic 8 adversarial review, MEDIUM 1 + MINOR 7.
+Populating it unconditionally from <code>detectedLanguage</code> made
+English-forced dictations record themselves as Hebrew — the very
+<code>detectLanguage</code> mislabeling this story's own empirical test
+documented as a known caveat of the ivrit.ai fine-tune.)</em></p>
+<p><strong>Given</strong> the post-processing prompt is what turns a raw
+transcript into clean text, <strong>When</strong> an English dictation
+is cleaned, <strong>Then</strong> it is sent an English prompt variant
+(English correction markers and English few-shot examples), selected
+from the resolved language — and a prompt the user has edited is always
+sent verbatim, in every language.</p>
+<p><em>(AC added after Epic 8 adversarial review, MAJOR 1. Story 8.2
+shipped bilingual ASR against a monolingual cleanup prompt:
+<code>Prompts.cleanTranscriptSystemPrompt</code> names only Hebrew
+correction markers and all ten of its few-shots are Hebrew, so English
+self-correction never fired. Live-verified against LM Studio /
+qwen3-4b-instruct-2507-mlx — the Hebrew prompt on "we ship Tuesday no
+Wednesday" returns the Hebrew "נשלחים שניים"; the English variant
+returns "We ship Wednesday.")</em></p>
 <p><strong>Given</strong> two-model auto-detect-per-recording was
-considered and rejected (only relevant to the “ivrit English degraded”
+considered and rejected (only relevant to the "ivrit English degraded"
 branch, which the empirical test did not find), <strong>When</strong>
 documenting the decision, <strong>Then</strong> Auto mode continues to
-mean “one model, <code>detectLanguage: true</code>” exactly as it
+mean "one model, <code>detectLanguage: true</code>" exactly as it
 already did — no model-switch-on-toggle logic was added, since the
 empirical evidence did not call for it.</p>
-<p><strong>Verification:</strong> - Empirical: throwaway harness output
-recorded above (ivrit English quality verdict, detectLanguage
-mislabeling caveat). - Live: a harness compiled directly against the
-real, unmodified
+<p><strong>Verification:</strong></p>
+<ul>
+<li>Empirical: throwaway harness output recorded above (ivrit English
+quality verdict, detectLanguage mislabeling caveat).</li>
+<li>Live: a harness compiled directly against the real, unmodified
 <code>Sources/VocaMac/Services/WhisperService.swift</code> (not a
 reimplementation) loads the real ivrit-ai model once and calls the real
-<code>transcribe()</code> with <code>language: &quot;he&quot;</code> then
-<code>language: &quot;en&quot;</code> then <code>language: &quot;he&quot;</code> again on
+<code>transcribe()</code> with <code>language: "he"</code> then
+<code>language: "en"</code> then <code>language: "he"</code> again on
 the same loaded model instance — mirroring exactly what toggling the
 menu bar control now does — both languages transcribed correctly with no
-reload. - Build: <code>swift build</code> clean; typecheck harness
-unchanged (only the pre-existing <code>HistoryStoreTests.swift:61</code>
-failure). - Manual (pending real device use): profile-language override
-actually overrides the toggle for its bound app; History rows show the
-recorded language.</p>
+reload.</li>
+<li>Build: <code>swift build</code> clean.</li>
+<li><strong>Automated (added post-review, MEDIUM 4).</strong> This story
+originally shipped with <strong>zero</strong> tests.
+<code>Tests/VocaMacTests/DictationLanguageTests.swift</code> now covers:
+the shared 19-code list and its 3-code quick-toggle subset; display-name
+mapping including the legacy <code>iw</code> code; the full
+<code>decodingOptions</code> he/en/auto × glossary/none table;
+prompt-variant selection plus the never-override-an-edited-prompt guard,
+end-to-end through <code>PostProcessStage</code>; language captured at
+recording start and cleared once consumed; Profile-override precedence;
+the glossary gate for English and Auto; requested-wins-over-detected in
+<code>HistoryRecord</code>; the menu-bar override accessor; and legacy
+decode + import carry-through for both <code>Profile.language</code> and
+<code>HistoryRecord.language</code>.</li>
+<li><strong>Live post-processing (added post-review, MAJOR 1).</strong>
+Both prompts run against LM Studio at <code>localhost:1234</code> /
+<code>qwen3-4b-instruct-2507-mlx</code> / temperature 0. English: "we
+ship Tuesday no Wednesday" → "We ship Wednesday."; filler removal,
+question preservation, and mid-sentence correction all fire; four
+held-out cases not present as few-shots also pass ("call the vendor on
+Thursday actually on Friday morning" → "Call the vendor on Friday
+morning."). Hebrew regressions unchanged ("נפגש ביום שלישי אה לא ביום
+רביעי" → "נפגש ביום רביעי."), plus two held-out Hebrew cases. Control
+case reproducing the defect: the <strong>Hebrew</strong> prompt on the
+same English transcript returns "נשלחים שניים" — a Hebrew
+mistranslation, exactly the Hebrew-flip the validator would then
+silently reject.</li>
+<li>Manual (pending real device use): profile-language override actually
+overrides the toggle for its bound app; History rows show the recorded
+language.</li>
+</ul>
 <hr />
-<!-- checkpoint: all 7 epics dev+review+fix complete; app installed as 0.8.0-local-hebrew; tracker synced all-done 2026-08-20; Epic 8 (rebrand + bilingual) added and completed same session; next: retrospectives / real XCTest run on an Xcode machine -->
+<!-- checkpoint: all 7 epics dev+review+fix complete; app installed as 0.8.0-local-hebrew; tracker synced all-done 2026-08-20; Epic 8 (rebrand + bilingual) added and completed same session -->
+
+<!-- checkpoint 2026-08-20: real XCTest run landed (e473210, 727 green) — the deadlock, the HistoryStoreTests:61 cast, and the stale default assertions are fixed. Epic 8 adversarial review applied: 4 blockers, 4 majors, 5 mediums, 8 minors. Suite now 763 green. ACs above amended in place where the review found the AC itself wrong (MAJOR 2 segmented picker, MAJOR 3 Auto glossary carve-out, MEDIUM 1 detected-vs-requested language) rather than only the code. Two things remain open by decision, both blocked on the same missing thing — this fork has no release repo of its own: the update checker stays off behind UpdateChecker.updatesEnabled, and both Homebrew casks still point their `url` at upstream (flagged in-file as unpublishable as-is). One test, testSelectedModelSizeDefault, is order-dependent and left as-is under its own task chip. -->
 <footer class="doc-footer"><span>Epic Breakdown — local-whisper</span><span>BMAD planning artifact &middot; local-whisper</span><span>Companion to <code>epics.md</code> &mdash; the .md is the source of truth</span></footer>
 </div>
 </body>

@@ -35,6 +35,35 @@ final class PermissionManager: ObservableObject {
 
     private var permissionPollTimer: Timer?
 
+    /// The cadence `permissionPollTimer` is currently running at, so
+    /// re-entrant `startPermissionPolling()` calls are idempotent and a
+    /// cadence change actually reschedules.
+    private var currentPollInterval: TimeInterval?
+
+    /// When each permission was first observed `.denied`, `nil` once it is not.
+    ///
+    /// These live here rather than in the Settings view that reads them
+    /// (MINOR 3). As `@State` on the Debug tab they were reset by every
+    /// `onAppear`, so switching tabs — exactly what a user does while walking
+    /// over to System Settings — restarted the 30-second clock and the
+    /// stuck-permission hint could be postponed indefinitely. Set on the
+    /// transition *into* `.denied`, they now outlive any view.
+    private var micDeniedSince: Date?
+    private var accessibilityDeniedSince: Date?
+    private var inputMonitoringDeniedSince: Date?
+
+    /// Poll cadence while something is still missing — fast, because the user
+    /// is standing in System Settings waiting for the app to notice.
+    private static let activePollInterval: TimeInterval = 3.0
+
+    /// Poll cadence once everything is granted. Polling slows down but never
+    /// stops (MINOR 5): it used to be torn down for good on the first
+    /// all-granted tick, so a permission revoked mid-session left a stale
+    /// `.granted` on screen forever — and because the stuck-permission hint is
+    /// driven by observed `.denied`, the one thing that would have explained
+    /// the app's sudden silence was unreachable without a restart.
+    private static let idlePollInterval: TimeInterval = 30.0
+
     var onAllPermissionsGranted: (() -> Void)?
 
     // MARK: - Initialization
@@ -62,6 +91,34 @@ final class PermissionManager: ObservableObject {
 
         let inputMonitoringGranted = checkInputMonitoringPermission()
         inputMonitoringPermission = inputMonitoringGranted ? .granted : .denied
+
+        recordDenial(micPermission, into: &micDeniedSince)
+        recordDenial(accessibilityPermission, into: &accessibilityDeniedSince)
+        recordDenial(inputMonitoringPermission, into: &inputMonitoringDeniedSince)
+    }
+
+    /// Stamps the moment a permission first reads `.denied`, and clears the
+    /// stamp the moment it stops being denied — so a granted-then-revoked
+    /// cycle restarts the clock rather than firing the hint instantly.
+    private func recordDenial(_ status: PermissionStatus, into tracker: inout Date?) {
+        guard status == .denied else {
+            tracker = nil
+            return
+        }
+        if tracker == nil {
+            tracker = Date()
+        }
+    }
+
+    /// How long the longest-standing currently-denied permission has been
+    /// denied, or `nil` when nothing is denied. The Settings hint asks this one
+    /// question, so this is the one thing exposed rather than three dates.
+    var longestPermissionDenialDuration: TimeInterval? {
+        let now = Date()
+        return [micDeniedSince, accessibilityDeniedSince, inputMonitoringDeniedSince]
+            .compactMap { $0 }
+            .map { now.timeIntervalSince($0) }
+            .max()
     }
 
     /// Check Input Monitoring permission using multiple strategies since no
@@ -149,36 +206,52 @@ final class PermissionManager: ObservableObject {
 
     // MARK: - Permission Polling
 
-    /// Start polling permissions every 3 seconds until all are granted.
+    /// Start polling permissions — every 3 seconds while anything is missing,
+    /// every 30 once everything is granted. It does not stop on its own
+    /// (MINOR 5): a mid-session revoke has to be noticed too.
     func startPermissionPolling() {
-        guard permissionPollTimer == nil else { return }
-        guard !allPermissionsGranted else { return }
+        schedulePolling(interval: allPermissionsGranted ? Self.idlePollInterval : Self.activePollInterval)
+    }
 
-        VocaLogger.debug(.appState, "Starting permission polling")
-        permissionPollTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+    /// Idempotent: asking for the cadence that is already running is a no-op,
+    /// so the several places that call `startPermissionPolling()` cannot stack
+    /// up timers.
+    private func schedulePolling(interval: TimeInterval) {
+        guard currentPollInterval != interval else { return }
+
+        permissionPollTimer?.invalidate()
+        currentPollInterval = interval
+        VocaLogger.debug(.appState, "Permission polling every \(Int(interval))s")
+
+        permissionPollTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self = self else { return }
-                self.checkPermissions()
-
-                // Notify when all permissions granted and hotkey can start
-                if self.accessibilityPermission == .granted &&
-                    self.inputMonitoringPermission == .granted &&
-                    !self.hotKeyManager.isListening {
-                    self.onAllPermissionsGranted?()
-                }
-
-                if self.allPermissionsGranted {
-                    self.stopPermissionPolling()
-                }
+                self?.pollTick()
             }
         }
     }
 
-    /// Stop the permission polling timer.
+    private func pollTick() {
+        checkPermissions()
+
+        // Notify when all permissions granted and hotkey can start
+        if accessibilityPermission == .granted &&
+            inputMonitoringPermission == .granted &&
+            !hotKeyManager.isListening {
+            onAllPermissionsGranted?()
+        }
+
+        // Slow down rather than stop, and speed back up if something was
+        // revoked while we were idling.
+        schedulePolling(interval: allPermissionsGranted ? Self.idlePollInterval : Self.activePollInterval)
+    }
+
+    /// Stop polling entirely. Nothing in the normal lifecycle calls this any
+    /// more — it exists for teardown.
     func stopPermissionPolling() {
-        VocaLogger.debug(.appState, "Stopping permission polling — all permissions granted")
+        VocaLogger.debug(.appState, "Stopping permission polling")
         permissionPollTimer?.invalidate()
         permissionPollTimer = nil
+        currentPollInterval = nil
     }
 }
 

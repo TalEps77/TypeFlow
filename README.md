@@ -42,7 +42,7 @@
 - **🧠 Smart Model Selection** - Auto-detects your Apple Silicon chip and RAM, then recommends the best whisper model via WhisperKit.
 - **⚡ Native Apple Acceleration** - CoreML + Metal + Neural Engine acceleration on Apple Silicon. No manual setup.
 - **📊 Visual Feedback** - Menu bar icon changes color during recording and processing. Audio level indicator shows input.
-- **🔄 Auto-Updates** - Built-in update checker queries GitHub Releases on launch and lets you download and install the latest version in one click from within the app.
+- **🔄 Updates** - Rebuild from source with `git pull && make install`. The inherited in-app update checker is deliberately switched off: it pointed at upstream VocaMac's releases, so an "update" would have replaced this build with one missing every feature below. See `UpdateChecker.updatesEnabled`.
 - **⚙️ Configurable** - Choose hotkey presets or record a custom activation key reserved by TypeFlow while it runs, models, languages, silence detection thresholds, and more.
 
 ---
@@ -89,7 +89,7 @@
 
 ## 🏛️ Why WhisperKit?
 
-VocaMac uses [WhisperKit](https://github.com/argmaxinc/WhisperKit) instead of raw whisper.cpp because:
+TypeFlow uses [WhisperKit](https://github.com/argmaxinc/WhisperKit) instead of raw whisper.cpp because:
 
 | | WhisperKit | whisper.cpp |
 |---|-----------|-------------|
@@ -108,12 +108,12 @@ Same accuracy, dramatically better Apple platform integration.
 ## 📋 Requirements
 
 - **macOS 13 (Ventura)** or later
-- **Apple Silicon Mac** (M1/M2/M3/M4) — **Intel Macs are not supported.** VocaMac is built for `arm64` only.
+- **Apple Silicon Mac** (M1/M2/M3/M4) — **Intel Macs are not supported.** TypeFlow is built for `arm64` only.
 - **Xcode 15+** or Swift 5.9+ (only for building from source)
 
 ### Permissions
 
-VocaMac requires three macOS permissions:
+TypeFlow requires three macOS permissions:
 
 | Permission | Why |
 |---|---|
@@ -121,48 +121,47 @@ VocaMac requires three macOS permissions:
 | **Accessibility** | Global hotkeys and text injection into apps |
 | **Input Monitoring** | Detect hotkey presses system-wide |
 
-> **Note:** After granting Input Monitoring, a restart of VocaMac is required for it to take effect.
+> **Note:** After granting Input Monitoring, a restart of TypeFlow is required for it to take effect.
 
 ---
 
 ## 🚀 Quick Start
 
-### Option 1: Install via Homebrew (Recommended)
+> **⚠️ TypeFlow has no published releases.** It is a fork, and every download
+> route below — the Releases page, the DMGs, the Homebrew casks, the nightlies —
+> serves **upstream VocaMac**, not TypeFlow. Installing one of those gets you
+> the upstream app: no Profiles, no Snippets, no Command Mode, no bilingual
+> dictation, no LLM cleanup pipeline. It also shares TypeFlow's bundle id, so
+> it will read and write the same preferences and history.
+>
+> **To get TypeFlow, build from source (Option 1).** For the same reason,
+> TypeFlow's in-app update check is switched off — see
+> `UpdateChecker.updatesEnabled`.
+
+### Option 1: Build from Source (the only way to get TypeFlow)
 
 ```bash
-brew tap jatinkrmalik/vocamac
-brew trust jatinkrmalik/vocamac
-brew install --cask vocamac
-```
-
-Homebrew installs VocaMac to `/Applications/VocaMac.app`. Launch it from Spotlight or your Applications folder. Updates are a single command away:
-
-```bash
-brew upgrade --cask vocamac
-```
-
-> **Why Homebrew?** Terminal-based install. One-command updates. Permissions persist across upgrades. No manual DMG downloads. See [`docs/HOMEBREW.md`](docs/HOMEBREW.md) for the full Homebrew guide.
-
-### Option 2: Download DMG
-
-1. **Download** the latest `VocaMac-x.x.x-arm64.dmg` from the [Releases page](https://github.com/jatinkrmalik/vocamac/releases)
-2. **Open** the DMG and drag VocaMac to Applications
-3. **Open** VocaMac from Applications
-4. **Grant permissions**: Microphone, Accessibility, and Input Monitoring when prompted
-
-> VocaMac is **Developer ID signed and notarized** by Apple — macOS will open it without any security warnings.
-
-### Option 3: Build from Source
-
-```bash
-git clone https://github.com/jatinkrmalik/vocamac.git
+git clone https://github.com/jatinkrmalik/vocamac.git   # or your fork's remote
 cd vocamac
 make install
 ```
 
-This builds VocaMac, installs it to `/Applications`, and launches it. Permissions are granted directly to VocaMac, just like the DMG method.
+This builds `TypeFlow.app`, installs it to `/Applications/TypeFlow.app`, and
+launches it. Permissions are granted directly to TypeFlow.
 
-### Option 4: CLI Commands (For Developers)
+The bundle folder is named after the display name (`TypeFlow.app`) while the
+executable inside it stays `VocaMac` — the bundle id, entitlements, and the
+single-instance check are all keyed to that name, so it deliberately did not
+change. `scripts/app-name.sh` is the single definition both come from.
+
+> **Upgrading from a pre-rename build?** Accessibility and Input Monitoring
+> grants are keyed to the bundle's *path*, so the VocaMac.app → TypeFlow.app
+> rename invalidated the old ones. In **System Settings → Privacy & Security**,
+> remove the stale `VocaMac` row from **both** Accessibility and Input
+> Monitoring, then add TypeFlow and toggle it on. `make install` removes a
+> leftover `/Applications/VocaMac.app` for you and reminds you to do this.
+
+### Option 2: CLI Commands (For Developers)
 
 ```bash
 git clone https://github.com/jatinkrmalik/vocamac.git
@@ -171,14 +170,45 @@ make install-cli
 ```
 
 This installs two commands to `~/.local/bin`:
-- `vocamac &`: Launch VocaMac in background
+- `vocamac &`: Launch the app in background
 - `vocamac-build`: Rebuild from source after pulling updates
 
-> **Permissions note:** In CLI mode, macOS assigns permissions to your **terminal app** (Terminal, iTerm2, etc.) rather than VocaMac itself. Grant Microphone, Accessibility, and Input Monitoring to your terminal app instead.
+The command names follow the executable, not the display name, so they keep
+working across the rename.
+
+> **Permissions note:** In CLI mode, macOS assigns permissions to your
+> **terminal app** (Terminal, iTerm2, etc.) rather than to the app itself.
+> Grant Microphone, Accessibility, and Input Monitoring to your terminal app
+> instead.
+
+### Option 3: Upstream VocaMac via Homebrew
+
+This installs **upstream VocaMac**, not TypeFlow. Read the warning above first.
+
+```bash
+brew tap jatinkrmalik/vocamac
+brew trust jatinkrmalik/vocamac
+brew install --cask vocamac
+```
+
+See [`docs/HOMEBREW.md`](docs/HOMEBREW.md) for the full Homebrew guide.
+
+### Option 4: Upstream VocaMac via DMG
+
+Also **upstream VocaMac**, not TypeFlow.
+
+1. **Download** the latest `VocaMac-x.x.x-arm64.dmg` from the [Releases page](https://github.com/jatinkrmalik/vocamac/releases)
+2. **Open** the DMG and drag VocaMac to Applications
+3. **Grant permissions**: Microphone, Accessibility, and Input Monitoring when prompted
+
+> Upstream releases are **Developer ID signed and notarized** by Apple — macOS
+> will open them without security warnings. A locally built TypeFlow is signed
+> with whatever Developer ID is in your keychain, or ad-hoc if you have none
+> (in which case permissions reset on every rebuild).
 
 ### First Launch
 
-1. **VocaMac appears in your menu bar** (microphone icon, no Dock icon)
+1. **TypeFlow appears in your menu bar** (microphone icon, no Dock icon)
 2. **Grant permissions**: Microphone, Accessibility, and Input Monitoring (see [Permissions](#permissions) above)
 3. **First model download**: WhisperKit automatically downloads the recommended model for your device (~40–500 MB depending on hardware)
 4. **Start dictating**: Hold the **Right Option** key, speak, and release. Your words appear at the cursor!
@@ -187,12 +217,17 @@ This installs two commands to `~/.local/bin`:
 
 ## 🌙 Nightly Builds
 
+> **These are upstream VocaMac nightlies, not TypeFlow.** The workflow in
+> `.github/workflows/nightly.yml` would publish TypeFlow nightlies if this fork
+> had a repo of its own to publish them to; the tap and the download links below
+> resolve to upstream. See the warning under [Quick Start](#-quick-start).
+
 Nightly builds are automated builds from the latest `main` branch, published every day at midnight UTC when there are new commits. They let you try the latest features, fixes, and improvements before they land in a stable release.
 
 **Why use a nightly build?**
 
 - **Early access** — Test new features days or weeks before the next stable release
-- **Help improve VocaMac** — Your feedback on nightly builds catches bugs before they reach everyone
+- **Help improve the project** — Your feedback on nightly builds catches bugs before they reach everyone
 - **Fully signed & notarized** — Nightly builds are Developer ID signed and notarized by Apple, just like stable releases. No Gatekeeper warnings, no right-click workarounds
 
 **How to install:**
@@ -206,7 +241,7 @@ brew install --cask vocamac-nightly
 
 **Or via DMG:**
 1. Download the latest `VocaMac-nightly-*.dmg` from the [Nightly Release](https://github.com/jatinkrmalik/vocamac/releases/tag/nightly)
-2. Open the DMG and drag VocaMac to Applications
+2. Open the DMG and drag it to Applications
 3. Grant permissions when prompted (same as a stable release)
 
 **How to identify your build:**
@@ -257,7 +292,7 @@ Switch between modes in **Settings → General → Activation**.
 
 ## 🧠 Whisper Models
 
-VocaMac uses OpenAI Whisper models via WhisperKit's CoreML format. The app auto-detects your hardware and recommends the best model:
+TypeFlow uses OpenAI Whisper models via WhisperKit's CoreML format. The app auto-detects your hardware and recommends the best model:
 
 | Model | Parameters | Size | Speed | Quality | Best For |
 |-------|-----------|------|-------|---------|----------|
@@ -277,7 +312,7 @@ Open Settings from the menu bar popover or with **⌘,**
 
 ### General
 - **Activation mode** - Push-to-Talk or Double-Tap Toggle
-- **Hotkey** - Choose from common presets or record a custom activation key directly from your keyboard. The selected key is consumed by VocaMac while the app is running.
+- **Hotkey** - Choose from common presets or record a custom activation key directly from your keyboard. The selected key is consumed by TypeFlow while the app is running.
 - **Language** - Auto-detect or specify (English, Spanish, French, German, Chinese, Japanese, and more)
 - **Launch at login**
 
@@ -296,7 +331,7 @@ Open Settings from the menu bar popover or with **⌘,**
 
 ## 🏗️ Architecture
 
-VocaMac is built with a clean, modular architecture using native Swift and SwiftUI:
+TypeFlow is built with a clean, modular architecture using native Swift and SwiftUI:
 
 ```
 VocaMacApp (SwiftUI MenuBarExtra)
@@ -379,7 +414,7 @@ make help           # Show all commands
 
 ### Uninstall
 
-To completely remove VocaMac and all its data (downloaded models, preferences, caches):
+To completely remove TypeFlow and all its data (downloaded models, preferences, caches):
 
 ```bash
 ./scripts/uninstall.sh
@@ -399,7 +434,7 @@ Use `--keep-build` to preserve build artifacts:
 defaults delete com.vocamac.app vocamac.hasCompletedOnboarding
 ```
 
-Then relaunch VocaMac. This only clears the onboarding state; all other preferences (hotkey, language, model) are preserved.
+Then relaunch TypeFlow. This only clears the onboarding state; all other preferences (hotkey, language, model) are preserved.
 
 **Reset all preferences:** To start completely fresh:
 
@@ -407,23 +442,39 @@ Then relaunch VocaMac. This only clears the onboarding state; all other preferen
 defaults delete com.vocamac.app
 ```
 
-**Reset permissions (troubleshooting):** If permissions appear stuck or aren't being recognized after an update, you can reset them from **Settings → Debug → Reset All Permissions**, or manually via Terminal:
+**Permissions stuck after the VocaMac.app → TypeFlow.app rename:** Accessibility
+and Input Monitoring grants are keyed to the bundle's path, so the rename
+invalidated every existing grant and left a `VocaMac` row behind in System
+Settings. That row keeps its toggle **on** while granting nothing, which makes
+the list look correct while the hotkey does nothing. In **System Settings →
+Privacy & Security**, remove the `VocaMac` row from **both** Accessibility and
+Input Monitoring, then add TypeFlow and toggle it on. Settings → Debug shows this
+same advice once a permission has read denied for 30 seconds.
+
+**Reset permissions (troubleshooting):** If permissions still appear stuck, reset
+them from **Settings → Debug → Reset All Permissions**, or manually via Terminal:
 
 ```bash
 tccutil reset All com.vocamac.app
 ```
 
-This clears all permission entries (Microphone, Accessibility, Input Monitoring) for VocaMac. On next launch, macOS will prompt you to re-grant them. With Developer ID signing, permissions normally persist across updates — this reset is only needed for troubleshooting.
+The bundle id is still `com.vocamac.app` — deliberately, so preferences, models,
+and history survive the rename. This clears all permission entries (Microphone,
+Accessibility, Input Monitoring); on next launch, macOS will prompt you to
+re-grant them. Note that `tccutil` is **unreliable for Accessibility
+specifically** — it often reports success while the row and its grant survive, so
+removing the row by hand is the fix that actually works.
 
-**"Update check failed (HTTP 403)" on a shared / corporate / VPN network:** VocaMac checks for new releases by calling GitHub's public REST API, which is rate-limited to **60 unauthenticated requests per hour, per source IP**. When several people share the same egress IP (common on office VPNs, NAT'd networks, or busy CI runners), that quota is collectively exhausted and GitHub returns `HTTP 403` to every client from that IP — including VocaMac.
+**Update checks are switched off.** TypeFlow does not check for updates, and
+Settings → About has no "Check for Updates…" button. The endpoint the checker
+was pointed at is upstream's, so a "TypeFlow update" would have downloaded
+upstream VocaMac and replaced this build with one that has none of its features.
+See `UpdateChecker.updatesEnabled` for the full reasoning and for what has to be
+restored alongside it. Rebuild from source to update:
 
-This is **not a bug in VocaMac** and there is nothing wrong with your install. To recover:
-
-1. Disconnect from the VPN (or switch to a different network, e.g. your phone's hotspot).
-2. Open VocaMac → **Settings → About → "Check for Updates…"** and wait for it to complete.
-3. Reconnect to the VPN.
-
-After one successful check, VocaMac caches the response's `ETag` and sends it as `If-None-Match` on every subsequent request. GitHub then replies with `304 Not Modified`, which **does not count against the rate limit**, so future checks succeed even from a rate-limited IP — until a new release ships and the ETag changes (at which point one fresh `200` response per machine is needed before `304`s resume).
+```bash
+git pull && make install
+```
 
 ---
 
@@ -452,13 +503,13 @@ Each platform uses native technologies for the best possible integration, while 
 
 ## ⚠️ Known Limitations
 
-- **Larger models require a one-time download**: VocaMac ships with the Whisper Tiny model bundled — you can dictate immediately with no internet connection. Switching to a larger model (Small, Medium, Large) requires a one-time download; all subsequent launches work fully offline.
+- **Larger models require a one-time download**: TypeFlow ships with the Whisper Tiny model bundled — you can dictate immediately with no internet connection. Switching to a larger model (Small, Medium, Large) requires a one-time download; all subsequent launches work fully offline.
 - **macOS only**: Requires macOS 13 (Ventura) or later.
 - **Permissions reset on rebuild (build-from-source only)**: When building from source without a Developer ID certificate, macOS resets Accessibility and Input Monitoring permissions on every rebuild due to ad-hoc signing. Release builds are Developer ID signed so permissions persist across updates.
 
 ### Permissions and Code Signing
 
-Release builds of VocaMac are **Developer ID signed and notarized** by Apple. Accessibility and Input Monitoring permissions persist across updates — no manual re-granting required.
+Upstream release builds are **Developer ID signed and notarized** by Apple. Accessibility and Input Monitoring permissions persist across updates — no manual re-granting required.
 
 **For developers building from source:** If you don't have a Developer ID certificate, `build.sh` falls back to ad-hoc signing. With ad-hoc signing, macOS resets Accessibility and Input Monitoring permissions on every rebuild because the CDHash changes. This is standard macOS security behavior — all open-source apps with Accessibility (Rectangle, Maccy, AltTab, etc.) have the same limitation when ad-hoc signed.
 
@@ -469,7 +520,7 @@ Release builds of VocaMac are **Developer ID signed and notarized** by Apple. Ac
 | **Run from Terminal** | Grant permissions to Terminal.app once, then run `make run` | ✅ Always |
 | **Re-grant manually** | System Settings → Privacy & Security after each rebuild | Per rebuild |
 
-> **💡 Developer tip:** Add your Terminal app (Terminal.app or iTerm2) to both Accessibility and Input Monitoring in System Settings. Then run VocaMac directly from Terminal. Permissions are inherited and never reset.
+> **💡 Developer tip:** Add your Terminal app (Terminal.app or iTerm2) to both Accessibility and Input Monitoring in System Settings. Then run the built binary directly from Terminal. Permissions are inherited and never reset.
 
 ---
 

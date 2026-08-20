@@ -1,10 +1,10 @@
 #!/bin/bash
-# build.sh — Build, bundle, and sign VocaMac
+# build.sh — Build, bundle, and sign TypeFlow
 # Usage: ./scripts/build.sh [debug|release]
 #
 # This script:
-# 1. Builds VocaMac with Swift Package Manager
-# 2. Creates/updates the .app bundle
+# 1. Builds the app with Swift Package Manager
+# 2. Creates/updates TypeFlow.app
 # 3. Code signs — Developer ID if CODE_SIGN_IDENTITY is set, ad-hoc otherwise
 #
 # Environment variables:
@@ -25,16 +25,10 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
 CONFIG="${1:-release}"
-BUNDLE_ID="com.vocamac.app"
-# APP_NAME is the internal executable/build-product name (Package.swift target,
-# xcodebuild scheme, Contents/MacOS binary filename) — stays "VocaMac" so it
-# keeps matching the unchanged bundle id, entitlements, and the pgrep -x check
-# in VocaMacApp.ensureSingleInstance. DISPLAY_NAME is the user-visible product
-# name (CFBundleName/CFBundleDisplayName) and the .app bundle's own folder name.
-APP_NAME="VocaMac"
-DISPLAY_NAME="TypeFlow"
-APP_DIR="${DISPLAY_NAME}.app"
-ENTITLEMENTS="VocaMac.entitlements"
+# APP_NAME / DISPLAY_NAME / APP_DIR / BUNDLE_ID / ENTITLEMENTS all come from
+# the single shared definition — see scripts/app-name.sh for why the internal
+# executable name and the user-visible display name differ.
+. "$SCRIPT_DIR/app-name.sh"
 APP_VERSION="${APP_VERSION:-0.7.0}"
 
 # Resolve signing identity:
@@ -58,14 +52,14 @@ else
     echo "🔏 Signing mode: Developer ID"
 fi
 
-# Kill any running VocaMac instances before building
-if pgrep -f "VocaMac" > /dev/null 2>&1; then
-    echo "🛑 Stopping running VocaMac..."
-    pkill -f "VocaMac" 2>/dev/null
+# Kill any running instances before building — matched by executable name.
+if pgrep -f "$APP_NAME" > /dev/null 2>&1; then
+    echo "🛑 Stopping running ${DISPLAY_NAME}..."
+    pkill -f "$APP_NAME" 2>/dev/null
     sleep 1
 fi
 
-echo "🔨 Building VocaMac ($CONFIG)..."
+echo "🔨 Building ${DISPLAY_NAME} ($CONFIG)..."
 
 # ── Build with xcodebuild ───────────────────────────────────────────────────
 #
@@ -73,7 +67,7 @@ echo "🔨 Building VocaMac ($CONFIG)..."
 # Bundle.module accessor that checks Bundle.main.resourceURL (Contents/Resources/)
 # in addition to Bundle.main.bundleURL (the .app root). This is critical for
 # .app bundles where:
-#   - Bundle.main.bundleURL resolves to the .app root (e.g. VocaMac.app/)
+#   - Bundle.main.bundleURL resolves to the .app root (e.g. TypeFlow.app/)
 #   - codesign forbids placing bundles at the .app root
 #   - Bundle.main.resourceURL resolves to Contents/Resources/ which IS allowed
 #
@@ -84,7 +78,7 @@ DERIVED_DATA=".xcode-build"
 XCODE_CONFIG="$(echo "${CONFIG}" | sed 's/release/Release/; s/debug/Debug/')"
 
 xcodebuild build \
-    -scheme VocaMac \
+    -scheme "$APP_NAME" \
     -configuration "$XCODE_CONFIG" \
     -derivedDataPath "$DERIVED_DATA" \
     -destination 'platform=macOS,arch=arm64' \
@@ -277,11 +271,12 @@ if [ "$FIRST_TIME" = true ]; then
     echo "   1. Run: open ${APP_DIR}"
     echo "   2. System Settings → Privacy & Security → Accessibility → add ${APP_DIR} → ON"
     echo "   3. System Settings → Privacy & Security → Input Monitoring → add ${APP_DIR} → ON"
-    echo "   4. Restart VocaMac: killall VocaMac && open ${APP_DIR}"
+    # The kill target is the executable name (APP_NAME), not the display name.
+    echo "   4. Restart ${DISPLAY_NAME}: killall ${APP_NAME} && open ${APP_DIR}"
     if [ "$CODE_SIGN_IDENTITY" = "-" ]; then
         echo ""
         echo "   ⚠️  Permissions reset on every rebuild (ad-hoc signing limitation)."
         echo "   💡 TIP: To avoid this, add your Terminal app to Accessibility & Input Monitoring"
-        echo "      and run the binary directly: ${APP_DIR}/Contents/MacOS/VocaMac"
+        echo "      and run the binary directly: ${APP_DIR}/Contents/MacOS/${APP_NAME}"
     fi
 fi

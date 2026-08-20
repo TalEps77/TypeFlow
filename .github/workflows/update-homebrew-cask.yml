@@ -24,7 +24,7 @@ jobs:
       - name: Download DMG artifact
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          DMG_URL="https://github.com/jatinkrmalik/vocamac/releases/download/v${VERSION}/VocaMac-${VERSION}-arm64.dmg"
+          DMG_URL="https://github.com/jatinkrmalik/vocamac/releases/download/v${VERSION}/TypeFlow-${VERSION}-arm64.dmg"
           curl -sL -o vocamac.dmg "$DMG_URL"
           echo "Downloaded DMG from ${DMG_URL}"
 

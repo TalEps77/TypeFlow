@@ -212,6 +212,10 @@ final class MockPermissionManager: ObservableObject, PermissionManaging {
         inputMonitoringPermission == .granted
     }
 
+    /// Set directly by a test that wants to drive the stuck-permission hint;
+    /// nothing in the mock advances it on its own.
+    var longestPermissionDenialDuration: TimeInterval?
+
     func checkPermissions() {
         checkPermissionsCallCount += 1
     }

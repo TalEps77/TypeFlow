@@ -83,7 +83,11 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if let info = appState.updateChecker.activeUpdateInfo {
+            // BLOCKER 4: no check ever runs while updates are disabled, so
+            // `activeUpdateInfo` is always nil — the explicit flag is here so
+            // the banner cannot come back through some other path that sets
+            // update state. See `UpdateChecker.updatesEnabled`.
+            if UpdateChecker.updatesEnabled, let info = appState.updateChecker.activeUpdateInfo {
                 UpdateBannerView(info: info)
                 Divider()
             }
@@ -201,23 +205,46 @@ struct MenuBarView: View {
     /// Quick Hebrew / English / Auto switch (Story 8.2), bound to the same
     /// `AppState.selectedLanguage` the full language list in Settings uses —
     /// this is just a fast, always-visible subset of it for the two languages
-    /// this app is actually used for day to day. If a Profile overrides the
-    /// language for the app that's currently frontmost, that override wins at
-    /// dictation time regardless of what this toggle shows.
+    /// this app is actually used for day to day.
+    ///
+    /// Three states, not one (MAJOR 2, MEDIUM 3):
+    ///
+    /// 1. A Profile pinned to a language for the frontmost app: that override
+    ///    is what dictation will actually use, so the toggle shows it and goes
+    ///    read-only. It used to keep showing עב while a Slack Profile silently
+    ///    dictated in English — the toggle was lying about the next dictation.
+    /// 2. A stored language the segments cannot represent (any of the sixteen
+    ///    only Settings offers): a plain label. A segmented picker whose
+    ///    selection is outside its own tags renders with nothing highlighted,
+    ///    logs a SwiftUI warning, and — worst of the three — silently rewrites
+    ///    the user's Spanish to Hebrew the moment they touch a segment.
+    /// 3. Otherwise: the segmented control.
     private var languageToggleSection: some View {
         HStack(spacing: 8) {
             Text("Language")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Picker("Language", selection: $appState.selectedLanguage) {
-                Text("עב").tag("he")
-                Text("EN").tag("en")
-                Text("Auto").tag("auto")
+            if let override = appState.frontmostProfileLanguageOverride {
+                Text("\(DictationLanguage.displayName(for: override.language) ?? override.language) — from \(override.profileName) Profile")
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .help("This app's Profile pins the dictation language. Change it in Settings → Profiles.")
+            } else if !DictationLanguage.canQuickToggle(appState.selectedLanguage) {
+                Text("\(DictationLanguage.displayName(for: appState.selectedLanguage) ?? appState.selectedLanguage) — change in Settings")
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .help("The quick toggle covers Hebrew, English, and Auto-detect only. Change this in Settings → Transcription Language.")
+            } else {
+                Picker("Language", selection: $appState.selectedLanguage) {
+                    Text("עב").tag("he")
+                    Text("EN").tag("en")
+                    Text("Auto").tag("auto")
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 160)
             }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 160)
 
             Spacer()
         }

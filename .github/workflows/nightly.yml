@@ -274,7 +274,7 @@ jobs:
           VOCAMAC_BUNDLED_MODEL_SOURCE: ${{ env.VOCAMAC_BUNDLED_MODEL_SOURCE }}
 
       - name: Verify code signature
-        run: codesign -v --deep --strict VocaMac.app
+        run: codesign -v --deep --strict TypeFlow.app
 
       - name: Verify SPM resource bundles are correctly staged
         run: |
@@ -284,14 +284,14 @@ jobs:
           # xcodebuild's Bundle.module accessor checks Bundle.main.resourceURL
           # which resolves to Contents/Resources/ for .app bundles.
           # Bundles must NOT be at the .app root (codesign rejects that).
-          if ls VocaMac.app/*.bundle 1>/dev/null 2>&1; then
+          if ls TypeFlow.app/*.bundle 1>/dev/null 2>&1; then
             echo "❌ Found .bundle at app root — will break codesign!"
-            ls VocaMac.app/*.bundle
+            ls TypeFlow.app/*.bundle
             FAIL=1
           fi
 
           FOUND_ANY=false
-          for bundle in VocaMac.app/Contents/Resources/*.bundle; do
+          for bundle in TypeFlow.app/Contents/Resources/*.bundle; do
             [ -d "$bundle" ] || continue
             FOUND_ANY=true
             name="$(basename "$bundle")"
@@ -305,7 +305,7 @@ jobs:
 
           # Verify the critical WhisperKit tokenizer fallback resources.
           # xcodebuild bundles have the structure: <bundle>/Contents/Resources/<file>
-          HUB="VocaMac.app/Contents/Resources/swift-transformers_Hub.bundle"
+          HUB="TypeFlow.app/Contents/Resources/swift-transformers_Hub.bundle"
           if [ ! -d "$HUB" ]; then
             echo "❌ swift-transformers_Hub.bundle missing!"
             FAIL=1
@@ -322,7 +322,7 @@ jobs:
           fi
 
           # Verify the binary uses the xcodebuild accessor (contains resourceURL)
-          if strings VocaMac.app/Contents/MacOS/VocaMac | grep -q 'resourceURL'; then
+          if strings TypeFlow.app/Contents/MacOS/VocaMac | grep -q 'resourceURL'; then
             echo "✅ Binary uses xcodebuild Bundle.module accessor"
           else
             echo "❌ Binary does NOT contain resourceURL — wrong accessor!"
@@ -344,26 +344,26 @@ jobs:
           ARCH=$(uname -m)
 
           # Rename the DMG from dist/ to nightly naming convention
-          DIST_DMG=$(ls dist/VocaMac-*.dmg | head -1)
-          DMG_NAME="VocaMac-nightly-${NIGHTLY_DATE}-${SHORT_SHA}-${ARCH}.dmg"
+          DIST_DMG=$(ls dist/TypeFlow-*.dmg | head -1)
+          DMG_NAME="TypeFlow-nightly-${NIGHTLY_DATE}-${SHORT_SHA}-${ARCH}.dmg"
           cp "$DIST_DMG" "$DMG_NAME"
           echo "DMG_NAME=${DMG_NAME}" >> "$GITHUB_ENV"
 
           # Create ZIP from the signed .app
-          ZIP_NAME="VocaMac-nightly-${NIGHTLY_DATE}-${SHORT_SHA}-${ARCH}.zip"
-          ditto -c -k --sequesterRsrc --keepParent VocaMac.app "$ZIP_NAME"
+          ZIP_NAME="TypeFlow-nightly-${NIGHTLY_DATE}-${SHORT_SHA}-${ARCH}.zip"
+          ditto -c -k --sequesterRsrc --keepParent TypeFlow.app "$ZIP_NAME"
           echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
 
           # Create stable-named copies for Homebrew cask (no date/SHA)
-          cp "$DMG_NAME" "VocaMac-nightly-${ARCH}.dmg"
-          cp "$ZIP_NAME" "VocaMac-nightly-${ARCH}.zip"
+          cp "$DMG_NAME" "TypeFlow-nightly-${ARCH}.dmg"
+          cp "$ZIP_NAME" "TypeFlow-nightly-${ARCH}.zip"
 
           echo "Artifacts created:"
-          ls -lh "$DMG_NAME" "$ZIP_NAME" "VocaMac-nightly-${ARCH}.dmg" "VocaMac-nightly-${ARCH}.zip"
+          ls -lh "$DMG_NAME" "$ZIP_NAME" "TypeFlow-nightly-${ARCH}.dmg" "TypeFlow-nightly-${ARCH}.zip"
 
       - name: Generate checksums
         run: |
-          shasum -a 256 VocaMac-nightly-*.dmg VocaMac-nightly-*.zip > checksums.txt
+          shasum -a 256 TypeFlow-nightly-*.dmg TypeFlow-nightly-*.zip > checksums.txt
           cat checksums.txt
 
       # ── Cleanup ─────────────────────────────────────────────────────────────
@@ -409,7 +409,7 @@ jobs:
           if [ "${{ inputs.skip_notarize }}" = "true" ]; then
             SIGNING_NOTE="> **Note:** This nightly build is **Developer ID signed** but not notarized."
             SIGNING_NOTE="${SIGNING_NOTE}"$'\n'"> macOS may show a Gatekeeper warning on first open."
-            SIGNING_NOTE="${SIGNING_NOTE}"$'\n'"> To bypass: right-click VocaMac.app → Open → click Open in the dialog."
+            SIGNING_NOTE="${SIGNING_NOTE}"$'\n'"> To bypass: right-click TypeFlow.app → Open → click Open in the dialog."
           else
             SIGNING_NOTE="> This nightly build is **Developer ID signed and notarized** by Apple."
             SIGNING_NOTE="${SIGNING_NOTE}"$'\n'"> macOS will open it without any security warnings."
@@ -444,8 +444,8 @@ jobs:
             echo "### 📥 Installation"
             echo ""
             echo "1. Download \`${DMG_NAME}\`"
-            echo "2. Open the DMG and drag VocaMac to Applications"
-            echo "3. Open VocaMac from Applications"
+            echo "2. Open the DMG and drag TypeFlow to Applications"
+            echo "3. Open TypeFlow from Applications"
             echo "4. Grant Microphone, Accessibility, and Input Monitoring permissions when prompted"
             echo ""
             echo "$SIGNING_NOTE"
@@ -465,8 +465,8 @@ jobs:
             --notes-file release-notes.md \
             --prerelease \
             --target main \
-            VocaMac-nightly-*.dmg \
-            VocaMac-nightly-*.zip \
+            TypeFlow-nightly-*.dmg \
+            TypeFlow-nightly-*.zip \
             checksums.txt
 
           echo "✅ Nightly release created!"

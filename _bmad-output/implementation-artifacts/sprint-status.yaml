@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 17:29
-last_updated: 08-20-2026 12:22
+last_updated: 08-20-2026 14:30
 project: local-whisper
 project_key: NOKEY
 tracking_system: file-system
@@ -105,6 +105,31 @@ development_status:
   epic-7-retrospective: optional
 
   epic-8: done
+  # Adversarial review applied 2026-08-20: 4 blockers, 4 majors, 5 mediums,
+  # 8 minors. Both stories stay 'done' — the fixes landed in one pass and the
+  # suite is green (763 tests, up from 727). Where the review found the AC
+  # itself wrong rather than the code, epics.md was amended in place:
+  #   8.1  BLOCKER 1  full TypeFlow.app rename — scripts/app-name.sh is now the
+  #                   single definition consumed by build/dist/install/uninstall
+  #                   and the Makefile; workflows + casks updated; the stale
+  #                   pre-rebrand VocaMac.app/ deleted from the repo root.
+  #        BLOCKER 2  .gitignore ignores TypeFlow.app/ as well as VocaMac.app/.
+  #        BLOCKER 4  update checker off behind UpdateChecker.updatesEnabled.
+  #        MAJOR 4    path-keyed TCC grants — hint/install/uninstall/README now
+  #                   lead with removing the stale VocaMac row.
+  #   8.2  MAJOR 1    English post-processing prompt variant, language plumbed
+  #                   into TranscriptContext; live-verified both languages.
+  #        MAJOR 2    menu-bar picker can't represent 16 of 19 Settings
+  #                   languages — AC amended, label fallback added.
+  #        MAJOR 3    Auto glossary carve-out was the bug — AC amended.
+  #        MEDIUM 1/2 requested language wins over detected; captured at start.
+  #        MEDIUM 4   the story shipped zero tests — DictationLanguageTests.swift.
+  #
+  # OPEN BY DECISION, both blocked on the same missing thing (this fork has no
+  # release repo of its own): the update checker stays off, and both Homebrew
+  # casks still point their `url` at upstream's VocaMac assets — flagged
+  # in-file as unpublishable until repointed. Neither is reachable from the
+  # running app.
   8-1-rebrand-to-typeflow: done
   8-2-bilingual-hebrew-english-dictation: done
   epic-8-retrospective: optional

@@ -216,7 +216,7 @@ struct VocabularySettingsTab: View {
     private func exportEntries() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "VocaMac-Dictionary.json"
+        panel.nameFieldStringValue = "TypeFlow-Dictionary.json"
 
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
@@ -307,7 +307,7 @@ struct VocabularySettingsTab: View {
     private func exportSnippets() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "VocaMac-Snippets.json"
+        panel.nameFieldStringValue = "TypeFlow-Snippets.json"
 
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }

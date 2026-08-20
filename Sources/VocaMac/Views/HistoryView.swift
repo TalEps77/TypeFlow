@@ -143,8 +143,11 @@ struct HistoryRowView: View {
                 .lineLimit(2)
             HStack(spacing: 4) {
                 Text("\(record.modelName) • ASR \(HistoryDetailView.millisecondsLabel(record.asrMillis))")
-                if let language = record.language {
-                    Text("• \(language.uppercased())")
+                // Same display name as the detail pane (MINOR 7) — the list
+                // used to shout "HE" while the detail said "he", two spellings
+                // of one value in one window.
+                if let name = DictationLanguage.displayName(for: record.language) {
+                    Text("• \(name)")
                 }
             }
             .font(.caption2)
@@ -176,8 +179,8 @@ struct HistoryDetailView: View {
                         InfoRow2(label: "When", value: Self.dateFormatter.string(from: record.timestamp))
                         InfoRow2(label: "App", value: record.targetBundleId ?? "Unknown")
                         InfoRow2(label: "Model", value: record.modelName)
-                        if let language = record.language {
-                            InfoRow2(label: "Language", value: language)
+                        if let name = DictationLanguage.displayName(for: record.language) {
+                            InfoRow2(label: "Language", value: name)
                         }
                         InfoRow2(label: "Mode", value: record.mode == .command ? "Command" : "Dictation")
                         InfoRow2(label: "Recording", value: Self.millisecondsLabel(record.recordingMillis))

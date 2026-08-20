@@ -58,11 +58,21 @@ struct HistoryRecord: Codable, Identifiable, Equatable {
 
     let mode: Mode
 
-    /// ISO 639-1 code of the language actually used for this transcription
-    /// (e.g. "he", "en") — the resolved language, not the raw setting, so an
-    /// Auto-mode dictation records what WhisperKit detected rather than
-    /// "auto" itself. `nil` for records written before Story 8.2 added this
-    /// field and for anything that decodes an older history.json.
+    /// ISO 639-1 code of the language this transcription was decoded in
+    /// (e.g. "he", "en") — the resolved language, never the raw `"auto"`
+    /// setting.
+    ///
+    /// Resolution order matters and used to be wrong (MEDIUM 1). Whenever the
+    /// user asked for a language — a Profile override, or the app-wide toggle
+    /// set to anything but Auto — *that* is what is recorded, because that is
+    /// what WhisperKit was told to decode. Only an Auto-mode dictation records
+    /// `detectedLanguage`, where there was no request to honor. Writing
+    /// detection unconditionally made English-forced dictations show up as
+    /// Hebrew in the History view, since detection is a guess and the
+    /// explicit setting is not.
+    ///
+    /// `nil` for records written before Story 8.2 added this field and for
+    /// anything that decodes an older history.json.
     let language: String?
 
     init(

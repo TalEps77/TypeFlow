@@ -30,6 +30,22 @@ final class PostProcessStage: TranscriptStage {
         self.settingsProvider = settingsProvider
     }
 
+    /// Picks the cleanup prompt for this dictation's language (MAJOR 1).
+    ///
+    /// Only substitutes when the stored prompt is still the shipped Hebrew
+    /// default — the moment the user has edited it, their text is what gets
+    /// sent, in every language. Swapping an edited prompt out from under them
+    /// because ASR heard English would silently discard their work, and there
+    /// is exactly one prompt field in Settings to put it back into.
+    ///
+    /// The "has the user edited it" test is the same string comparison the
+    /// Settings tab already uses to enable its "Restore Default" button, so
+    /// the two cannot disagree about what "default" means.
+    static func languageAwarePrompt(_ storedPrompt: String, language: String?) -> String {
+        guard storedPrompt == Prompts.cleanTranscriptSystemPrompt else { return storedPrompt }
+        return Prompts.cleanTranscriptSystemPrompt(for: language)
+    }
+
     func run(_ context: TranscriptContext) async -> StageResult {
         let text = context.currentText
         let settings = settingsProvider()
@@ -61,7 +77,9 @@ final class PostProcessStage: TranscriptStage {
         // the LLM a blank system prompt for every dictation into that app
         // (MINOR 15).
         let promptOverride = profile?.promptOverride.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let systemPrompt = promptOverride.isEmpty ? settings.systemPrompt : promptOverride
+        let systemPrompt = promptOverride.isEmpty
+            ? PostProcessStage.languageAwarePrompt(settings.systemPrompt, language: context.language)
+            : promptOverride
 
         // Story 4.4: whatever is here was already gated by both the global
         // and Profile Cursor Context toggles at capture time (AppState) —

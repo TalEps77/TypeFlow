@@ -1,7 +1,16 @@
-# VocaMac — Makefile
+# TypeFlow — Makefile
 # Run `make help` for available commands.
+#
+# APP_NAME / DISPLAY_NAME / APP_DIR come from scripts/app-name.sh, the single
+# definition shared with build.sh / dist.sh / install.sh / uninstall.sh.
+# APP_NAME is the executable (pgrep/killall target); DISPLAY_NAME is the
+# user-visible product name and APP_DIR the .app bundle folder.
 
 .PHONY: build install install-cli dmg release test clean reset run help
+
+APP_NAME     := $(shell . scripts/app-name.sh && printf '%s' "$$APP_NAME")
+DISPLAY_NAME := $(shell . scripts/app-name.sh && printf '%s' "$$DISPLAY_NAME")
+APP_DIR      := $(shell . scripts/app-name.sh && printf '%s' "$$APP_DIR")
 
 .DEFAULT_GOAL := help
 
@@ -33,16 +42,17 @@ test:
 clean:
 	@echo "🧹 Cleaning build artifacts..."
 	@swift package clean 2>/dev/null || true
-	@rm -rf VocaMac.app
+	@rm -rf "$(APP_DIR)"
+	@rm -rf VocaMac.app        # pre-rename bundle, if still lying around
 	@rm -rf .build
 	@rm -rf .xcode-build
 	@rm -rf dist
 	@echo "✅ Clean complete"
 
-## Reset all local VocaMac data (models, cache, preferences) — app must not be running
+## Reset all local app data (models, cache, preferences) — app must not be running
 reset:
-	@if pgrep -x VocaMac > /dev/null 2>&1; then echo "❌ VocaMac is running. Quit it first." && exit 1; fi
-	@echo "⚠️  This will permanently delete all VocaMac local data:"
+	@if pgrep -x $(APP_NAME) > /dev/null 2>&1; then echo "❌ $(DISPLAY_NAME) is running. Quit it first." && exit 1; fi
+	@echo "⚠️  This will permanently delete all $(DISPLAY_NAME) local data:"
 	@echo ""
 	@echo "   • Downloaded whisper models (~76MB each)"
 	@echo "   • Debug logs"
@@ -59,11 +69,11 @@ reset:
 
 ## Launch the locally built .app (build first with `make build`)
 run:
-	@open VocaMac.app 2>/dev/null || (echo "❌ VocaMac.app not found. Run 'make build' first." && exit 1)
+	@open "$(APP_DIR)" 2>/dev/null || (echo "❌ $(APP_DIR) not found. Run 'make build' first." && exit 1)
 
 ## Show this help
 help:
-	@echo "VocaMac — Available Commands"
+	@echo "$(DISPLAY_NAME) — Available Commands"
 	@echo ""
 	@echo "  make build        Build .app bundle (fast, for development)"
 	@echo "  make install      Build + install to /Applications (recommended)"

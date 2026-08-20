@@ -1,9 +1,9 @@
 #!/bin/bash
-# dist.sh — Build VocaMac and package as a signed, notarized DMG
+# dist.sh — Build TypeFlow and package as a signed, notarized DMG
 # Usage: ./scripts/dist.sh [--skip-notarize] [--skip-sign]
 #
 # This script:
-# 1. Builds VocaMac.app via build.sh (Developer ID signed if available)
+# 1. Builds TypeFlow.app via build.sh (Developer ID signed if available)
 # 2. Creates a beautiful DMG with:
 #    - Branded background image with install instructions
 #    - App icon on the left, Applications symlink on the right
@@ -44,23 +44,26 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 ARCH=$(uname -m)
-APP_NAME="VocaMac"
-DMG_NAME="${APP_NAME}-${VERSION}-${ARCH}.dmg"
+# APP_NAME / DISPLAY_NAME / APP_DIR come from the shared definition.
+. "$SCRIPT_DIR/app-name.sh"
+# DMG artifact + volume name follow the user-visible product name.
+DMG_NAME="${DISPLAY_NAME}-${VERSION}-${ARCH}.dmg"
+VOLUME_NAME="${DISPLAY_NAME}"
 DIST_DIR="dist"
 STAGING_DIR="${DIST_DIR}/.staging"
 NOTARIZE_PROFILE="${NOTARIZE_PROFILE:-AC_PASSWORD}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  VocaMac ${VERSION} — Distribution Build"
+echo "  ${DISPLAY_NAME} ${VERSION} — Distribution Build"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 # ── Step 1: Build ────────────────────────────────────────────────────────────
-echo "▶ Step 1/5: Building VocaMac..."
+echo "▶ Step 1/5: Building ${DISPLAY_NAME}..."
 "$SCRIPT_DIR/build.sh" release
 
-if [ ! -d "VocaMac.app" ]; then
-    echo "❌ VocaMac.app not found. Build failed."
+if [ ! -d "$APP_DIR" ]; then
+    echo "❌ ${APP_DIR} not found. Build failed."
     exit 1
 fi
 
@@ -78,7 +81,7 @@ mkdir -p "$STAGING_DIR"
 mkdir -p "$DIST_DIR"
 
 # Copy app
-cp -R VocaMac.app "$STAGING_DIR/"
+cp -R "$APP_DIR" "$STAGING_DIR/"
 
 # Applications symlink
 ln -sf /Applications "$STAGING_DIR/Applications"
@@ -101,7 +104,7 @@ echo "▶ Step 3/5: Creating DMG..."
 
 # Create a writable DMG first so we can set Finder view options
 TEMP_DMG="${DIST_DIR}/.tmp-rw.dmg"
-hdiutil create -volname "VocaMac" \
+hdiutil create -volname "$VOLUME_NAME" \
     -srcfolder "$STAGING_DIR" \
     -ov -format UDRW \
     -size 500m \
@@ -123,17 +126,19 @@ echo "   Mounted at: $MOUNT_POINT"
 # and we need the .DS_Store to be written before we detach.
 echo "   Configuring Finder layout..."
 
-# Ensure any previous VocaMac volumes are ejected first
-for vol in /Volumes/VocaMac*; do
+# Ensure any previous volumes for this product are ejected first
+for vol in /Volumes/"$VOLUME_NAME"*; do
     [ -d "$vol" ] && [ "$vol" != "$MOUNT_POINT" ] && hdiutil detach "$vol" 2>/dev/null || true
 done
 
 # Give Finder time to discover the volume
 sleep 2
 
-osascript << 'APPLESCRIPT'
+# Unquoted heredoc so ${VOLUME_NAME} / ${APP_DIR} expand — the AppleScript
+# below contains no $ or backticks of its own.
+osascript << APPLESCRIPT
 tell application "Finder"
-    tell disk "VocaMac"
+    tell disk "${VOLUME_NAME}"
         open
         delay 1
         set current view of container window to icon view
@@ -144,7 +149,7 @@ tell application "Finder"
         set arrangement of viewOptions to not arranged
         set icon size of viewOptions to 120
         set background picture of viewOptions to file ".background:background.png"
-        set position of item "VocaMac.app" of container window to {170, 250}
+        set position of item "${APP_DIR}" of container window to {170, 250}
         set position of item "Applications" of container window to {490, 250}
         close
         open
@@ -158,7 +163,7 @@ tell application "Finder"
         set arrangement of viewOptions to not arranged
         set icon size of viewOptions to 120
         set background picture of viewOptions to file ".background:background.png"
-        set position of item "VocaMac.app" of container window to {170, 250}
+        set position of item "${APP_DIR}" of container window to {170, 250}
         set position of item "Applications" of container window to {490, 250}
         update without registering applications
         delay 3

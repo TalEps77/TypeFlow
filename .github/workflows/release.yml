@@ -118,7 +118,7 @@ jobs:
           APP_VERSION: ${{ steps.version.outputs.VERSION }}
 
       - name: Verify code signature
-        run: codesign -v --deep --strict VocaMac.app
+        run: codesign -v --deep --strict TypeFlow.app
 
       - name: Verify SPM resource bundles are correctly staged
         run: |
@@ -128,14 +128,14 @@ jobs:
           # xcodebuild's Bundle.module accessor checks Bundle.main.resourceURL
           # which resolves to Contents/Resources/ for .app bundles.
           # Bundles must NOT be at the .app root (codesign rejects that).
-          if ls VocaMac.app/*.bundle 1>/dev/null 2>&1; then
+          if ls TypeFlow.app/*.bundle 1>/dev/null 2>&1; then
             echo "❌ Found .bundle at app root — will break codesign!"
-            ls VocaMac.app/*.bundle
+            ls TypeFlow.app/*.bundle
             FAIL=1
           fi
 
           FOUND_ANY=false
-          for bundle in VocaMac.app/Contents/Resources/*.bundle; do
+          for bundle in TypeFlow.app/Contents/Resources/*.bundle; do
             [ -d "$bundle" ] || continue
             FOUND_ANY=true
             name="$(basename "$bundle")"
@@ -149,7 +149,7 @@ jobs:
 
           # Verify the critical WhisperKit tokenizer fallback resources.
           # xcodebuild bundles have the structure: <bundle>/Contents/Resources/<file>
-          HUB="VocaMac.app/Contents/Resources/swift-transformers_Hub.bundle"
+          HUB="TypeFlow.app/Contents/Resources/swift-transformers_Hub.bundle"
           if [ ! -d "$HUB" ]; then
             echo "❌ swift-transformers_Hub.bundle missing!"
             FAIL=1
@@ -166,7 +166,7 @@ jobs:
           fi
 
           # Verify the binary uses the xcodebuild accessor (contains resourceURL)
-          if strings VocaMac.app/Contents/MacOS/VocaMac | grep -q 'resourceURL'; then
+          if strings TypeFlow.app/Contents/MacOS/VocaMac | grep -q 'resourceURL'; then
             echo "✅ Binary uses xcodebuild Bundle.module accessor"
           else
             echo "❌ Binary does NOT contain resourceURL — wrong accessor!"
@@ -185,19 +185,19 @@ jobs:
         run: |
           ARCH=$(uname -m)
           # dist.sh already names the DMG correctly; verify it exists
-          ls -lh dist/VocaMac-*.dmg
+          ls -lh dist/TypeFlow-*.dmg
 
           # Create ZIP from the signed .app
-          ditto -c -k --sequesterRsrc --keepParent VocaMac.app \
-            "dist/VocaMac-${{ steps.version.outputs.VERSION }}-${ARCH}.zip"
+          ditto -c -k --sequesterRsrc --keepParent TypeFlow.app \
+            "dist/TypeFlow-${{ steps.version.outputs.VERSION }}-${ARCH}.zip"
 
           echo "ZIP created:"
-          ls -lh dist/VocaMac-*.zip
+          ls -lh dist/TypeFlow-*.zip
 
       - name: Generate checksums
         run: |
           cd dist
-          shasum -a 256 VocaMac-*.dmg VocaMac-*.zip > checksums.txt
+          shasum -a 256 TypeFlow-*.dmg TypeFlow-*.zip > checksums.txt
           cat checksums.txt
 
       # ── Cleanup ─────────────────────────────────────────────────────────────
@@ -213,17 +213,17 @@ jobs:
           generate_release_notes: true
           draft: true
           files: |
-            dist/VocaMac-*.dmg
-            dist/VocaMac-*.zip
+            dist/TypeFlow-*.dmg
+            dist/TypeFlow-*.zip
             dist/checksums.txt
           body: |
-            ## VocaMac ${{ steps.version.outputs.VERSION }}
+            ## TypeFlow ${{ steps.version.outputs.VERSION }}
 
             ### Installation
 
-            1. Download `VocaMac-${{ steps.version.outputs.VERSION }}-arm64.dmg`
-            2. Open the DMG and drag VocaMac to Applications
-            3. Open VocaMac from Applications
+            1. Download `TypeFlow-${{ steps.version.outputs.VERSION }}-arm64.dmg`
+            2. Open the DMG and drag TypeFlow to Applications
+            3. Open TypeFlow from Applications
             4. Grant **Microphone**, **Accessibility**, and **Input Monitoring** permissions when prompted
 
             > This release is **Developer ID signed and notarized** by Apple.

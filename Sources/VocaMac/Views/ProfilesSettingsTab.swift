@@ -148,7 +148,7 @@ struct ProfilesSettingsTab: View {
     private func exportProfiles() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "VocaMac-Profiles.json"
+        panel.nameFieldStringValue = "TypeFlow-Profiles.json"
 
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }

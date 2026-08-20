@@ -1124,7 +1124,23 @@ So that it has its own public name while everything that would break if renamed 
 **Given** `scripts/build.sh` drove both the internal executable name and the user-visible product name from one `APP_NAME` variable,
 **When** the generator is updated,
 **Then** it is split into `APP_NAME="VocaMac"` (executable filename, xcodebuild scheme, entitlements — unchanged, so `VocaMacApp.ensureSingleInstance`'s `pgrep -x "VocaMac"` keeps matching the real binary) and `DISPLAY_NAME="TypeFlow"` (`CFBundleName`, `CFBundleDisplayName`, `NSMicrophoneUsageDescription`),
-**And** the delivered bundle folder itself is named from `DISPLAY_NAME` (`APP_DIR="${DISPLAY_NAME}.app"`), so the shipped app is `TypeFlow.app` containing an unchanged `VocaMac` executable and `com.vocamac.app` identifier.
+**And** the delivered bundle folder itself is named from `DISPLAY_NAME` (`APP_DIR="${DISPLAY_NAME}.app"`), so the shipped app is `TypeFlow.app` containing an unchanged `VocaMac` executable and `com.vocamac.app` identifier,
+**And** that definition lives in exactly one place — `scripts/app-name.sh` — sourced by `build.sh`, `dist.sh`, `install.sh`, `uninstall.sh` and the `Makefile`, with the four workflow YAMLs and both Homebrew casks updated to match.
+
+*(AC amended after Epic 8 adversarial review, BLOCKER 1. `build.sh` began emitting `TypeFlow.app` while every consumer still looked for `VocaMac.app`: CI's `test -d`, all three release/nightly/pr-build codesign and packaging steps, `dist.sh`'s DMG staging and AppleScript layout, `install.sh`'s copy to /Applications, `uninstall.sh`'s cleanup, `make run`/`make clean`, and both cask `app` stanzas. A stale pre-rebrand `VocaMac.app/` also sat untracked at the repo root, so `make run` and `install.sh` launched the **old** app. Deleted, and `.gitignore` now ignores both names — it previously ignored only `VocaMac.app/`, so the first build after the rename dropped an untracked multi-GB `TypeFlow.app/` where a `git add -A` would have committed it (BLOCKER 2).)*
+
+**Given** Accessibility and Input Monitoring grants are keyed to the bundle's **path**, so renaming the folder invalidates every existing grant and strands a `VocaMac` row in System Settings whose toggle stays on while granting nothing,
+**When** an existing install is upgraded,
+**Then** the stuck-permission hint, `install.sh`, `uninstall.sh`, and the README all lead with "remove the old VocaMac row from both Accessibility and Input Monitoring, then add TypeFlow", with `tccutil reset` demoted to a second suggestion and noted as unreliable for Accessibility specifically,
+**And** `install.sh` removes a leftover `/Applications/VocaMac.app` itself rather than leaving two apps sharing one bundle id.
+
+*(AC added after Epic 8 adversarial review, MAJOR 4 + MINOR 4.)*
+
+**Given** the inherited update checker polls `jatinkrmalik/vocamac/releases/latest` while this fork has no release repo of its own,
+**When** an upstream release compares as newer,
+**Then** nothing happens: update checking is switched off behind `UpdateChecker.updatesEnabled = false`, the Settings "Check for Updates…" button is gone, and the menu-bar banner is gated on the same flag.
+
+*(AC added after Epic 8 adversarial review, BLOCKER 4. Left on, the app would have shown "TypeFlow 0.7.x Available", handed the user a DMG containing upstream's `VocaMac.app`, and told them to drag it into /Applications — replacing this build with one that has none of Epics 1-8 while keeping the same bundle id and Application Support directory. The Homebrew branch had the same defect from the other side. The machinery is intact and tested behind the flag, since the fix is a real fork release repo, not a different endpoint.)*
 
 **Given** renaming the SwiftPM product/target to "TypeFlow" was evaluated first,
 **When** the cascade was checked,
@@ -1136,9 +1152,11 @@ So that it has its own public name while everything that would break if renamed 
 **And** once any permission has read `.denied` for 30+ seconds of polling, a red hint appears next to the existing denied-permissions text telling the user (dev/ad-hoc builds) to remove and re-add the app in System Settings, or run `tccutil reset All com.vocamac.app` — the same fix the Reset button already performs.
 
 **Verification:**
-- Build: `swift build` clean; the typecheck harness shows no new errors beyond the pre-existing `HistoryStoreTests.swift:61` cast bug.
-- Manual: grep confirms every remaining `VocaMac` string in `Views/`, `App/`, and `scripts/build.sh` is internal (header comments, log messages, the process-match string, default export/debug-log filenames, the Application Support path) — none of it user-visible.
+- Build: `swift build` clean. **Post-review:** `swift test` now actually runs and is green (763 tests, ~14s) — the earlier "typecheck harness" note stood in for a suite that could not be executed, and the `HistoryStoreTests.swift:61` cast bug it excused was fixed in e473210.
+- Build: `./scripts/build.sh` produces `TypeFlow.app` with `CFBundleName`/`CFBundleDisplayName` = TypeFlow, `CFBundleExecutable` = VocaMac, `CFBundleIdentifier` = com.vocamac.app; the bundled executable launches and is killable by `killall VocaMac`.
+- Manual: grep confirms every remaining `VocaMac` string in `Views/`, `App/`, and the scripts is internal (header comments, log messages, the process-match string, the Application Support path) — none of it user-visible. Default export/debug-log filenames were still `VocaMac-*` and are now `TypeFlow-*` (MINOR 2).
 - Manual: `ensureSingleInstance`'s `pgrep -x "VocaMac"` still matches the actual `Contents/MacOS/VocaMac` executable name after the bundle-name split.
+- Post-review: permission-denial clocks moved from `@State` on the Debug tab to `PermissionManager`, so switching tabs no longer restarts the 30-second timer (MINOR 3), and permission polling slows to 30s after all grants rather than stopping, so a mid-session revoke is noticed (MINOR 5).
 
 ### Story 8.2: Bilingual (Hebrew + English) dictation
 
@@ -1152,22 +1170,37 @@ So that I don't have to dig into the 19-language Settings picker every time I sw
 **When** the feature is implemented,
 **Then** the design keeps the **single ivrit-ai model** (no second model, no reload-on-toggle) and adds a fast menu-bar toggle over the same `AppState.selectedLanguage` the existing 19-language Settings picker already used — a menu bar quick-switch, not a new decoding path.
 
-**Given** the menu bar toggle,
+**Given** the menu bar toggle, and that the segmented control has three segments while Settings offers nineteen choices over the same key,
 **When** I open the popover,
-**Then** a three-way עב/EN/Auto segmented control sits under the header, bound to `selectedLanguage`, and reflects whatever is currently selected (including a value picked from the full Settings list).
+**Then** a three-way עב/EN/Auto segmented control sits under the header bound to `selectedLanguage` whenever the stored value is one of those three,
+**And** a stored value outside them (any of the other sixteen Settings languages) is rendered as a read-only "&lt;Language&gt; — change in Settings" label instead, because a segmented picker whose selection is outside its own tags shows nothing highlighted and silently rewrites the user's choice the moment a segment is touched,
+**And** a Profile that pins a language for the frontmost app is shown the same way — "EN — from Slack Profile" — since that override, not the toggle, is what the next dictation will use.
+
+*(AC amended after Epic 8 adversarial review, MAJOR 2 + MEDIUM 3. The original wording — "reflects whatever is currently selected (including a value picked from the full Settings list)" — described behavior a three-segment control cannot have. `DictationLanguage` is now the single list both surfaces read.)*
 
 **Given** a Profile may need to force a language regardless of the toggle (e.g. a Slack Profile always in English),
 **When** `Profile` gains an optional `language: String?` field (`nil` = follow the app-wide toggle, following the same optional-with-default pattern as its other fields),
-**Then** `AppState.stopRecordingAndTranscribe()` resolves `capturedProfile?.language ?? selectedLanguage` before mapping `"auto"` to `nil`,
-**And** a "Language for this Profile" picker in the Profiles settings tab exposes App Default / Hebrew / English / Auto-detect.
+**Then** the resolved language is `capturedProfile?.language ?? selectedLanguage`, captured at **recording start** alongside the Profile and the bundle identifier — not read at stop time, where a mid-recording toggle flip retroactively changed the language of speech already captured (MEDIUM 2) — before mapping `"auto"` to `nil`,
+**And** a "Language for this Profile" picker in the Profiles settings tab exposes App Default / Hebrew / English / Auto-detect,
+**And** Command Mode resolves its instruction's language the same way rather than ignoring Profiles (MINOR 8).
 
 **Given** the custom Vocabulary glossary is written with Hebrew dictation in mind,
-**When** the resolved language for a recording is explicitly `"en"`,
-**Then** the vocabulary/`promptTokens` hint is not passed to WhisperKit for that recording (Auto mode still gets it, since the language isn't known until decode completes — there is nothing to gate on yet).
+**When** the resolved language for a recording is explicitly `"en"` **or is Auto**,
+**Then** the vocabulary/`promptTokens` hint is not passed to WhisperKit for that recording.
+
+*(AC amended after Epic 8 adversarial review, MAJOR 3. The original carved out Auto — "Auto mode still gets it, since the language isn't known until decode completes" — which is exactly the defect: passing `promptTokens` with `language: nil` makes `decodingOptions` set `usePrefillPrompt: true` alongside `detectLanguage: true`, so a Hebrew glossary was prefilled ahead of the language detection it then skewed. That combination was never tested. Auto now decodes with `usePrefillPrompt: false`, the shipped path, and `DecodingOptionsLanguageTests.testDecodingOptionsTable` pins the whole he/en/auto × glossary/none table.)*
 
 **Given** dictations should show what language was actually used,
 **When** a `HistoryRecord` is written,
-**Then** it carries a new optional `language: String?` populated from `VocaTranscription.detectedLanguage` — `nil`-safe for every record written before this story — and both the History list row and detail view display it when present.
+**Then** it carries a new optional `language: String?` holding the **requested** language whenever one was requested, falling back to `VocaTranscription.detectedLanguage` only in Auto — `nil`-safe for every record written before this story — and both the History list row and detail view display it as a name ("Hebrew", not "HE"/"he").
+
+*(AC amended after Epic 8 adversarial review, MEDIUM 1 + MINOR 7. Populating it unconditionally from `detectedLanguage` made English-forced dictations record themselves as Hebrew — the very `detectLanguage` mislabeling this story's own empirical test documented as a known caveat of the ivrit.ai fine-tune.)*
+
+**Given** the post-processing prompt is what turns a raw transcript into clean text,
+**When** an English dictation is cleaned,
+**Then** it is sent an English prompt variant (English correction markers and English few-shot examples), selected from the resolved language — and a prompt the user has edited is always sent verbatim, in every language.
+
+*(AC added after Epic 8 adversarial review, MAJOR 1. Story 8.2 shipped bilingual ASR against a monolingual cleanup prompt: `Prompts.cleanTranscriptSystemPrompt` names only Hebrew correction markers and all ten of its few-shots are Hebrew, so English self-correction never fired. Live-verified against LM Studio / qwen3-4b-instruct-2507-mlx — the Hebrew prompt on "we ship Tuesday no Wednesday" returns the Hebrew "נשלחים שניים"; the English variant returns "We ship Wednesday.")*
 
 **Given** two-model auto-detect-per-recording was considered and rejected (only relevant to the "ivrit English degraded" branch, which the empirical test did not find),
 **When** documenting the decision,
@@ -1176,9 +1209,12 @@ So that I don't have to dig into the 19-language Settings picker every time I sw
 **Verification:**
 - Empirical: throwaway harness output recorded above (ivrit English quality verdict, detectLanguage mislabeling caveat).
 - Live: a harness compiled directly against the real, unmodified `Sources/VocaMac/Services/WhisperService.swift` (not a reimplementation) loads the real ivrit-ai model once and calls the real `transcribe()` with `language: "he"` then `language: "en"` then `language: "he"` again on the same loaded model instance — mirroring exactly what toggling the menu bar control now does — both languages transcribed correctly with no reload.
-- Build: `swift build` clean; typecheck harness unchanged (only the pre-existing `HistoryStoreTests.swift:61` failure).
+- Build: `swift build` clean.
+- **Automated (added post-review, MEDIUM 4).** This story originally shipped with **zero** tests. `Tests/VocaMacTests/DictationLanguageTests.swift` now covers: the shared 19-code list and its 3-code quick-toggle subset; display-name mapping including the legacy `iw` code; the full `decodingOptions` he/en/auto × glossary/none table; prompt-variant selection plus the never-override-an-edited-prompt guard, end-to-end through `PostProcessStage`; language captured at recording start and cleared once consumed; Profile-override precedence; the glossary gate for English and Auto; requested-wins-over-detected in `HistoryRecord`; the menu-bar override accessor; and legacy decode + import carry-through for both `Profile.language` and `HistoryRecord.language`.
+- **Live post-processing (added post-review, MAJOR 1).** Both prompts run against LM Studio at `localhost:1234` / `qwen3-4b-instruct-2507-mlx` / temperature 0. English: "we ship Tuesday no Wednesday" → "We ship Wednesday."; filler removal, question preservation, and mid-sentence correction all fire; four held-out cases not present as few-shots also pass ("call the vendor on Thursday actually on Friday morning" → "Call the vendor on Friday morning."). Hebrew regressions unchanged ("נפגש ביום שלישי אה לא ביום רביעי" → "נפגש ביום רביעי."), plus two held-out Hebrew cases. Control case reproducing the defect: the **Hebrew** prompt on the same English transcript returns "נשלחים שניים" — a Hebrew mistranslation, exactly the Hebrew-flip the validator would then silently reject.
 - Manual (pending real device use): profile-language override actually overrides the toggle for its bound app; History rows show the recorded language.
 
 ---
 
-<!-- checkpoint: all 7 epics dev+review+fix complete; app installed as 0.8.0-local-hebrew; tracker synced all-done 2026-08-20; Epic 8 (rebrand + bilingual) added and completed same session; next: retrospectives / real XCTest run on an Xcode machine -->
+<!-- checkpoint: all 7 epics dev+review+fix complete; app installed as 0.8.0-local-hebrew; tracker synced all-done 2026-08-20; Epic 8 (rebrand + bilingual) added and completed same session -->
+<!-- checkpoint 2026-08-20: real XCTest run landed (e473210, 727 green) — the deadlock, the HistoryStoreTests:61 cast, and the stale default assertions are fixed. Epic 8 adversarial review applied: 4 blockers, 4 majors, 5 mediums, 8 minors. Suite now 763 green. ACs above amended in place where the review found the AC itself wrong (MAJOR 2 segmented picker, MAJOR 3 Auto glossary carve-out, MEDIUM 1 detected-vs-requested language) rather than only the code. Two things remain open by decision, both blocked on the same missing thing — this fork has no release repo of its own: the update checker stays off behind UpdateChecker.updatesEnabled, and both Homebrew casks still point their `url` at upstream (flagged in-file as unpublishable as-is). One test, testSelectedModelSizeDefault, is order-dependent and left as-is under its own task chip. -->

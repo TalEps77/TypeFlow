@@ -1,12 +1,13 @@
 #!/bin/bash
-# uninstall.sh — Completely remove VocaMac and all its data
+# uninstall.sh — Completely remove TypeFlow and all its data
 #
 # This gives you a clean slate:
-#   - Kills any running VocaMac process
-#   - Removes downloaded models (~/.../Application Support/VocaMac/)
+#   - Kills any running process (executable name: VocaMac)
+#   - Removes downloaded models (~/.../Application Support/VocaMac/ — the
+#     support directory keeps the old name so upgrades preserve user data)
 #   - Removes launcher scripts (~/.local/bin/vocamac*)
 #   - Removes CoreML compilation cache
-#   - Removes the .app bundle if it exists
+#   - Removes the .app bundle if it exists (TypeFlow.app and pre-rename VocaMac.app)
 #   - Optionally cleans build artifacts
 #
 # Usage: ./scripts/uninstall.sh [--keep-build]
@@ -29,13 +30,16 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo "🗑️  VocaMac Uninstaller"
+# APP_NAME (executable) / DISPLAY_NAME / APP_DIR — see scripts/app-name.sh.
+. "$SCRIPT_DIR/app-name.sh"
+
+echo "🗑️  ${DISPLAY_NAME} Uninstaller"
 echo "━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# 1. Kill running process
-echo "→ Stopping VocaMac..."
-pkill -f "VocaMac" 2>/dev/null && echo "  ✓ Process killed" || echo "  · Not running"
+# 1. Kill running process — matched by executable name, not display name
+echo "→ Stopping ${DISPLAY_NAME}..."
+pkill -f "$APP_NAME" 2>/dev/null && echo "  ✓ Process killed" || echo "  · Not running"
 sleep 0.5
 
 # 2. Remove Application Support data (models, caches)
@@ -73,23 +77,29 @@ if [ "$REMOVED_SCRIPTS" -eq 0 ]; then
     echo "  · No launcher scripts found"
 fi
 
-# 5. Remove .app bundle
-APP_BUNDLE="$PROJECT_DIR/VocaMac.app"
-if [ -d "$APP_BUNDLE" ]; then
-    echo "→ Removing app bundle..."
-    rm -rf "$APP_BUNDLE"
-    echo "  ✓ Removed $APP_BUNDLE"
-else
-    echo "→ No app bundle found"
-fi
-
-# Also check /Applications
-for app_dir in "/Applications/VocaMac.app" "$HOME/Applications/VocaMac.app"; do
+# 5. Remove .app bundles — both the current name and the pre-rename
+#    VocaMac.app, so a full uninstall leaves nothing behind either way.
+REMOVED_BUNDLES=0
+for app_dir in \
+    "$PROJECT_DIR/${APP_DIR}" \
+    "$PROJECT_DIR/VocaMac.app" \
+    "/Applications/${APP_DIR}" \
+    "/Applications/VocaMac.app" \
+    "$HOME/Applications/${APP_DIR}" \
+    "$HOME/Applications/VocaMac.app"; do
     if [ -d "$app_dir" ]; then
         echo "→ Removing $app_dir..."
-        rm -rf "$app_dir" 2>/dev/null && echo "  ✓ Removed" || echo "  ⚠️  Could not remove (try: sudo rm -rf \"$app_dir\")"
+        if rm -rf "$app_dir" 2>/dev/null; then
+            echo "  ✓ Removed"
+            REMOVED_BUNDLES=$((REMOVED_BUNDLES + 1))
+        else
+            echo "  ⚠️  Could not remove (try: sudo rm -rf \"$app_dir\")"
+        fi
     fi
 done
+if [ "$REMOVED_BUNDLES" -eq 0 ]; then
+    echo "→ No app bundle found"
+fi
 
 # 6. Remove UserDefaults/preferences
 echo "→ Removing preferences..."
@@ -111,10 +121,12 @@ fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ VocaMac fully uninstalled!"
+echo "✅ ${DISPLAY_NAME} fully uninstalled!"
 echo ""
 echo "To reinstall:"
 echo "  ./scripts/build.sh && ./scripts/install.sh"
 echo ""
 echo "⚠️  Note: Accessibility and Input Monitoring permissions in"
 echo "   System Settings → Privacy & Security must be removed manually."
+echo "   Remove both the \"${DISPLAY_NAME}\" row and any leftover"
+echo "   \"VocaMac\" row from before the rename."

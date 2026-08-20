@@ -29,6 +29,20 @@ struct TranscriptContext {
     /// so existing callers that never pass this keep Epic 2/3's behavior.
     let resolvedProfile: Profile?
 
+    /// The language this dictation is in, as an ISO code ("he", "en", …), or
+    /// `nil` when it could not be resolved (Story 8.2 / MAJOR 1).
+    ///
+    /// Resolution order, decided by the caller: the language the user asked
+    /// for wins whenever they asked for one — a Profile override first, then
+    /// the app-wide toggle — and ASR's `detectedLanguage` only fills in for
+    /// Auto. That order matters because detection is unreliable enough that an
+    /// English-forced dictation was being reported as Hebrew (MEDIUM 1).
+    ///
+    /// `PostProcessStage` reads this to pick the cleanup prompt variant. Before
+    /// it existed, every dictation got the Hebrew-only prompt, so English
+    /// self-correction never fired.
+    let language: String?
+
     /// Text immediately before/after the caret, read via Accessibility at
     /// recording start when both the global and Profile toggles allow it
     /// (Story 4.4). `var`, not `let`: AD-5 requires this to be dropped as
@@ -68,6 +82,7 @@ struct TranscriptContext {
         rawTranscript: String,
         targetBundleIdentifier: String? = nil,
         resolvedProfile: Profile? = nil,
+        language: String? = nil,
         cursorContextBefore: String? = nil,
         cursorContextAfter: String? = nil
     ) {
@@ -75,6 +90,7 @@ struct TranscriptContext {
         self.currentText = rawTranscript
         self.targetBundleIdentifier = targetBundleIdentifier
         self.resolvedProfile = resolvedProfile
+        self.language = language
         self.cursorContextBefore = cursorContextBefore
         self.cursorContextAfter = cursorContextAfter
         self.protectedSpans = [:]

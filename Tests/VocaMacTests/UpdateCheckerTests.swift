@@ -5,6 +5,41 @@ import XCTest
 @testable import VocaMac
 
 final class UpdateCheckerTests: XCTestCase {
+
+    // MARK: - Updates are switched off for this fork (BLOCKER 4)
+
+    /// The flag itself, asserted directly. `apiURL` points at upstream
+    /// `jatinkrmalik/vocamac`, so an enabled checker offers upstream's VocaMac
+    /// DMG as a TypeFlow update — installing it replaces this build with one
+    /// that has none of Epics 1-8, under the same bundle id. Flipping this back
+    /// to `true` requires a fork release repo first.
+    func testUpdatesAreDisabledForThisFork() {
+        XCTAssertFalse(UpdateChecker.updatesEnabled)
+    }
+
+    /// The network entry point must not reach upstream while the flag is off.
+    /// State stays `.idle`, so nothing downstream — banner, sheet, About-tab
+    /// status line — has an update to render.
+    @MainActor
+    func testCheckForUpdatesIsANoOpWhileDisabled() async {
+        let checker = UpdateChecker()
+        checker.updateState = .upToDate
+
+        await checker.checkForUpdates()
+
+        XCTAssertEqual(checker.updateState, .idle)
+        XCTAssertNil(checker.activeUpdateInfo)
+    }
+
+    @MainActor
+    func testCheckOnLaunchIsANoOpWhileDisabled() async {
+        let checker = UpdateChecker()
+
+        await checker.checkOnLaunchIfNeeded()
+
+        XCTAssertEqual(checker.updateState, .idle)
+    }
+
     @MainActor
     func testNormalizeVersionStripsVPrefix() {
         let checker = UpdateChecker()
@@ -136,10 +171,25 @@ final class UpdateCheckerTests: XCTestCase {
         }
     }
 
+    /// The cask now stages `TypeFlow.app`; the pre-rename staged name has to
+    /// keep resolving too, since an install made before the rename still has
+    /// its receipt on disk.
+    func testDetectHomebrewInstallFindsTheRenamedBundle() throws {
+        let fixture = try makeHomebrewFixture(caskToken: "vocamac", version: "0.7.0", bundleName: "TypeFlow.app")
+
+        let install = UpdateChecker.detectHomebrewInstall(
+            bundlePath: fixture.appBundle.path,
+            caskroomRoots: [fixture.caskroomRoot]
+        )
+
+        XCTAssertEqual(install?.caskToken, "vocamac")
+    }
+
     private func makeHomebrewFixture(
         caskToken: String,
         version: String,
         writeReceipt: Bool = true,
+        bundleName: String = "VocaMac.app",
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> (caskroomRoot: URL, appBundle: URL) {
@@ -150,11 +200,11 @@ final class UpdateCheckerTests: XCTestCase {
         let caskroomRoot = root.appendingPathComponent("Caskroom", isDirectory: true)
         let appBundle = root
             .appendingPathComponent("Applications", isDirectory: true)
-            .appendingPathComponent("VocaMac.app", isDirectory: true)
+            .appendingPathComponent(bundleName, isDirectory: true)
         let caskRoot = caskroomRoot.appendingPathComponent(caskToken, isDirectory: true)
         let metadataRoot = caskRoot.appendingPathComponent(".metadata", isDirectory: true)
         let versionRoot = caskRoot.appendingPathComponent(version, isDirectory: true)
-        let stagedApp = versionRoot.appendingPathComponent("VocaMac.app", isDirectory: true)
+        let stagedApp = versionRoot.appendingPathComponent(bundleName, isDirectory: true)
 
         addTeardownBlock {
             try? fileManager.removeItem(at: root)
@@ -165,7 +215,7 @@ final class UpdateCheckerTests: XCTestCase {
         try fileManager.createDirectory(at: versionRoot, withIntermediateDirectories: true)
         if writeReceipt {
             let receipt = metadataRoot.appendingPathComponent("INSTALL_RECEIPT.json")
-            try Data(#"{"uninstall_artifacts":[{"app":["VocaMac.app"]}]}"#.utf8).write(to: receipt)
+            try Data(#"{"uninstall_artifacts":[{"app":["\#(bundleName)"]}]}"#.utf8).write(to: receipt)
         }
         try fileManager.createSymbolicLink(at: stagedApp, withDestinationURL: appBundle)
 

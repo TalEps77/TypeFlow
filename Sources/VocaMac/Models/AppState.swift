@@ -323,6 +323,23 @@ final class AppState: ObservableObject {
     /// kept alongside it for the same reason and cleared at the same time.
     private(set) var capturedProfile: Profile?
 
+    /// The language setting this recording is being transcribed under —
+    /// `"he"`, `"en"`, `"auto"`, or any of the Settings picker's other codes —
+    /// resolved once, at recording start, alongside `capturedProfile`
+    /// (MEDIUM 2).
+    ///
+    /// The Profile half of that decision was already captured at start, but
+    /// `selectedLanguage` used to be read at *stop* time, so flipping the
+    /// menu-bar toggle mid-sentence retroactively changed the language of
+    /// speech that had already been captured — the recording heard Hebrew and
+    /// was then decoded as English. Both halves are now fixed at the same
+    /// moment, for the same reason the bundle identifier is.
+    ///
+    /// `nil` means no recording resolved one (the tests that call
+    /// `stopRecordingAndTranscribe` directly), in which case the stop path
+    /// falls back to reading the live setting exactly as it used to.
+    private(set) var capturedLanguage: String?
+
     /// Set synchronously at the top of `stopRecordingAndTranscribe`, before
     /// its first `await`. A hotkey release and `onSilenceDetected` /
     /// `onMaxDurationReached` can both reach that method in the same turn;
@@ -857,12 +874,35 @@ final class AppState: ObservableObject {
         return .tiny
     }
 
+    /// The Profile-pinned dictation language for whatever app is frontmost
+    /// right now, if there is one (MEDIUM 3).
+    ///
+    /// Read at render time by the menu bar, not captured — this answers "what
+    /// would the next dictation use", which is a question about now. The
+    /// recording flow does its own capture at start (`capturedLanguage`) and
+    /// does not read this.
+    ///
+    /// Exists because the Profile override was invisible: the menu-bar toggle
+    /// kept showing עב while a Slack Profile pinned to English quietly won at
+    /// dictation time, so the one control the user could see was the one thing
+    /// that did not decide the outcome.
+    var frontmostProfileLanguageOverride: (language: String, profileName: String)? {
+        guard profilesEnabled else { return nil }
+        let profile = profileManager.resolve(
+            bundleIdentifier: lastNonSelfFrontmostApp?.bundleIdentifier,
+            profilesEnabled: profilesEnabled
+        )
+        guard let language = profile.language else { return nil }
+        return (language, profile.name)
+    }
+
     // MARK: - Permission Handling (delegated to PermissionManager)
 
     func checkPermissions() { permissionManager.checkPermissions() }
     func startPermissionPolling() { permissionManager.startPermissionPolling() }
     func stopPermissionPolling() { permissionManager.stopPermissionPolling() }
     var allPermissionsGranted: Bool { permissionManager.allPermissionsGranted }
+    var longestPermissionDenialDuration: TimeInterval? { permissionManager.longestPermissionDenialDuration }
     func requestMicrophonePermission() { permissionManager.requestMicrophonePermission() }
     func openMicrophoneSettings() { permissionManager.openMicrophoneSettings() }
     func requestAccessibilityPermission() { permissionManager.requestAccessibilityPermission() }
@@ -965,6 +1005,7 @@ final class AppState: ObservableObject {
     private func discardCapturedContext() {
         capturedContext = nil
         capturedProfile = nil
+        capturedLanguage = nil
         correctionLearner.cancelPendingObservation()
         // Story 6.3: a Command Mode selection is document text held for one
         // operation, and every reason this method exists applies to it just as
@@ -1035,6 +1076,11 @@ final class AppState: ObservableObject {
             return self.contextCaptureEnabled && profile.contextCaptureEnabled
         }
         capturedProfile = profileForThisRecording
+        // MEDIUM 2: resolved here, not at stop time, so a mid-recording toggle
+        // flip cannot retroactively change the language of what was already
+        // said. Story 8.2's precedence is unchanged — a Profile's own override
+        // still wins over the app-wide toggle.
+        capturedLanguage = profileForThisRecording?.language ?? selectedLanguage
 
         activeRecordingMode = .dictation
         guard await beginCapture() else {
@@ -1173,7 +1219,9 @@ final class AppState: ObservableObject {
             // Story 8.2: a Profile's own language override (if any) wins over
             // the app-wide toggle — e.g. a Slack Profile pinned to English
             // dictates in English even while the menu bar toggle says Hebrew.
-            let languageSetting = capturedProfile?.language ?? selectedLanguage
+            // Both were resolved at recording start (MEDIUM 2); the fallback
+            // covers callers that reach this method without a start (tests).
+            let languageSetting = capturedLanguage ?? (capturedProfile?.language ?? selectedLanguage)
             let language = languageSetting == "auto" ? nil : languageSetting
             let result = try await whisperService.transcribe(
                 audioData: audioData,
@@ -1181,11 +1229,21 @@ final class AppState: ObservableObject {
                 translate: translationEnabled,
                 // The custom vocabulary glossary is written with Hebrew
                 // dictation in mind (transliterations, product names) — a
-                // Hebrew-biased prompt hint has no business steering an
-                // explicitly-English recording, so it's gated off there.
-                // Auto mode still gets it: the language isn't known until
-                // WhisperKit decodes, so there is no language to gate on yet.
-                vocabulary: language == "en" ? "" : customVocabulary
+                // Hebrew-biased prompt hint has no business steering a
+                // recording that is not Hebrew, so it is gated off for
+                // explicit English *and* for Auto (MAJOR 3).
+                //
+                // Auto used to be allowed through on the reasoning that the
+                // language isn't known until WhisperKit decodes. That is true
+                // and it is exactly the problem: passing promptTokens with
+                // `language: nil` makes `decodingOptions` set
+                // `usePrefillPrompt: true` alongside `detectLanguage: true`,
+                // which is the one combination Epic 8 never tested — a Hebrew
+                // glossary prefill steering the very detection it precedes.
+                // With the glossary gated off, Auto decodes with
+                // `usePrefillPrompt: false`, which is the shipped and tested
+                // Auto path.
+                vocabulary: (language == nil || language == "en") ? "" : customVocabulary
             )
 
             // Stats are keyed off the raw ASR result, deliberately: they are
@@ -1207,6 +1265,16 @@ final class AppState: ObservableObject {
             let resolvedProfile = capturedProfile
             capturedContext = nil
             capturedProfile = nil
+            capturedLanguage = nil
+
+            // The language this dictation actually happened in (MAJOR 1,
+            // MEDIUM 1). The requested language wins whenever the user asked
+            // for one; `detectedLanguage` only fills in for Auto, where there
+            // was no request to honor. Doing it the other way round is what
+            // made an English-forced dictation record itself as Hebrew:
+            // WhisperKit's detection is a guess, and the user's explicit
+            // choice is not.
+            let effectiveLanguage = language ?? result.detectedLanguage
 
             // AD-1: the single seam for every post-ASR text transformation.
             // With no stages enabled this returns trimmedText unchanged (AD-2).
@@ -1214,6 +1282,7 @@ final class AppState: ObservableObject {
                 rawTranscript: trimmedText,
                 targetBundleIdentifier: context?.bundleIdentifier,
                 resolvedProfile: resolvedProfile,
+                language: effectiveLanguage,
                 cursorContextBefore: context?.cursorContextBefore,
                 cursorContextAfter: context?.cursorContextAfter
             ))
@@ -1256,7 +1325,7 @@ final class AppState: ObservableObject {
                     model: result.modelUsed,
                     recordingMillis: result.audioLengthSeconds * 1000,
                     asrMillis: result.duration * 1000,
-                    language: result.detectedLanguage
+                    language: effectiveLanguage
                 )
             }
 
@@ -1345,10 +1414,25 @@ final class AppState: ObservableObject {
         commandGeneration += 1
         activeRecordingMode = .command
 
+        // MINOR 8 + MEDIUM 2: resolve the language for the instruction here,
+        // at gesture start, the same way dictation does — a Profile's own
+        // override wins over the app-wide toggle. Command Mode used to read
+        // `selectedLanguage` at stop time and ignore Profiles entirely, so
+        // speaking an instruction into an English-pinned app decoded it as
+        // Hebrew. Only the *language* is resolved from the Profile; the
+        // command prompt stays the fixed constant (see the rewrite call).
+        capturedLanguage = profileManager
+            .resolve(
+                bundleIdentifier: lastNonSelfFrontmostApp?.bundleIdentifier,
+                profilesEnabled: profilesEnabled
+            )
+            .language ?? selectedLanguage
+
         guard await beginCapture() else {
             // The engine never started, so nothing will ever consume the
             // selection this gesture read (AD-5).
             commandModeCoordinator.discardSelection()
+            capturedLanguage = nil
             activeRecordingMode = .dictation
             return
         }
@@ -1394,18 +1478,21 @@ final class AppState: ObservableObject {
         appStatus = .processing
         let generation = commandGeneration
 
+        // Story 8.2: same language resolution and vocabulary gating as the
+        // dictation route above, including the Profile override and the Auto
+        // glossary gate (MINOR 8, MAJOR 3) — resolved at gesture start
+        // (MEDIUM 2), with the same test-only fallback.
+        let languageSetting = capturedLanguage ?? selectedLanguage
+        let language = languageSetting == "auto" ? nil : languageSetting
+        capturedLanguage = nil
+
         let result: VocaTranscription
         do {
-            // Story 8.2: same vocabulary gating as the dictation route above.
-            // No Profile override here — Command Mode does not resolve a
-            // per-app Profile at all (see the fixed-prompt comment below), so
-            // it only ever follows the app-wide language toggle.
-            let language = selectedLanguage == "auto" ? nil : selectedLanguage
             result = try await whisperService.transcribe(
                 audioData: audioData,
                 language: language,
                 translate: translationEnabled,
-                vocabulary: language == "en" ? "" : customVocabulary
+                vocabulary: (language == nil || language == "en") ? "" : customVocabulary
             )
         } catch {
             guard generation == commandGeneration else { return }
@@ -1448,7 +1535,9 @@ final class AppState: ObservableObject {
                 model: result.modelUsed,
                 recordingMillis: result.audioLengthSeconds * 1000,
                 asrMillis: result.duration * 1000,
-                language: result.detectedLanguage
+                // MEDIUM 1: requested language wins; detection only fills in
+                // for Auto.
+                language: language ?? result.detectedLanguage
             )
             activeRecordingMode = .dictation
             cursorOverlay.hide()

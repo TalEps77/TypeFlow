@@ -36,6 +36,34 @@ enum UpdateCheckerError: LocalizedError {
 
 @MainActor
 final class UpdateChecker: ObservableObject {
+
+    /// Whether this build checks for updates at all. **Deliberately `false`,
+    /// and the code below is deliberately still here** (BLOCKER 4).
+    ///
+    /// `apiURL` points at `jatinkrmalik/vocamac`, the upstream project this is
+    /// a fork of. That endpoint was fine while the fork was VocaMac; it is
+    /// actively dangerous now. An upstream 0.7.x release compares as newer than
+    /// this build, so the app would show "TypeFlow 0.7.x Available", hand the
+    /// user a DMG containing upstream's `VocaMac.app`, and tell them to drag it
+    /// into /Applications. Following that advice replaces (or, after the
+    /// TypeFlow.app rename, silently duplicates) this build with an upstream
+    /// one that has none of Epic 1–8 — Profiles, snippets, Command Mode,
+    /// bilingual dictation, the whole post-process pipeline — while keeping the
+    /// same bundle id and Application Support directory. There is no version of
+    /// that flow that is not data loss dressed up as an update.
+    ///
+    /// The Homebrew branch has the same defect from the other side: the cask
+    /// tokens resolve to upstream's DMG too, so "brew upgrade --cask vocamac"
+    /// is the same downgrade with extra steps.
+    ///
+    /// The fix is not a better endpoint, because there is no fork release repo
+    /// to point at yet. So the whole flow is switched off at this one flag
+    /// rather than deleted: every piece of it — version comparison, ETag
+    /// caching, checksum verification, Homebrew detection — is correct and
+    /// tested, and flipping this to `true` alongside a real `apiURL` is all it
+    /// should take once the fork publishes its own releases.
+    nonisolated static let updatesEnabled = false
+
     @Published var updateState: UpdateState = .idle
 
     enum HomebrewInstallOverride {
@@ -121,16 +149,30 @@ final class UpdateChecker: ObservableObject {
     private let cachedResponseKey = "vocamac.update.cachedResponse"
 
     func checkOnLaunchIfNeeded() async {
+        guard Self.updatesEnabled else { return }
         let lastCheckTime = UserDefaults.standard.double(forKey: lastCheckKey)
         let shouldCheck = Date().timeIntervalSince1970 - lastCheckTime > checkInterval
         guard shouldCheck else { return }
         await checkForUpdates()
     }
 
+    /// The only entry point that talks to the network, and the only one gated
+    /// on `updatesEnabled` (see there). No caller reaches upstream while the
+    /// flag is false — not launch, not the Settings button, which no longer
+    /// exists.
     func checkForUpdates() async {
+        guard Self.updatesEnabled else {
+            VocaLogger.info(.updateChecker, "Update check skipped — updates are disabled for this fork")
+            updateState = .idle
+            return
+        }
         await checkForUpdates(releaseProvider: { try await self.fetchLatestRelease() })
     }
 
+    /// Left ungated on purpose: this is the pure state-machine half, with the
+    /// release handed in. It makes no network call and knows nothing about
+    /// upstream, so the version-comparison and Homebrew-routing logic stays
+    /// exercised by tests while the flow itself is switched off.
     func checkForUpdates(releaseProvider: () async throws -> GitHubRelease) async {
         guard updateState != .checking else { return }
         updateState = .checking
@@ -323,14 +365,19 @@ final class UpdateChecker: ObservableObject {
             options: [.skipsHiddenFiles]
         )) ?? []
 
+        // Both bundle names: the cask now stages "TypeFlow.app", but an install
+        // made before the rename staged "VocaMac.app" and its receipt is still
+        // on disk.
         for versionDirectory in versionDirectories {
-            let stagedApp = versionDirectory.appendingPathComponent("VocaMac.app", isDirectory: true)
-            guard fileManager.fileExists(atPath: stagedApp.path) else { continue }
+            for bundleName in ["TypeFlow.app", "VocaMac.app"] {
+                let stagedApp = versionDirectory.appendingPathComponent(bundleName, isDirectory: true)
+                guard fileManager.fileExists(atPath: stagedApp.path) else { continue }
 
-            let stagedPath = normalizedPath(stagedApp.path)
-            let resolvedPath = normalizedPath(stagedApp.resolvingSymlinksInPath().path)
-            if stagedPath == bundlePath || resolvedPath == bundlePath {
-                return true
+                let stagedPath = normalizedPath(stagedApp.path)
+                let resolvedPath = normalizedPath(stagedApp.resolvingSymlinksInPath().path)
+                if stagedPath == bundlePath || resolvedPath == bundlePath {
+                    return true
+                }
             }
         }
 
