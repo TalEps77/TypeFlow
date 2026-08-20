@@ -67,32 +67,56 @@ struct SettingsView: View {
     @AppStorage("vocamac.settings.selectedSection", store: VocaDefaults.store)
     private var selectedSectionRaw: String = SettingsSection.general.rawValue
 
-    private var selection: Binding<SettingsSection?> {
+    // Persists whether the sidebar is shrunk to an icon-only rail. Deliberately
+    // NOT driven by NavigationSplitView's own collapse: that hides the sidebar
+    // entirely (losing navigation) and re-homes its toggle toolbar item to the
+    // trailing edge on collapse, which is exactly the instability being fixed
+    // here. This view owns the width and the toggle instead, so the button
+    // never moves and the rail always stays navigable.
+    @AppStorage("vocamac.settings.sidebarIsRail", store: VocaDefaults.store)
+    private var sidebarIsRail: Bool = false
+
+    private static let fullSidebarWidth: CGFloat = 180
+    private static let railSidebarWidth: CGFloat = 64
+
+    private var selectedSection: SettingsSection {
+        SettingsSection(rawValue: selectedSectionRaw) ?? .general
+    }
+
+    private var selection: Binding<SettingsSection> {
         Binding(
-            get: { SettingsSection(rawValue: selectedSectionRaw) ?? .general },
-            set: { selectedSectionRaw = ($0 ?? .general).rawValue }
+            get: { selectedSection },
+            set: { selectedSectionRaw = $0.rawValue }
         )
     }
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: selection) {
-                ForEach(settingsSectionGroups, id: \.title) { group in
-                    Section(group.title) {
-                        ForEach(group.sections) { section in
-                            Label(section.label, systemImage: section.icon)
-                                .tag(section)
-                        }
-                    }
-                }
-            }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(180)
-        } detail: {
-            detailView(for: selection.wrappedValue ?? .general)
-                .navigationTitle((selection.wrappedValue ?? .general).label)
+        HStack(spacing: 0) {
+            SettingsSidebarView(selection: selection, isRail: sidebarIsRail)
+                .frame(width: sidebarIsRail ? Self.railSidebarWidth : Self.fullSidebarWidth)
+
+            Divider()
+
+            detailView(for: selectedSection)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle(selectedSection.label)
         }
-        .navigationSplitViewStyle(.balanced)
+        .toolbar {
+            // Placement .navigation pins this at the toolbar's far leading
+            // edge (before the title) regardless of sidebar state — unlike
+            // NavigationSplitView's automatic toggle, which renders after the
+            // title and jumps to the trailing edge once collapsed.
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        sidebarIsRail.toggle()
+                    }
+                } label: {
+                    Image(systemName: "sidebar.left")
+                }
+                .help(sidebarIsRail ? "Expand Sidebar" : "Collapse Sidebar")
+            }
+        }
         .frame(minWidth: 760, minHeight: 520)
     }
 
@@ -109,6 +133,89 @@ struct SettingsView: View {
         case .debug: DebugTab()
         case .about: AboutTab()
         }
+    }
+}
+
+// MARK: - Sidebar (full width and icon-only rail)
+
+/// The settings sidebar's own list, replacing `List(selection:)` +
+/// `.listStyle(.sidebar)` so the same view can render either as a full
+/// 180pt column with labels and group headers, or a 64pt icon-only rail —
+/// with navigation, selection highlighting, and group separation intact in
+/// both modes.
+private struct SettingsSidebarView: View {
+    @Binding var selection: SettingsSection
+    let isRail: Bool
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(settingsSectionGroups.enumerated()), id: \.offset) { index, group in
+                    groupHeader(group, isFirst: index == 0)
+
+                    ForEach(group.sections) { section in
+                        SettingsSidebarRow(
+                            section: section,
+                            isSelected: selection == section,
+                            isRail: isRail,
+                            action: { selection = section }
+                        )
+                    }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+        }
+        .background(.regularMaterial)
+    }
+
+    @ViewBuilder
+    private func groupHeader(_ group: SettingsSectionGroup, isFirst: Bool) -> some View {
+        if isRail {
+            if !isFirst {
+                Divider()
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+            }
+        } else {
+            Text(group.title)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.top, isFirst ? 0 : 12)
+                .padding(.bottom, 2)
+        }
+    }
+}
+
+private struct SettingsSidebarRow: View {
+    let section: SettingsSection
+    let isSelected: Bool
+    let isRail: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: section.icon)
+                    .frame(width: 20)
+                if !isRail {
+                    Text(section.label)
+                    Spacer(minLength: 0)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: isRail ? .center : .leading)
+            .padding(.vertical, 5)
+            .padding(.horizontal, isRail ? 4 : 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
+            )
+            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+        }
+        .buttonStyle(.plain)
+        .help(isRail ? section.label : "")
     }
 }
 
