@@ -81,23 +81,41 @@ struct VocabularySettingsTab: View {
             }
 
             Section("Manage") {
-                List {
-                    ForEach(appState.dictionaryStore.entries) { entry in
-                        DictionaryEntryRow(entry: entry) {
-                            editingEntry = entry
-                        } onDelete: {
-                            appState.dictionaryStore.delete(entry.id)
+                // A `List` here (as this Section used before) never scrolls
+                // on its own once embedded in this Form: all rows still
+                // render (confirmed via the accessibility tree — every entry
+                // is present as a row), but a scroll gesture over the clipped
+                // region is captured by the outer Form's own scroll view
+                // instead, which just jumps past the whole clipped block.
+                // Past a handful of entries, everything below the fold was
+                // permanently unreachable. `ScrollView` + `LazyVStack` is a
+                // real, independently-scrolling NSScrollView, matching the
+                // pattern already used for lists elsewhere in Settings (e.g.
+                // `ModelSettingsTab`'s row list in SettingsView.swift).
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(appState.dictionaryStore.entries) { entry in
+                            DictionaryEntryRow(entry: entry) {
+                                editingEntry = entry
+                            } onDelete: {
+                                appState.dictionaryStore.delete(entry.id)
+                            }
+                            .padding(.vertical, 4)
+
+                            if entry.id != appState.dictionaryStore.entries.last?.id {
+                                Divider()
+                            }
                         }
-                    }
-                    .onDelete { offsets in
-                        // BLOCKER 2: resolve every id *before* deleting any of
-                        // them. Deleting inside the loop reindexes the array
-                        // under the offsets still to be visited, so a
-                        // multi-row delete removed the wrong rows — or trapped
-                        // on an index past the end.
-                        let ids = offsets.map { appState.dictionaryStore.entries[$0].id }
-                        for id in ids {
-                            appState.dictionaryStore.delete(id)
+                        .onDelete { offsets in
+                            // BLOCKER 2: resolve every id *before* deleting any of
+                            // them. Deleting inside the loop reindexes the array
+                            // under the offsets still to be visited, so a
+                            // multi-row delete removed the wrong rows — or trapped
+                            // on an index past the end.
+                            let ids = offsets.map { appState.dictionaryStore.entries[$0].id }
+                            for id in ids {
+                                appState.dictionaryStore.delete(id)
+                            }
                         }
                     }
                 }
@@ -134,19 +152,28 @@ struct VocabularySettingsTab: View {
             }
 
             Section("Manage Snippets") {
-                List {
-                    ForEach(appState.snippetStore.snippets) { snippet in
-                        SnippetRow(snippet: snippet) {
-                            editingSnippet = snippet
-                        } onDelete: {
-                            appState.snippetStore.delete(snippet.id)
+                // Same non-scrolling `List`-in-`Form` issue as the Dictionary
+                // list above, fixed the same way.
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(appState.snippetStore.snippets) { snippet in
+                            SnippetRow(snippet: snippet) {
+                                editingSnippet = snippet
+                            } onDelete: {
+                                appState.snippetStore.delete(snippet.id)
+                            }
+                            .padding(.vertical, 4)
+
+                            if snippet.id != appState.snippetStore.snippets.last?.id {
+                                Divider()
+                            }
                         }
-                    }
-                    .onDelete { offsets in
-                        // BLOCKER 2, same as the Dictionary list above.
-                        let ids = offsets.map { appState.snippetStore.snippets[$0].id }
-                        for id in ids {
-                            appState.snippetStore.delete(id)
+                        .onDelete { offsets in
+                            // BLOCKER 2, same as the Dictionary list above.
+                            let ids = offsets.map { appState.snippetStore.snippets[$0].id }
+                            for id in ids {
+                                appState.snippetStore.delete(id)
+                            }
                         }
                     }
                 }
