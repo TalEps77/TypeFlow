@@ -1098,4 +1098,87 @@ The spike did not clear, so the implementation phase was never entered. The crit
 
 Only the spike bullet was performed; the remaining bullets were not, because the implementation phase was cut (see **Outcome** above).
 
-<!-- checkpoint: all 7 epics dev+review+fix complete; app installed as 0.8.0-local-hebrew; tracker synced all-done 2026-08-20; next: retrospectives / real XCTest run on an Xcode machine -->
+---
+
+## Epic 8: Rebrand and Bilingual Dictation
+
+Two independent, ad-hoc stories requested directly (not derived from the PRD): give the app its own public identity, and let the same install dictate both Hebrew and English. Covers no FR/NFR from the original inventory — both are additive, post-launch requests layered on the finished Epics 1-7 product.
+
+### Story 8.1: Rebrand to "TypeFlow"
+
+As the maintainer of this fork,
+I want the app's user-visible identity to read "TypeFlow" instead of "VocaMac",
+So that it has its own public name while everything that would break if renamed — bundle id, on-disk data, git history, internal types — stays exactly as it was.
+
+**Acceptance Criteria:**
+
+**Given** every user-visible surface names the app,
+**When** the app is built and run,
+**Then** the Settings, Onboarding, and History window titles, the menu bar header and quit/restart labels, the About tab, permission/error/tooltip text that names the app, and the README's title/tagline/features intro all read "TypeFlow",
+**And** the top of the README states the fork relationship: "TypeFlow is a fork of VocaMac by jatinkrmalik, licensed under AGPL-3.0."
+
+**Given** the bundle identifier, the `~/Library/Application Support/VocaMac/` data path (models, history, profiles, dictionary), git history, and the ~9,500 LOC of internal `VocaMac*` type names carry real cost to rename (TCC re-grant, user data migration, churn) and zero user-visible value,
+**When** the rebrand lands,
+**Then** none of them change: `com.vocamac.app` stays the bundle id, the Application Support folder stays named `VocaMac`, and no Swift type is renamed.
+
+**Given** `scripts/build.sh` drove both the internal executable name and the user-visible product name from one `APP_NAME` variable,
+**When** the generator is updated,
+**Then** it is split into `APP_NAME="VocaMac"` (executable filename, xcodebuild scheme, entitlements — unchanged, so `VocaMacApp.ensureSingleInstance`'s `pgrep -x "VocaMac"` keeps matching the real binary) and `DISPLAY_NAME="TypeFlow"` (`CFBundleName`, `CFBundleDisplayName`, `NSMicrophoneUsageDescription`),
+**And** the delivered bundle folder itself is named from `DISPLAY_NAME` (`APP_DIR="${DISPLAY_NAME}.app"`), so the shipped app is `TypeFlow.app` containing an unchanged `VocaMac` executable and `com.vocamac.app` identifier.
+
+**Given** renaming the SwiftPM product/target to "TypeFlow" was evaluated first,
+**When** the cascade was checked,
+**Then** it was rejected: the product name drives xcodebuild's scheme and the Contents/MacOS binary filename (`scripts/build.sh`'s `-scheme VocaMac` and `BINARY=".../${APP_NAME}"`), and the target name is the Swift module every one of the ~35 files in `Tests/VocaMacTests/` imports via `@testable import VocaMac` — renaming either cascades into the build script and every test file for zero user-visible gain, so `Package.swift` is untouched and the rename happens only at the `.app`-bundle-and-Info.plist layer.
+
+**Given** SettingsView's Debug tab has a permission "Re-check Permissions" affordance that blended in next to the more prominent "Reset All Permissions" button,
+**When** the Debug tab is viewed,
+**Then** "Re-check Permissions" carries a matching icon and `.bordered` style so it reads as equally actionable,
+**And** once any permission has read `.denied` for 30+ seconds of polling, a red hint appears next to the existing denied-permissions text telling the user (dev/ad-hoc builds) to remove and re-add the app in System Settings, or run `tccutil reset All com.vocamac.app` — the same fix the Reset button already performs.
+
+**Verification:**
+- Build: `swift build` clean; the typecheck harness shows no new errors beyond the pre-existing `HistoryStoreTests.swift:61` cast bug.
+- Manual: grep confirms every remaining `VocaMac` string in `Views/`, `App/`, and `scripts/build.sh` is internal (header comments, log messages, the process-match string, default export/debug-log filenames, the Application Support path) — none of it user-visible.
+- Manual: `ensureSingleInstance`'s `pgrep -x "VocaMac"` still matches the actual `Contents/MacOS/VocaMac` executable name after the bundle-name split.
+
+### Story 8.2: Bilingual (Hebrew + English) dictation
+
+As a user who dictates in both Hebrew and English,
+I want a fast way to tell the app which language I'm speaking,
+So that I don't have to dig into the 19-language Settings picker every time I switch.
+
+**Empirical test performed first (throwaway harness, scratchpad-only, never touched the repo):** `say -v Samantha`/`say -v Carmit` synthesized one English and one Hebrew clip, transcribed through the real ivrit-ai model at the real decoding options (`DecodingOptions` mirrored exactly from `WhisperService.decodingOptions`). Verdict: **the ivrit.ai Hebrew fine-tune's English quality is good** — with `language: "en"` forced, the English clip transcribed perfectly ("The quarterly report is due next Tuesday at 03:30."). Hebrew with `language: "he"` or auto both transcribed correctly. The one caveat: WhisperKit's `detectLanguage` (true auto-detect, `language: nil`) is unreliable for language *identification* on this fine-tune — it mislabeled the English clip's `detectedLanguage` as `"he"` even though the decoded *text* was still correct English. This is a labeling quirk, not a transcription-quality problem, and is documented rather than worked around (fixing language-ID bias inside a third-party fine-tune is out of scope).
+
+**Given** the evidence showed good English quality in the existing single-model, explicit-language path,
+**When** the feature is implemented,
+**Then** the design keeps the **single ivrit-ai model** (no second model, no reload-on-toggle) and adds a fast menu-bar toggle over the same `AppState.selectedLanguage` the existing 19-language Settings picker already used — a menu bar quick-switch, not a new decoding path.
+
+**Given** the menu bar toggle,
+**When** I open the popover,
+**Then** a three-way עב/EN/Auto segmented control sits under the header, bound to `selectedLanguage`, and reflects whatever is currently selected (including a value picked from the full Settings list).
+
+**Given** a Profile may need to force a language regardless of the toggle (e.g. a Slack Profile always in English),
+**When** `Profile` gains an optional `language: String?` field (`nil` = follow the app-wide toggle, following the same optional-with-default pattern as its other fields),
+**Then** `AppState.stopRecordingAndTranscribe()` resolves `capturedProfile?.language ?? selectedLanguage` before mapping `"auto"` to `nil`,
+**And** a "Language for this Profile" picker in the Profiles settings tab exposes App Default / Hebrew / English / Auto-detect.
+
+**Given** the custom Vocabulary glossary is written with Hebrew dictation in mind,
+**When** the resolved language for a recording is explicitly `"en"`,
+**Then** the vocabulary/`promptTokens` hint is not passed to WhisperKit for that recording (Auto mode still gets it, since the language isn't known until decode completes — there is nothing to gate on yet).
+
+**Given** dictations should show what language was actually used,
+**When** a `HistoryRecord` is written,
+**Then** it carries a new optional `language: String?` populated from `VocaTranscription.detectedLanguage` — `nil`-safe for every record written before this story — and both the History list row and detail view display it when present.
+
+**Given** two-model auto-detect-per-recording was considered and rejected (only relevant to the "ivrit English degraded" branch, which the empirical test did not find),
+**When** documenting the decision,
+**Then** Auto mode continues to mean "one model, `detectLanguage: true`" exactly as it already did — no model-switch-on-toggle logic was added, since the empirical evidence did not call for it.
+
+**Verification:**
+- Empirical: throwaway harness output recorded above (ivrit English quality verdict, detectLanguage mislabeling caveat).
+- Live: a harness compiled directly against the real, unmodified `Sources/VocaMac/Services/WhisperService.swift` (not a reimplementation) loads the real ivrit-ai model once and calls the real `transcribe()` with `language: "he"` then `language: "en"` then `language: "he"` again on the same loaded model instance — mirroring exactly what toggling the menu bar control now does — both languages transcribed correctly with no reload.
+- Build: `swift build` clean; typecheck harness unchanged (only the pre-existing `HistoryStoreTests.swift:61` failure).
+- Manual (pending real device use): profile-language override actually overrides the toggle for its bound app; History rows show the recorded language.
+
+---
+
+<!-- checkpoint: all 7 epics dev+review+fix complete; app installed as 0.8.0-local-hebrew; tracker synced all-done 2026-08-20; Epic 8 (rebrand + bilingual) added and completed same session; next: retrospectives / real XCTest run on an Xcode machine -->

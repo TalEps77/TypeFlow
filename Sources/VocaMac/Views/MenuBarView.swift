@@ -93,6 +93,11 @@ struct MenuBarView: View {
 
             Divider()
 
+            // Language quick toggle (Story 8.2)
+            languageToggleSection
+
+            Divider()
+
             // Status & Recording
             statusSection
 
@@ -188,6 +193,33 @@ struct MenuBarView: View {
                     ]
                 )
             }
+        }
+    }
+
+    // MARK: - Language
+
+    /// Quick Hebrew / English / Auto switch (Story 8.2), bound to the same
+    /// `AppState.selectedLanguage` the full language list in Settings uses —
+    /// this is just a fast, always-visible subset of it for the two languages
+    /// this app is actually used for day to day. If a Profile overrides the
+    /// language for the app that's currently frontmost, that override wins at
+    /// dictation time regardless of what this toggle shows.
+    private var languageToggleSection: some View {
+        HStack(spacing: 8) {
+            Text("Language")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Picker("Language", selection: $appState.selectedLanguage) {
+                Text("עב").tag("he")
+                Text("EN").tag("en")
+                Text("Auto").tag("auto")
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 160)
+
+            Spacer()
         }
     }
 

@@ -58,6 +58,13 @@ struct HistoryRecord: Codable, Identifiable, Equatable {
 
     let mode: Mode
 
+    /// ISO 639-1 code of the language actually used for this transcription
+    /// (e.g. "he", "en") — the resolved language, not the raw setting, so an
+    /// Auto-mode dictation records what WhisperKit detected rather than
+    /// "auto" itself. `nil` for records written before Story 8.2 added this
+    /// field and for anything that decodes an older history.json.
+    let language: String?
+
     init(
         id: UUID = UUID(),
         timestamp: Date = Date(),
@@ -70,7 +77,8 @@ struct HistoryRecord: Codable, Identifiable, Equatable {
         asrMillis: Double = 0,
         postProcessMillis: Double = 0,
         didFallback: Bool = false,
-        mode: Mode = .dictation
+        mode: Mode = .dictation,
+        language: String? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -84,6 +92,7 @@ struct HistoryRecord: Codable, Identifiable, Equatable {
         self.postProcessMillis = postProcessMillis
         self.didFallback = didFallback
         self.mode = mode
+        self.language = language
     }
 
     /// Short preview for list rows — collapses newlines so multi-line

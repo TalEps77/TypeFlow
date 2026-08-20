@@ -270,6 +270,8 @@ Snippets</a></li>
 <li><a href="#epic-6-command-mode" id="toc-epic-6-command-mode">Epic 6:
 Command Mode</a></li>
 <li><a href="#epic-7-responsive-capture" id="toc-epic-7-responsive-capture">Epic 7: Responsive Capture</a></li>
+<li><a href="#epic-8-rebrand-and-bilingual-dictation" id="toc-epic-8-rebrand-and-bilingual-dictation">Epic 8: Rebrand and
+Bilingual Dictation</a></li>
 </ul>
 </nav>
 <h2 id="overview">Overview</h2>
@@ -687,8 +689,7 @@ Hebrew unrecoverable once the picker is touched, <strong>When</strong> I
 open the language picker, <strong>Then</strong> Hebrew is present and
 selectable, <strong>And</strong> selecting it stores <code>&quot;he&quot;</code>,
 <strong>And</strong> the previously-stored value is preserved on upgrade
-(NFR-5).</p>
-<p><em>(The “selecting it stores <code>&quot;he&quot;</code>” clause has no
+(NFR-5). <em>(The “selecting it stores <code>&quot;he&quot;</code>” clause has no
 automated test — it is verified manually only, per the picker’s manual
 verification step below.)</em></p>
 <p><strong>Verification:</strong> - Unit: model-support evaluation
@@ -966,8 +967,8 @@ application was not captured until Story 4.1. Every row and detail pane
 showed “Unknown app” for records written before that story landed. This
 was a sequencing artifact, not a defect — the field, the schema, and the
 UI that reads it were all in place from the start and began showing real
-values as soon as 4.1 started populating them. Story 4.1 now captures the
-frontmost application’s bundle identifier at recording start (via
+values as soon as 4.1 started populating them. Story 4.1 now captures
+the frontmost application’s bundle identifier at recording start (via
 <code>AXContextReader</code>) and threads it through to
 <code>HistoryRecord.targetBundleId</code>. Records written before Story
 4.1 keep <code>nil</code> permanently; they were not backfilled.</p>
@@ -1062,21 +1063,22 @@ names TextEdit.</p>
 <p><strong>Accepted deviation — protocol placement (Stories 4.1,
 4.2):</strong> The first acceptance criterion asks for
 <code>AXContextReader</code>’s protocol in
-<code>ServiceProtocols.swift</code> (AD-7). <code>ContextReading</code> is
-instead declared in <code>AXContextReader.swift</code>, alongside the
+<code>ServiceProtocols.swift</code> (AD-7). <code>ContextReading</code>
+is instead declared in <code>AXContextReader.swift</code>, alongside the
 vocabulary it is written in terms of (<code>CapturedContext</code>);
 <code>ProfileResolving</code> is declared the same way in
 <code>ProfileManager.swift</code>. Both are registered in
 <code>ServiceProtocols.swift</code> with a pointer comment, and both are
 mocked and threaded through <code>TestMocks</code> /
-<code>AppState.makeTestState</code> exactly as AD-7 requires. This follows
-the precedent set by <code>PostProcessing</code> in Epic 2, which was placed
-in <code>PostProcessService.swift</code> for the same reason and reviewed as
-acceptable there: splitting a protocol from the types in its own signatures
-makes both files harder to read, and AD-7’s substance — every service is
-behind a protocol, and every protocol has a mock — is fully met. Deliberate,
-consistent across the three services that have done it, and not to be “fixed”
-by a later pass without also moving <code>PostProcessing</code>.</p>
+<code>AppState.makeTestState</code> exactly as AD-7 requires. This
+follows the precedent set by <code>PostProcessing</code> in Epic 2,
+which was placed in <code>PostProcessService.swift</code> for the same
+reason and reviewed as acceptable there: splitting a protocol from the
+types in its own signatures makes both files harder to read, and AD-7’s
+substance — every service is behind a protocol, and every protocol has a
+mock — is fully met. Deliberate, consistent across the three services
+that have done it, and not to be “fixed” by a later pass without also
+moving <code>PostProcessing</code>.</p>
 <h3 id="story-4.2-resolve-a-profile-from-the-bundle-identifier">Story
 4.2: Resolve a Profile from the bundle identifier</h3>
 <p>As a user, I want each application mapped to a dictation Profile, So
@@ -1533,20 +1535,24 @@ after; record both numbers using Story 1.3’s instrumentation. - Manual:
 time ten short dictations before and after; confirm no regression. -
 Manual: monitor peak memory during a long parallel transcription.</p>
 <p><strong>Known limitations (as delivered — documented, not
-fixed):</strong> - <strong>Up to ~1 second can be dropped from the tail
-of a chunked recording.</strong> <code>VADAudioChunker</code> pads its
-windows by <code>windowPadding</code> = 16000 samples (1 s at 16 kHz),
-so the last chunk can lose up to a second of trailing audio. In
-push-to-talk, a user who releases the key immediately after the last
-word can lose the final syllable. Chunking only engages for recordings
-longer than 30 s, so short dictations are unaffected. There is no code
-fix in this story. - <strong>With auto-detect, language detection runs
-per chunk.</strong> When the transcription language is <code>nil</code>,
+fixed):</strong></p>
+<ul>
+<li><strong>Up to ~1 second can be dropped from the tail of a chunked
+recording.</strong> <code>VADAudioChunker</code> pads its windows by
+<code>windowPadding</code> = 16000 samples (1 s at 16 kHz), so the last
+chunk can lose up to a second of trailing audio. In push-to-talk, a user
+who releases the key immediately after the last word can lose the final
+syllable. Chunking only engages for recordings longer than 30 s, so
+short dictations are unaffected. There is no code fix in this
+story.</li>
+<li><strong>With auto-detect, language detection runs per
+chunk.</strong> When the transcription language is <code>nil</code>,
 WhisperKit detects the language separately for each chunk, so a long
 mixed-language dictation can switch script mid-transcript between
 chunks. Low impact in practice: <code>selectedLanguage</code> defaults
-to <code>"he"</code> (Hebrew), so the language is normally pinned and
-per-chunk detection never runs.</p>
+to <code>&quot;he&quot;</code> (Hebrew), so the language is normally pinned and
+per-chunk detection never runs.</li>
+</ul>
 <h3 id="story-7.3-streaming-partial-results-spike-then-implement-or-cut">Story
 7.3: Streaming partial results — spike, then implement or cut</h3>
 <p>As a user, I want to see transcription progress while I speak, So
@@ -1563,10 +1569,10 @@ of, and in direct conflict with, <code>AudioEngine</code>’s own
 installed tap on the same physical input device (R-1; confirmed by
 reading WhisperKit 0.18.0 source, not by running the conflict live).
 There is no supported way to hand <code>AudioStreamTranscriber</code> an
-already-running engine and tap, so using it means either
-re-architecting <code>AudioEngine</code> to hand capture ownership to
-WhisperKit’s <code>AudioProcessor</code> — an AD-8-violating rewrite of
-the Bluetooth, device-selection, and exception-catching logic Epics 1-6
+already-running engine and tap, so using it means either re-architecting
+<code>AudioEngine</code> to hand capture ownership to WhisperKit’s
+<code>AudioProcessor</code> — an AD-8-violating rewrite of the
+Bluetooth, device-selection, and exception-catching logic Epics 1-6
 depend on — or reimplementing <code>AudioStreamTranscriber</code>’s
 segment-confirmation, VAD-gating, and early-stop logic from scratch
 against <code>AudioEngine</code>’s own captured buffer. Both are the
@@ -1632,6 +1638,171 @@ and timings.</p>
 <p>Only the spike bullet was performed; the remaining bullets were not,
 because the implementation phase was cut (see <strong>Outcome</strong>
 above).</p>
+<hr />
+<h2 id="epic-8-rebrand-and-bilingual-dictation">Epic 8: Rebrand and
+Bilingual Dictation</h2>
+<p>Two independent, ad-hoc stories requested directly (not derived from
+the PRD): give the app its own public identity, and let the same install
+dictate both Hebrew and English. Covers no FR/NFR from the original
+inventory — both are additive, post-launch requests layered on the
+finished Epics 1-7 product.</p>
+<h3 id="story-8.1-rebrand-to-typeflow">Story 8.1: Rebrand to
+“TypeFlow”</h3>
+<p>As the maintainer of this fork, I want the app’s user-visible
+identity to read “TypeFlow” instead of “VocaMac”, So that it has its own
+public name while everything that would break if renamed — bundle id,
+on-disk data, git history, internal types — stays exactly as it was.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<p><strong>Given</strong> every user-visible surface names the app,
+<strong>When</strong> the app is built and run, <strong>Then</strong>
+the Settings, Onboarding, and History window titles, the menu bar header
+and quit/restart labels, the About tab, permission/error/tooltip text
+that names the app, and the README’s title/tagline/features intro all
+read “TypeFlow”, <strong>And</strong> the top of the README states the
+fork relationship: “TypeFlow is a fork of VocaMac by jatinkrmalik,
+licensed under AGPL-3.0.”</p>
+<p><strong>Given</strong> the bundle identifier, the
+<code>~/Library/Application Support/VocaMac/</code> data path (models,
+history, profiles, dictionary), git history, and the ~9,500 LOC of
+internal <code>VocaMac*</code> type names carry real cost to rename (TCC
+re-grant, user data migration, churn) and zero user-visible value,
+<strong>When</strong> the rebrand lands, <strong>Then</strong> none of
+them change: <code>com.vocamac.app</code> stays the bundle id, the
+Application Support folder stays named <code>VocaMac</code>, and no
+Swift type is renamed.</p>
+<p><strong>Given</strong> <code>scripts/build.sh</code> drove both the
+internal executable name and the user-visible product name from one
+<code>APP_NAME</code> variable, <strong>When</strong> the generator is
+updated, <strong>Then</strong> it is split into
+<code>APP_NAME=&quot;VocaMac&quot;</code> (executable filename, xcodebuild scheme,
+entitlements — unchanged, so
+<code>VocaMacApp.ensureSingleInstance</code>’s
+<code>pgrep -x &quot;VocaMac&quot;</code> keeps matching the real binary) and
+<code>DISPLAY_NAME=&quot;TypeFlow&quot;</code> (<code>CFBundleName</code>,
+<code>CFBundleDisplayName</code>,
+<code>NSMicrophoneUsageDescription</code>), <strong>And</strong> the
+delivered bundle folder itself is named from <code>DISPLAY_NAME</code>
+(<code>APP_DIR=&quot;${DISPLAY_NAME}.app&quot;</code>), so the shipped app is
+<code>TypeFlow.app</code> containing an unchanged <code>VocaMac</code>
+executable and <code>com.vocamac.app</code> identifier.</p>
+<p><strong>Given</strong> renaming the SwiftPM product/target to
+“TypeFlow” was evaluated first, <strong>When</strong> the cascade was
+checked, <strong>Then</strong> it was rejected: the product name drives
+xcodebuild’s scheme and the Contents/MacOS binary filename
+(<code>scripts/build.sh</code>’s <code>-scheme VocaMac</code> and
+<code>BINARY=&quot;.../${APP_NAME}&quot;</code>), and the target name is the Swift
+module every one of the ~35 files in <code>Tests/VocaMacTests/</code>
+imports via <code>@testable import VocaMac</code> — renaming either
+cascades into the build script and every test file for zero user-visible
+gain, so <code>Package.swift</code> is untouched and the rename happens
+only at the <code>.app</code>-bundle-and-Info.plist layer.</p>
+<p><strong>Given</strong> SettingsView’s Debug tab has a permission
+“Re-check Permissions” affordance that blended in next to the more
+prominent “Reset All Permissions” button, <strong>When</strong> the
+Debug tab is viewed, <strong>Then</strong> “Re-check Permissions”
+carries a matching icon and <code>.bordered</code> style so it reads as
+equally actionable, <strong>And</strong> once any permission has read
+<code>.denied</code> for 30+ seconds of polling, a red hint appears next
+to the existing denied-permissions text telling the user (dev/ad-hoc
+builds) to remove and re-add the app in System Settings, or run
+<code>tccutil reset All com.vocamac.app</code> — the same fix the Reset
+button already performs.</p>
+<p><strong>Verification:</strong> - Build: <code>swift build</code>
+clean; the typecheck harness shows no new errors beyond the pre-existing
+<code>HistoryStoreTests.swift:61</code> cast bug. - Manual: grep
+confirms every remaining <code>VocaMac</code> string in
+<code>Views/</code>, <code>App/</code>, and
+<code>scripts/build.sh</code> is internal (header comments, log
+messages, the process-match string, default export/debug-log filenames,
+the Application Support path) — none of it user-visible. - Manual:
+<code>ensureSingleInstance</code>’s <code>pgrep -x &quot;VocaMac&quot;</code>
+still matches the actual <code>Contents/MacOS/VocaMac</code> executable
+name after the bundle-name split.</p>
+<h3 id="story-8.2-bilingual-hebrew-english-dictation">Story 8.2:
+Bilingual (Hebrew + English) dictation</h3>
+<p>As a user who dictates in both Hebrew and English, I want a fast way
+to tell the app which language I’m speaking, So that I don’t have to dig
+into the 19-language Settings picker every time I switch.</p>
+<p><strong>Empirical test performed first (throwaway harness,
+scratchpad-only, never touched the repo):</strong>
+<code>say -v Samantha</code>/<code>say -v Carmit</code> synthesized one
+English and one Hebrew clip, transcribed through the real ivrit-ai model
+at the real decoding options (<code>DecodingOptions</code> mirrored
+exactly from <code>WhisperService.decodingOptions</code>). Verdict:
+<strong>the ivrit.ai Hebrew fine-tune’s English quality is good</strong>
+— with <code>language: &quot;en&quot;</code> forced, the English clip transcribed
+perfectly (“The quarterly report is due next Tuesday at 03:30.”). Hebrew
+with <code>language: &quot;he&quot;</code> or auto both transcribed correctly. The
+one caveat: WhisperKit’s <code>detectLanguage</code> (true auto-detect,
+<code>language: nil</code>) is unreliable for language
+<em>identification</em> on this fine-tune — it mislabeled the English
+clip’s <code>detectedLanguage</code> as <code>&quot;he&quot;</code> even though
+the decoded <em>text</em> was still correct English. This is a labeling
+quirk, not a transcription-quality problem, and is documented rather
+than worked around (fixing language-ID bias inside a third-party
+fine-tune is out of scope).</p>
+<p><strong>Given</strong> the evidence showed good English quality in
+the existing single-model, explicit-language path, <strong>When</strong>
+the feature is implemented, <strong>Then</strong> the design keeps the
+<strong>single ivrit-ai model</strong> (no second model, no
+reload-on-toggle) and adds a fast menu-bar toggle over the same
+<code>AppState.selectedLanguage</code> the existing 19-language Settings
+picker already used — a menu bar quick-switch, not a new decoding
+path.</p>
+<p><strong>Given</strong> the menu bar toggle, <strong>When</strong> I
+open the popover, <strong>Then</strong> a three-way עב/EN/Auto segmented
+control sits under the header, bound to <code>selectedLanguage</code>,
+and reflects whatever is currently selected (including a value picked
+from the full Settings list).</p>
+<p><strong>Given</strong> a Profile may need to force a language
+regardless of the toggle (e.g. a Slack Profile always in English),
+<strong>When</strong> <code>Profile</code> gains an optional
+<code>language: String?</code> field (<code>nil</code> = follow the
+app-wide toggle, following the same optional-with-default pattern as its
+other fields), <strong>Then</strong>
+<code>AppState.stopRecordingAndTranscribe()</code> resolves
+<code>capturedProfile?.language ?? selectedLanguage</code> before
+mapping <code>&quot;auto&quot;</code> to <code>nil</code>, <strong>And</strong> a
+“Language for this Profile” picker in the Profiles settings tab exposes
+App Default / Hebrew / English / Auto-detect.</p>
+<p><strong>Given</strong> the custom Vocabulary glossary is written with
+Hebrew dictation in mind, <strong>When</strong> the resolved language
+for a recording is explicitly <code>&quot;en&quot;</code>, <strong>Then</strong>
+the vocabulary/<code>promptTokens</code> hint is not passed to
+WhisperKit for that recording (Auto mode still gets it, since the
+language isn’t known until decode completes — there is nothing to gate
+on yet).</p>
+<p><strong>Given</strong> dictations should show what language was
+actually used, <strong>When</strong> a <code>HistoryRecord</code> is
+written, <strong>Then</strong> it carries a new optional
+<code>language: String?</code> populated from
+<code>VocaTranscription.detectedLanguage</code> — <code>nil</code>-safe
+for every record written before this story — and both the History list
+row and detail view display it when present.</p>
+<p><strong>Given</strong> two-model auto-detect-per-recording was
+considered and rejected (only relevant to the “ivrit English degraded”
+branch, which the empirical test did not find), <strong>When</strong>
+documenting the decision, <strong>Then</strong> Auto mode continues to
+mean “one model, <code>detectLanguage: true</code>” exactly as it
+already did — no model-switch-on-toggle logic was added, since the
+empirical evidence did not call for it.</p>
+<p><strong>Verification:</strong> - Empirical: throwaway harness output
+recorded above (ivrit English quality verdict, detectLanguage
+mislabeling caveat). - Live: a harness compiled directly against the
+real, unmodified
+<code>Sources/VocaMac/Services/WhisperService.swift</code> (not a
+reimplementation) loads the real ivrit-ai model once and calls the real
+<code>transcribe()</code> with <code>language: &quot;he&quot;</code> then
+<code>language: &quot;en&quot;</code> then <code>language: &quot;he&quot;</code> again on
+the same loaded model instance — mirroring exactly what toggling the
+menu bar control now does — both languages transcribed correctly with no
+reload. - Build: <code>swift build</code> clean; typecheck harness
+unchanged (only the pre-existing <code>HistoryStoreTests.swift:61</code>
+failure). - Manual (pending real device use): profile-language override
+actually overrides the toggle for its bound app; History rows show the
+recorded language.</p>
+<hr />
+<!-- checkpoint: all 7 epics dev+review+fix complete; app installed as 0.8.0-local-hebrew; tracker synced all-done 2026-08-20; Epic 8 (rebrand + bilingual) added and completed same session; next: retrospectives / real XCTest run on an Xcode machine -->
 <footer class="doc-footer"><span>Epic Breakdown — local-whisper</span><span>BMAD planning artifact &middot; local-whisper</span><span>Companion to <code>epics.md</code> &mdash; the .md is the source of truth</span></footer>
 </div>
 </body>

@@ -354,6 +354,22 @@ private struct ProfileEditorView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Language") {
+                Picker("Language for this Profile", selection: Binding(
+                    get: { profile.language ?? "default" },
+                    set: { profile.language = $0 == "default" ? nil : $0 }
+                )) {
+                    Text("App Default").tag("default")
+                    Text("Hebrew").tag("he")
+                    Text("English").tag("en")
+                    Text("Auto-detect").tag("auto")
+                }
+
+                Text("Overrides the app-wide language toggle for dictations resolved to this Profile — e.g. force English for a Slack Profile while the menu bar stays on Hebrew.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Features") {
                 Toggle("Clean transcripts with the LLM for this Profile", isOn: $profile.postProcessEnabled)
                 Toggle("Read text around the cursor for this Profile", isOn: $profile.contextCaptureEnabled)

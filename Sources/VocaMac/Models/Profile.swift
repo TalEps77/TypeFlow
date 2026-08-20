@@ -33,6 +33,12 @@ struct Profile: Codable, Identifiable, Equatable {
     /// resolves to when nothing else matches.
     let isDefault: Bool
 
+    /// Per-Profile override of the transcription language (Story 8.2): one of
+    /// "he", "en", "auto", or `nil` to fall back to the app-wide
+    /// `AppState.selectedLanguage`. Lets e.g. a Slack Profile force English
+    /// regardless of what the menu bar toggle is currently set to.
+    var language: String?
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -40,7 +46,8 @@ struct Profile: Codable, Identifiable, Equatable {
         promptOverride: String = "",
         postProcessEnabled: Bool = true,
         contextCaptureEnabled: Bool = false,
-        isDefault: Bool = false
+        isDefault: Bool = false,
+        language: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -49,6 +56,7 @@ struct Profile: Codable, Identifiable, Equatable {
         self.postProcessEnabled = postProcessEnabled
         self.contextCaptureEnabled = contextCaptureEnabled
         self.isDefault = isDefault
+        self.language = language
     }
 
     /// Fixed so the Default Profile is recognizable across relaunches and
@@ -124,7 +132,8 @@ struct Profile: Codable, Identifiable, Equatable {
                 promptOverride: profile.promptOverride,
                 postProcessEnabled: profile.postProcessEnabled,
                 contextCaptureEnabled: false,
-                isDefault: isDefault
+                isDefault: isDefault,
+                language: profile.language
             )
         }
 

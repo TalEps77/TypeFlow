@@ -1170,12 +1170,22 @@ final class AppState: ObservableObject {
         let generation = dictationGeneration
 
         do {
-            let language = selectedLanguage == "auto" ? nil : selectedLanguage
+            // Story 8.2: a Profile's own language override (if any) wins over
+            // the app-wide toggle — e.g. a Slack Profile pinned to English
+            // dictates in English even while the menu bar toggle says Hebrew.
+            let languageSetting = capturedProfile?.language ?? selectedLanguage
+            let language = languageSetting == "auto" ? nil : languageSetting
             let result = try await whisperService.transcribe(
                 audioData: audioData,
                 language: language,
                 translate: translationEnabled,
-                vocabulary: customVocabulary
+                // The custom vocabulary glossary is written with Hebrew
+                // dictation in mind (transliterations, product names) — a
+                // Hebrew-biased prompt hint has no business steering an
+                // explicitly-English recording, so it's gated off there.
+                // Auto mode still gets it: the language isn't known until
+                // WhisperKit decodes, so there is no language to gate on yet.
+                vocabulary: language == "en" ? "" : customVocabulary
             )
 
             // Stats are keyed off the raw ASR result, deliberately: they are
@@ -1245,7 +1255,8 @@ final class AppState: ObservableObject {
                     context: pipelineContext,
                     model: result.modelUsed,
                     recordingMillis: result.audioLengthSeconds * 1000,
-                    asrMillis: result.duration * 1000
+                    asrMillis: result.duration * 1000,
+                    language: result.detectedLanguage
                 )
             }
 
@@ -1385,12 +1396,16 @@ final class AppState: ObservableObject {
 
         let result: VocaTranscription
         do {
+            // Story 8.2: same vocabulary gating as the dictation route above.
+            // No Profile override here — Command Mode does not resolve a
+            // per-app Profile at all (see the fixed-prompt comment below), so
+            // it only ever follows the app-wide language toggle.
             let language = selectedLanguage == "auto" ? nil : selectedLanguage
             result = try await whisperService.transcribe(
                 audioData: audioData,
                 language: language,
                 translate: translationEnabled,
-                vocabulary: customVocabulary
+                vocabulary: language == "en" ? "" : customVocabulary
             )
         } catch {
             guard generation == commandGeneration else { return }
@@ -1432,7 +1447,8 @@ final class AppState: ObservableObject {
                 outcome: completed,
                 model: result.modelUsed,
                 recordingMillis: result.audioLengthSeconds * 1000,
-                asrMillis: result.duration * 1000
+                asrMillis: result.duration * 1000,
+                language: result.detectedLanguage
             )
             activeRecordingMode = .dictation
             cursorOverlay.hide()
@@ -1541,7 +1557,8 @@ final class AppState: ObservableObject {
         outcome: CommandOutcome,
         model: ModelSize,
         recordingMillis: Double,
-        asrMillis: Double
+        asrMillis: Double,
+        language: String? = nil
     ) {
         historyStore.record(HistoryRecord(
             rawTranscript: instruction,
@@ -1553,7 +1570,8 @@ final class AppState: ObservableObject {
             asrMillis: asrMillis,
             postProcessMillis: outcome.postProcessMillis,
             didFallback: false,
-            mode: .command
+            mode: .command,
+            language: language
         ))
     }
 
@@ -1702,7 +1720,8 @@ final class AppState: ObservableObject {
         context: TranscriptContext,
         model: ModelSize,
         recordingMillis: Double,
-        asrMillis: Double
+        asrMillis: Double,
+        language: String? = nil
     ) {
         // Written by the pipeline, which sees the fallbacks a report's outcome
         // cannot express — RehydrateStage discarding a whole post-processing
@@ -1721,7 +1740,8 @@ final class AppState: ObservableObject {
             recordingMillis: recordingMillis,
             asrMillis: asrMillis,
             postProcessMillis: postProcessMillis,
-            didFallback: didFallback
+            didFallback: didFallback,
+            language: language
         ))
     }
 

@@ -141,9 +141,14 @@ struct HistoryRowView: View {
             Text(record.preview.isEmpty ? "(empty)" : record.preview)
                 .font(.body)
                 .lineLimit(2)
-            Text("\(record.modelName) • ASR \(HistoryDetailView.millisecondsLabel(record.asrMillis))")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            HStack(spacing: 4) {
+                Text("\(record.modelName) • ASR \(HistoryDetailView.millisecondsLabel(record.asrMillis))")
+                if let language = record.language {
+                    Text("• \(language.uppercased())")
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
         }
         .padding(.vertical, 2)
     }
@@ -171,6 +176,9 @@ struct HistoryDetailView: View {
                         InfoRow2(label: "When", value: Self.dateFormatter.string(from: record.timestamp))
                         InfoRow2(label: "App", value: record.targetBundleId ?? "Unknown")
                         InfoRow2(label: "Model", value: record.modelName)
+                        if let language = record.language {
+                            InfoRow2(label: "Language", value: language)
+                        }
                         InfoRow2(label: "Mode", value: record.mode == .command ? "Command" : "Dictation")
                         InfoRow2(label: "Recording", value: Self.millisecondsLabel(record.recordingMillis))
                         InfoRow2(label: "ASR", value: Self.millisecondsLabel(record.asrMillis))
