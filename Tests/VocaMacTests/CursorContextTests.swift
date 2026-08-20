@@ -352,7 +352,10 @@ final class CursorContextRetentionTests: XCTestCase {
 
         XCTAssertNil(appState.capturedContext)
         XCTAssertNil(appState.capturedProfile)
-        XCTAssertEqual(mocks.correctionLearner.cancelPendingObservationCallCount, 1)
+        // Once from startRecording() (in makeStateMidRecording above) and
+        // once from forceRecovery()'s own discardCapturedContext() — both
+        // unconditionally cancel any pending correction observation.
+        XCTAssertEqual(mocks.correctionLearner.cancelPendingObservationCallCount, 2)
     }
 
     /// The mic unplugged, the Bluetooth headset dropped, or the machine woke

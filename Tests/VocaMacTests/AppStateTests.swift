@@ -230,7 +230,7 @@ final class AppStateOnboardingTests: XCTestCase {
         XCTAssertEqual(mocks.hotKeyManager.lastMode, .pushToTalk)
         XCTAssertEqual(mocks.hotKeyManager.lastKeyCode, 61)
         XCTAssertEqual(mocks.hotKeyManager.lastDoubleTapThreshold, 0.4)
-        XCTAssertEqual(mocks.hotKeyManager.lastSafetyTimeout, 65.0)
+        XCTAssertEqual(mocks.hotKeyManager.lastSafetyTimeout, 185.0)
     }
 
     @MainActor

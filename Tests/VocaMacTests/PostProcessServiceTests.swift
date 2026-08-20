@@ -379,8 +379,13 @@ final class PostProcessResponseValidatorTests: XCTestCase {
     }
 
     func testLanguageFlipIsRejected() {
+        // Same shape as the echo test above: the answer must land inside the
+        // length band itself, or the length guard rejects it first and this
+        // test would no longer be exercising language-flip detection at all.
         let input = "אני צריך להזמין פגישה למחר"
-        let englishAnswer = "Sure, I can help you schedule that meeting for tomorrow"
+        let englishAnswer = "Sure, I'll book that meeting tomorrow."
+        XCTAssertTrue(PostProcessResponseValidator.isProportionate(input: input, output: englishAnswer),
+                      "the answer must land inside the length band, or this test proves nothing")
 
         let result = PostProcessResponseValidator.validate(data: payload(content: englishAnswer), statusCode: 200, input: input)
         XCTAssertEqual(result.failureError, .malformedResponse("output unrelated to input"))

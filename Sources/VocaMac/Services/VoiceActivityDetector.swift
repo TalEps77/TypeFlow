@@ -45,8 +45,10 @@
 // installed one.
 //
 // (Not a whole-path claim about the tap: `AudioEngine.processAudioBuffer`
-// itself reads `isCurrentlyRecording`, which takes `lifecycleQueue.sync` once
-// per buffer. That is pre-existing and outside these detectors.)
+// reads the engine's recording flag directly, without taking
+// `lifecycleQueue`'s lock — doing so from this render thread previously
+// deadlocked against `stopRecording`/`forceReset`'s `engine.stop()` call on
+// that same queue. Outside these detectors, but worth knowing about.)
 
 import Foundation
 import Accelerate

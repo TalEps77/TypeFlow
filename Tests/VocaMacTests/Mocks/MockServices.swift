@@ -795,6 +795,12 @@ final class MockTranscriptPipeline: TranscriptPipelining {
             )
         }
         result.reports.append(contentsOf: additionalReports)
+        // Mirror TranscriptPipeline.run(): a stage that fails (rather than
+        // skipping or applying cleanly) marks the context as having
+        // fallen back, which HistoryRecord.didFallback is written from.
+        if additionalReports.contains(where: { if case .failed = $0.outcome { return true } else { return false } }) {
+            result.didFallback = true
+        }
         return result
     }
 }
@@ -931,8 +937,15 @@ extension AppState {
             VocaDefaults.store.removeObject(forKey: "vocamac.vadDetectorKind")
             VocaDefaults.store.removeObject(forKey: "vocamac.vadEnergyThreshold")
             VocaDefaults.store.removeObject(forKey: "vocamac.vadKeptLegacyForTunedThreshold")
-            VocaDefaults.store.removeObject(forKey: "vocamac.vadDetectorMigrationCompleted")
         }
+        // Unlike the values above, "has migration already run" must always
+        // start clear — including when preserveSilenceDetectionDefaults is
+        // true — otherwise a *prior* test's migration (which always leaves
+        // this flag set) makes AppState.init below skip migrating entirely,
+        // so a test seeding its own tuned silenceThreshold to observe the
+        // migration never actually sees it run (order-dependent false pass
+        // for the tuned-legacy-detector path).
+        VocaDefaults.store.removeObject(forKey: "vocamac.vadDetectorMigrationCompleted")
 
         let audioEngine = MockAudioEngine()
         let soundManager = MockSoundManager()

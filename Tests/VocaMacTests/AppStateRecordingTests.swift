@@ -55,6 +55,11 @@ final class AppStateRecordingTests: XCTestCase {
 
     func testStartSoundIsNotPlayedIfRecordingStopsDuringAudioStart() async throws {
         let (appState, mocks) = AppState.makeTestState()
+        appState.soundEffectsEnabled = true
+        // soundEffectsEnabled is @AppStorage-backed by the one process-wide
+        // VocaDefaults scratch suite (no per-test isolation) — restore the
+        // default so this doesn't leak `true` into a later test.
+        defer { appState.soundEffectsEnabled = false }
         mocks.audioEngine.startRecordingDelay = 0.3
 
         let task = Task {
@@ -93,6 +98,8 @@ final class AppStateRecordingTests: XCTestCase {
 
     func testStopRecordingResetsAudioLevel() async {
         let (appState, mocks) = AppState.makeTestState()
+        appState.soundEffectsEnabled = true
+        defer { appState.soundEffectsEnabled = false }
         appState.isRecording = true
         appState.appStatus = .recording
         appState.audioLevel = 0.75
@@ -135,8 +142,8 @@ final class AppStateRecordingTests: XCTestCase {
     func testSoundEffectsEnabledDefault() {
         let (appState, _) = AppState.makeTestState()
 
-        XCTAssertTrue(appState.soundEffectsEnabled,
-                     "Sound effects should be enabled by default")
+        XCTAssertFalse(appState.soundEffectsEnabled,
+                     "Sound effects should be disabled by default")
     }
 
     func testShowCursorIndicatorDefault() {
@@ -156,8 +163,8 @@ final class AppStateRecordingTests: XCTestCase {
     func testSelectedLanguageDefault() {
         let (appState, _) = AppState.makeTestState()
 
-        XCTAssertEqual(appState.selectedLanguage, "auto",
-                      "Default language should be 'auto'")
+        XCTAssertEqual(appState.selectedLanguage, "he",
+                      "Default language should be 'he' (Hebrew local fork calibration)")
     }
 
     func testSelectedAudioDeviceDefaultsToSystemDefault() {
@@ -186,8 +193,8 @@ final class AppStateRecordingTests: XCTestCase {
     func testMaxRecordingDurationDefault() {
         let (appState, _) = AppState.makeTestState()
 
-        XCTAssertEqual(appState.maxRecordingDuration, 60,
-                      "Default max recording duration should be 60 seconds")
+        XCTAssertEqual(appState.maxRecordingDuration, 180,
+                      "Default max recording duration should be 180 seconds (Hebrew local fork calibration)")
     }
 
     func testAvailableModelsPopulated() {
@@ -387,6 +394,8 @@ final class AppStateErrorRecoveryTests: XCTestCase {
 
     func testStartRecordingWhileRecordingTriggersRecovery() async {
         let (appState, mocks) = AppState.makeTestState()
+        appState.soundEffectsEnabled = true
+        defer { appState.soundEffectsEnabled = false }
         appState.isRecording = true
         appState.appStatus = .recording
 

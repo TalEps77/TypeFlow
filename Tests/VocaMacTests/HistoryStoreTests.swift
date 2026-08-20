@@ -58,7 +58,7 @@ final class HistoryRecordTests: XCTestCase {
 
         let data = try JSONEncoder().encode(record)
         let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        let keys = Set(object?.keys ?? [])
+        let keys: Set<String> = object.map { Set($0.keys) } ?? []
 
         let expectedKeys: Set<String> = [
             "id", "timestamp", "rawTranscript", "finalText", "targetBundleId",
@@ -504,6 +504,10 @@ final class AppStateRePasteTests: XCTestCase {
     func testRePastePassesThroughThePreserveClipboardSetting() {
         let (appState, mocks) = AppState.makeTestState()
         appState.preserveClipboard = false
+        // preserveClipboard is @AppStorage-backed by the one process-wide
+        // VocaDefaults scratch suite (no per-test isolation) — restore the
+        // default so this doesn't leak `false` into a later test.
+        defer { appState.preserveClipboard = true }
         let record = HistoryRecord(rawTranscript: "raw", finalText: "final", modelName: "Tiny")
 
         appState.rePaste(record)

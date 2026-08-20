@@ -469,7 +469,14 @@ final class AudioEngine {
         inputFormat: AVAudioFormat,
         detector: VoiceActivityDetecting
     ) {
-        guard isCurrentlyRecording else { return }
+        // Read the flag directly rather than through the `isCurrentlyRecording`
+        // getter, which takes `lifecycleQueue.sync`. This callback runs on
+        // AVAudioEngine's real-time render thread; `stopRecording`/`forceReset`
+        // run on `lifecycleQueue` and call `engine.stop()`, which blocks that
+        // thread waiting for this exact render-thread invocation to finish.
+        // Taking the same lock here would deadlock the two against each other
+        // (observed as `swift test` hanging indefinitely on this queue).
+        guard _isCurrentlyRecording else { return }
 
         // Convert to whisper format (16kHz, mono, Float32)
         guard let convertedBuffer = convertToWhisperFormat(buffer, from: inputFormat) else {
