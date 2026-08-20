@@ -1,0 +1,513 @@
+<title>local-whisper Retrospective</title>
+<meta name="description" content="Evidence-based cross-epic retrospective for local-whisper: acceptance verdicts, what worked, what hurt, and open action items across all 8 epics.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,420;0,9..144,560;0,9..144,680;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --paper:#f6f3ec;
+    --paper-raised:#ffffff;
+    --ink:#1c1f26;
+    --ink-soft:#4a4f5c;
+    --hair:#dcd6c8;
+    --teal:#2f7d68;
+    --teal-deep:#1f5748;
+    --teal-tint:#e3ede9;
+    --amber:#b5772a;
+    --amber-tint:#f3e6d3;
+    --brick:#a83f34;
+    --brick-tint:#f2ded9;
+    --slate:#6b7280;
+    --slate-tint:#e7e6e1;
+    --moss:#4b7f5e;
+    --moss-tint:#e2ede4;
+    --shadow: 0 1px 2px rgba(28,31,38,0.06), 0 8px 24px -12px rgba(28,31,38,0.14);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#13161c; --paper-raised:#1b1f27; --ink:#e9e6dd; --ink-soft:#a9b0bc;
+      --hair:#333a46; --teal:#5fc4a8; --teal-deep:#8fdcc4; --teal-tint:#1a2b27;
+      --amber:#e0aa5e; --amber-tint:#332512; --brick:#e08579; --brick-tint:#331d1a;
+      --slate:#9aa1ac; --slate-tint:#232833; --moss:#8ec9a2; --moss-tint:#1c2b21;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 28px -14px rgba(0,0,0,0.55);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#13161c; --paper-raised:#1b1f27; --ink:#e9e6dd; --ink-soft:#a9b0bc;
+    --hair:#333a46; --teal:#5fc4a8; --teal-deep:#8fdcc4; --teal-tint:#1a2b27;
+    --amber:#e0aa5e; --amber-tint:#332512; --brick:#e08579; --brick-tint:#331d1a;
+    --slate:#9aa1ac; --slate-tint:#232833; --moss:#8ec9a2; --moss-tint:#1c2b21;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 28px -14px rgba(0,0,0,0.55);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:"IBM Plex Sans","Segoe UI",Arial,sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  }
+  ::selection{ background:var(--teal-tint); color:var(--ink); }
+  a{ color:var(--teal-deep); text-decoration-color:var(--hair); text-underline-offset:3px; }
+  a:hover{ color:var(--teal); }
+  a:focus-visible, button:focus-visible, summary:focus-visible{
+    outline:2px solid var(--teal); outline-offset:2px; border-radius:2px;
+  }
+  code{
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.86em;
+    background:var(--slate-tint); padding:0.1em 0.4em; border-radius:4px;
+  }
+
+  .shell{ max-width:900px; margin:0 auto; padding:0 24px 100px; }
+
+  .topnav{
+    position:sticky; top:0; z-index:20;
+    background:color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px); border-bottom:1px solid var(--hair);
+  }
+  .topnav-row{
+    max-width:900px; margin:0 auto; padding:12px 24px;
+    display:flex; align-items:center; gap:18px; overflow-x:auto; scrollbar-width:none;
+  }
+  .topnav-row::-webkit-scrollbar{ display:none; }
+  .topnav-brand{
+    font-family:"Fraunces",Georgia,serif; font-weight:680; font-size:0.95rem;
+    white-space:nowrap; color:var(--ink); flex:none;
+  }
+  .topnav-links{ display:flex; gap:14px; flex:none; }
+  .topnav-links a{
+    font-size:0.8rem; color:var(--ink-soft); white-space:nowrap;
+    text-decoration:none; padding:4px 2px; border-bottom:2px solid transparent;
+  }
+  .topnav-links a:hover{ color:var(--teal-deep); border-bottom-color:var(--teal); }
+
+  .hero{ padding:56px 0 20px; }
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace; font-size:0.72rem; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--teal-deep); margin:0 0 14px;
+  }
+  h1{
+    font-family:"Fraunces",Georgia,serif; font-weight:620; font-size:clamp(2rem,4.6vw,2.9rem);
+    line-height:1.08; margin:0 0 16px; text-wrap:balance;
+  }
+  .lede{ font-size:1.08rem; color:var(--ink-soft); max-width:64ch; margin:0 0 28px; }
+
+  .verdict-strip{
+    display:flex; flex-wrap:wrap; gap:10px; margin-bottom:8px;
+  }
+  .pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:"IBM Plex Mono",monospace; font-size:0.74rem; letter-spacing:0.02em;
+    padding:6px 12px; border-radius:100px; border:1px solid var(--hair);
+    background:var(--paper-raised); color:var(--ink-soft);
+  }
+  .pill b{ color:var(--ink); font-weight:600; }
+  .pill.amber{ background:var(--amber-tint); border-color:transparent; color:var(--amber); }
+  .pill.amber b{ color:var(--amber); }
+
+  section{ padding:44px 0; border-top:1px solid var(--hair); }
+  section:first-of-type{ border-top:none; }
+  h2{
+    font-family:"Fraunces",Georgia,serif; font-weight:600; font-size:1.6rem;
+    margin:0 0 6px; text-wrap:balance;
+  }
+  .section-sub{ color:var(--ink-soft); font-size:0.95rem; margin:0 0 26px; max-width:68ch; }
+  h3{ font-size:1.05rem; font-weight:700; margin:28px 0 10px; }
+  p{ margin:0 0 14px; max-width:72ch; }
+  ul, ol{ margin:0 0 14px; padding-left:1.3em; }
+  li{ margin-bottom:6px; max-width:70ch; }
+
+  /* ---- epic verdict cards ---- */
+  .epic-grid{ display:flex; flex-direction:column; gap:12px; }
+  .epic-card{
+    background:var(--paper-raised); border:1px solid var(--hair); border-radius:12px;
+    padding:18px 20px; box-shadow:var(--shadow);
+  }
+  .epic-card-head{
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:10px 14px; margin-bottom:8px;
+  }
+  .epic-num{
+    font-family:"IBM Plex Mono",monospace; font-size:0.78rem; color:var(--ink-soft);
+  }
+  .epic-name{ font-weight:700; font-size:1.02rem; }
+  .badge{
+    margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:0.7rem;
+    letter-spacing:0.03em; text-transform:uppercase; padding:3px 10px; border-radius:100px;
+    white-space:nowrap;
+  }
+  .badge.accepted{ background:var(--teal-tint); color:var(--teal-deep); }
+  .badge.open-items{ background:var(--amber-tint); color:var(--amber); }
+  .epic-note{ color:var(--ink-soft); font-size:0.93rem; margin:0; }
+  .epic-note b{ color:var(--ink); font-weight:600; }
+
+  /* ---- tables ---- */
+  .table-wrap{ overflow-x:auto; border:1px solid var(--hair); border-radius:12px; box-shadow:var(--shadow); }
+  table{ border-collapse:collapse; width:100%; min-width:520px; background:var(--paper-raised); }
+  th, td{ text-align:left; padding:10px 14px; border-bottom:1px solid var(--hair); font-size:0.9rem; vertical-align:top; }
+  thead th{
+    font-family:"IBM Plex Mono",monospace; font-size:0.7rem; letter-spacing:0.05em;
+    text-transform:uppercase; color:var(--ink-soft); background:var(--slate-tint);
+  }
+  tbody tr:last-child td{ border-bottom:none; }
+  td.num, th.num{ font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; text-align:right; }
+  tbody tr.total td{ font-weight:700; background:color-mix(in srgb, var(--teal-tint) 55%, var(--paper-raised)); }
+
+  /* ---- worked / hurt lists ---- */
+  .stack{ display:flex; flex-direction:column; gap:16px; }
+  .card{
+    background:var(--paper-raised); border:1px solid var(--hair); border-radius:12px;
+    padding:18px 20px; box-shadow:var(--shadow);
+  }
+  .card h4{ margin:0 0 6px; font-size:1rem; font-family:"Fraunces",Georgia,serif; font-weight:600; }
+  .card p{ margin:0; color:var(--ink-soft); font-size:0.94rem; }
+  .card p + p{ margin-top:8px; }
+  .tag{
+    display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:0.68rem;
+    color:var(--slate); background:var(--slate-tint); padding:2px 8px; border-radius:6px;
+    margin-right:6px; margin-top:8px;
+  }
+  .card.hurt{ border-left:3px solid var(--brick); }
+  .card.worked{ border-left:3px solid var(--teal); }
+  .card.reported{ border-left:3px solid var(--slate); }
+  .caveat{
+    font-size:0.82rem; color:var(--slate); margin-top:10px; padding-top:10px;
+    border-top:1px dashed var(--hair);
+  }
+
+  /* ---- action items ---- */
+  .action-list{ display:flex; flex-direction:column; gap:10px; }
+  .action-item{
+    display:grid; grid-template-columns:2.2em 1fr; gap:14px;
+    background:var(--paper-raised); border:1px solid var(--hair); border-radius:10px;
+    padding:14px 16px; box-shadow:var(--shadow);
+  }
+  .action-idx{
+    font-family:"IBM Plex Mono",monospace; font-weight:600; color:var(--amber);
+    font-size:0.95rem;
+  }
+  .action-body p{ margin:0; }
+  .action-source{ margin-top:6px; font-size:0.82rem; color:var(--ink-soft); }
+  .action-epic{
+    font-family:"IBM Plex Mono",monospace; font-size:0.7rem; color:var(--teal-deep);
+    background:var(--teal-tint); padding:1px 7px; border-radius:6px; margin-left:8px;
+  }
+
+  .foot{
+    margin-top:60px; padding-top:24px; border-top:1px solid var(--hair);
+    font-size:0.82rem; color:var(--ink-soft);
+  }
+
+  @media (max-width:600px){
+    .hero{ padding-top:36px; }
+    .epic-card-head{ flex-direction:column; align-items:flex-start; }
+    .badge{ margin-left:0; }
+  }
+</style>
+
+<div class="topnav">
+  <div class="topnav-row">
+    <span class="topnav-brand">local-whisper · Retrospective</span>
+    <nav class="topnav-links">
+      <a href="#verdicts">Verdicts</a>
+      <a href="#worked">What worked</a>
+      <a href="#hurt">What hurt</a>
+      <a href="#actions">Action items</a>
+      <a href="#metrics">Metrics</a>
+    </nav>
+  </div>
+</div>
+
+<div class="shell">
+  <div class="hero">
+    <p class="eyebrow">Cross-epic retrospective · Epics 1–8 · 8123a20..e2c89f7</p>
+    <h1>Eight epics, 167 review findings, one deadlock, zero silent scope loss.</h1>
+    <p class="lede">
+      An evidence-based retrospective run manually against the same sources the
+      <code>bmad-retrospective</code> skill would have used — its <code>-H &lt;epic&gt;</code>
+      headless contract takes one epic integer and does not accept a cross-epic range, confirmed
+      by running <code>detect-epic --epic "1-8"</code> directly and getting back an argparse
+      error. Every claim below is sourced: a commit hash, a file and line, or a log line.
+    </p>
+    <div class="verdict-strip">
+      <span class="pill amber"><b>accepted-with-open-items</b> · aggregate verdict</span>
+      <span class="pill">29 stories · 8 epics</span>
+      <span class="pill">43 commits</span>
+      <span class="pill">763 tests green</span>
+      <span class="pill">167 findings (17 blockers)</span>
+    </div>
+  </div>
+
+  <section id="verdicts">
+    <h2>Acceptance verdict per epic</h2>
+    <p class="section-sub">Six epics closed clean. Two closed with explicit, documented amendments or cuts — never a silently unmet AC.</p>
+    <div class="epic-grid">
+
+      <div class="epic-card">
+        <div class="epic-card-head">
+          <span class="epic-num">Epic 1</span><span class="epic-name">Hebrew ASR Accuracy</span>
+          <span class="badge accepted">Accepted</span>
+        </div>
+        <p class="epic-note">Stories 1.1–1.3. 2 blockers + 5 majors fixed (<code>4fffa11</code>, <code>f1a4862</code>, <code>3ffe21a</code>). All ACs met after the fix pass.</p>
+      </div>
+
+      <div class="epic-card">
+        <div class="epic-card-head">
+          <span class="epic-num">Epic 2</span><span class="epic-name">LLM Post-Processing</span>
+          <span class="badge accepted">Accepted</span>
+        </div>
+        <p class="epic-note">Stories 2.1–2.4. 1 blocker + 5 majors fixed (<code>058d717</code>). All ACs met after the fix pass.</p>
+      </div>
+
+      <div class="epic-card">
+        <div class="epic-card-head">
+          <span class="epic-num">Epic 3</span><span class="epic-name">Transcription History</span>
+          <span class="badge accepted">Accepted</span>
+        </div>
+        <p class="epic-note">Stories 3.1–3.4. 3 blockers + 7 majors fixed (<code>ce90692</code>). All ACs met after the fix pass.</p>
+      </div>
+
+      <div class="epic-card">
+        <div class="epic-card-head">
+          <span class="epic-num">Epic 4</span><span class="epic-name">Profiles &amp; Cursor Context</span>
+          <span class="badge accepted">Accepted</span>
+        </div>
+        <p class="epic-note">Stories 4.1–4.4. 2 blockers + 8 majors fixed (<code>fa472d0</code>). All ACs met after the fix pass.</p>
+      </div>
+
+      <div class="epic-card">
+        <div class="epic-card-head">
+          <span class="epic-num">Epic 5</span><span class="epic-name">Dictionary &amp; Snippets</span>
+          <span class="badge accepted">Accepted</span>
+        </div>
+        <p class="epic-note">Stories 5.1–5.6. 3 blockers + 11 majors fixed (<code>18e2ae1</code>). All ACs met after the fix pass.</p>
+      </div>
+
+      <div class="epic-card">
+        <div class="epic-card-head">
+          <span class="epic-num">Epic 6</span><span class="epic-name">Command Mode</span>
+          <span class="badge accepted">Accepted</span>
+        </div>
+        <p class="epic-note">Stories 6.1–6.3. 2 blockers + 6 majors fixed (<code>593678c</code>). All ACs met after the fix pass.</p>
+      </div>
+
+      <div class="epic-card">
+        <div class="epic-card-head">
+          <span class="epic-num">Epic 7</span><span class="epic-name">Responsive Capture (VAD)</span>
+          <span class="badge open-items">Accepted, open items</span>
+        </div>
+        <p class="epic-note">
+          Stories 7.1–7.2 accepted (5 majors fixed, <code>226040e</code>).
+          <b>Story 7.3 (streaming) was explicitly CUT</b>, not implemented — a valid outcome under
+          its own "spike, then implement or cut" AC (<code>epics.md:1053</code>): WhisperKit's
+          <code>AudioStreamTranscriber</code> owns its own <code>AVAudioEngine</code>/tap, in direct
+          conflict with the app's own <code>AudioEngine</code>. Using it means either an AD-8-violating
+          rewrite or reimplementing WhisperKit's segment logic from scratch. <code>WhisperService.transcriptionLock</code>
+          (unused, falsely commented) remains deferred, not fixed.
+        </p>
+      </div>
+
+      <div class="epic-card">
+        <div class="epic-card-head">
+          <span class="epic-num">Epic 8</span><span class="epic-name">Rebrand + Bilingual Dictation</span>
+          <span class="badge open-items">Accepted, open items</span>
+        </div>
+        <p class="epic-note">
+          Stories 8.1–8.2. 4 blockers + 4 majors fixed in one pass (<code>e2c89f7</code>), suite green
+          (763 tests, up from 727). <b>Three ACs judged wrong, not the code, amended in place:</b>
+          the menu-bar segmented picker can't represent 16 of 19 Settings languages (label fallback
+          added instead); Auto mode + glossary was itself the bug (glossary now gated off in Auto);
+          requested language now always wins over detected. <b>Two items open by decision</b> — no
+          release repo exists for this fork — update checker stays off, both Homebrew casks still
+          point at upstream, flagged unpublishable in-file.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="worked">
+    <h2>What worked</h2>
+    <p class="section-sub">Practices worth repeating, each tied to where it paid off.</p>
+    <div class="stack">
+
+      <div class="card worked">
+        <h4>Pre-converted ivrit.ai model found, not built</h4>
+        <p>The Hebrew ASR agent found an already-CoreML-converted ivrit.ai Whisper fine-tune matching WhisperKit's expected model layout — matching the "prefer pre-converted, saves hours" fallback plan. No local conversion pipeline was needed for Epic 1's entire premise.</p>
+        <span class="tag">ivrit-model-report.md:3,99-100</span>
+      </div>
+
+      <div class="card worked">
+        <h4>Staggered dev → adversarial-review → fix waves, per epic</h4>
+        <p>Each epic's code was written by one agent and reviewed by a different one that never wrote it, with adversarial review deliberately run on Opus 5 regardless of which model wrote the code under review. The pattern repeats across all 8 epics: <code>Story N.M</code> → <code>Apply Epic N adversarial-review fixes</code>.</p>
+        <span class="tag">DELIVERY.md §2-3</span>
+      </div>
+
+      <div class="card worked">
+        <h4>Live-harness verification culture</h4>
+        <p>Beyond unit tests, standalone harnesses were built and run against real conditions: per-stage latency (<code>m4verify</code>), Accessibility read/undo probes (<code>axlive</code>, <code>coordlive</code>), Command Mode (<code>cmdlive</code>), and VAD sub-frame timing (<code>vad_live_check.py</code>). The same live-hardware reasoning caught Epic 7's headline bug.</p>
+        <span class="tag">scratchpad: m4verify, axlive, coordlive, cmdlive, vad_live_check.py</span>
+      </div>
+
+      <div class="card worked">
+        <h4>Adversarial review yield — 167 findings, counted precisely</h4>
+        <p>17 blockers, 51 majors, 12 mediums, 87 minors across the 8 epics — counted directly from each epic's findings file. Cross-checks exactly against <code>DELIVERY.md</code>'s own epics-1–7 aggregate ("roughly 13 blockers and 47 majors") plus Epic 8's own commit-stated 4 blockers / 4 majors on top.</p>
+        <span class="tag">epicN-review-findings.md ×8; DELIVERY.md:200-202; commit e2c89f7</span>
+      </div>
+
+      <div class="card worked">
+        <h4>The XCTest-shim typecheck bridge during the no-Xcode period</h4>
+        <p>With no <code>XCTest</code> runner installed for all of Epics 1–7, every story's tests were written and type-checked via <code>swift build</code> but never executed. Review findings from that period are explicitly framed as "found by reading the code and its tests carefully," not by a red test run — letting development and review proceed without a working test runner.</p>
+        <span class="tag">epics.md:1155; DELIVERY.md §6</span>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="hurt">
+    <h2>What hurt</h2>
+    <p class="section-sub">Two items are file-verified; two are carried as the orchestrating session's own account, flagged where evidence could not independently confirm them.</p>
+    <div class="stack">
+
+      <div class="card hurt">
+        <h4>727 tests written blind — first real run found a production deadlock plus ~10 test bugs</h4>
+        <p><code>test_run1.log</code>: the suite's first-ever execution, 727 tests, 1 skipped, <b>14 failures</b>. Isolated one genuine production bug in <code>e473210</code>: <code>AudioEngine.processAudioBuffer</code> read a lock-guarded flag from the real-time render thread while <code>stopRecording</code>/<code>forceReset</code> held that same lock inside <code>engine.stop()</code> — a true mutual deadlock that hung <code>swift test</code> indefinitely. The rest were test bugs: stale pre-fork default expectations, Swift 6.3 type-inference breakage, shared <code>@AppStorage</code> scratch state leaking between tests, an inverted assertion, and a mock whose fallback semantics diverged from the real pipeline. All fixed in one commit; <code>test_run3.log</code>/<code>test_run4.log</code> confirm 727 green twice in a row.</p>
+        <span class="tag">test_run1.log; commit e473210; test_run3/4.log</span>
+      </div>
+
+      <div class="card hurt">
+        <h4>Ad-hoc signing forced a TCC reset on every rebuild</h4>
+        <p>Grants are keyed to the app's on-disk identity/cdhash, so the stuck-permission hint, <code>install.sh</code>, <code>uninstall.sh</code>, and the README all have to lead with "remove the old row, then re-add." Confirmed independently for the rebrand itself: "User is re-granting anyway (cdhash reset)." <code>tccutil reset</code> is noted as unreliable for Accessibility specifically.</p>
+        <span class="tag">epics.md:1120,1134,1152; epic8-review-findings.md MAJOR M4</span>
+      </div>
+
+      <div class="card hurt reported">
+        <h4>BMAD v6 shims broken in subagents (persona files missing)</h4>
+        <p>Reported by the orchestrating session: every spawned dev/review/fix agent fell back to prompt-driven procedure rather than loading its persona file.</p>
+        <p class="caveat">No repo artifact (commit, log, or file) was found during this retrospective that independently confirms this. Carried as reported, not verified.</p>
+      </div>
+
+      <div class="card hurt reported">
+        <h4>API instability killed or stalled 4 agents mid-run</h4>
+        <p>Reported by the orchestrating session: all 4 recovered via resume.</p>
+        <p class="caveat">As with the BMAD-shim item, no independent repo artifact was found confirming the specific count or which agents. Carried as reported, not verified.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="actions">
+    <h2>Action items (open)</h2>
+    <p class="section-sub">Each tagged with the epic it will be tracked against in <code>sprint-status.yaml</code>.</p>
+    <div class="action-list">
+
+      <div class="action-item">
+        <span class="action-idx">01</span>
+        <div class="action-body">
+          <p>Establish a stable code-signing identity so Accessibility/Input Monitoring grants survive a rebuild instead of resetting via cdhash/path changes every time.<span class="action-epic">epic 8</span></p>
+          <div class="action-source">epics.md:1120,1134,1152 · epic8-review-findings.md MAJOR M4</div>
+        </div>
+      </div>
+
+      <div class="action-item">
+        <span class="action-idx">02</span>
+        <div class="action-body">
+          <p>Add "retranscribe from history" — re-run ASR/LLM cleanup on a past history record after a model or profile change.<span class="action-epic">epic 3</span></p>
+          <div class="action-source">oss-comparison.md steal-list #5 (Knuckles92/OpenWhisper)</div>
+        </div>
+      </div>
+
+      <div class="action-item">
+        <span class="action-idx">03</span>
+        <div class="action-body">
+          <p>Add screen-content/window-context awareness, broader than the current narrow cursor-adjacent window.<span class="action-epic">epic 4</span></p>
+          <div class="action-source">oss-comparison.md steal-list #1 (VoiceInk)</div>
+        </div>
+      </div>
+
+      <div class="action-item">
+        <span class="action-idx">04</span>
+        <div class="action-body">
+          <p>Add a hands-free "hold-then-tap-Space-to-lock" recording mode as a third activation gesture.<span class="action-epic">epic 7</span></p>
+          <div class="action-source">oss-comparison.md steal-list #4 (Rajvardhman05)</div>
+        </div>
+      </div>
+
+      <div class="action-item">
+        <span class="action-idx">05</span>
+        <div class="action-body">
+          <p>Add a second local ASR engine as a pluggable fallback for accents/conditions where WhisperKit/ivrit.ai underperforms.<span class="action-epic">epic 1</span></p>
+          <div class="action-source">oss-comparison.md steal-list #3 (FluidVoice/VoiceInk)</div>
+        </div>
+      </div>
+
+      <div class="action-item">
+        <span class="action-idx">06</span>
+        <div class="action-body">
+          <p>Expand the English post-processing few-shot set after real-world bilingual use — newer and narrower than the Hebrew set it mirrors.<span class="action-epic">epic 8</span></p>
+          <div class="action-source">epic8-review-findings.md MAJOR M1</div>
+        </div>
+      </div>
+
+      <div class="action-item">
+        <span class="action-idx">07</span>
+        <div class="action-body">
+          <p>Fix the order-dependent <code>testSelectedModelSizeDefault</code> (currently passes only under alphabetical suite ordering luck).<span class="action-epic">epic 8</span></p>
+          <div class="action-source">Tests/VocaMacTests/AppStateRecordingTests.swift:128 · epics.md:1220</div>
+        </div>
+      </div>
+
+      <div class="action-item">
+        <span class="action-idx">08</span>
+        <div class="action-body">
+          <p>Re-point both Homebrew casks' <code>url</code> and re-enable <code>UpdateChecker</code> once this fork has a release repo of its own.<span class="action-epic">epic 8</span></p>
+          <div class="action-source">epic8-review-findings.md BLOCKER B4 · epics.md:1220</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="metrics">
+    <h2>Process metrics</h2>
+
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <table>
+        <tbody>
+          <tr><td>Epics</td><td class="num">8</td></tr>
+          <tr><td>Stories</td><td class="num">29 (3+4+4+4+6+3+3+2)</td></tr>
+          <tr><td>Commits (<code>8123a20..e2c89f7</code>)</td><td class="num">43</td></tr>
+          <tr><td>Tests, final</td><td class="num">763 green</td></tr>
+          <tr><td>Tests, pre-Epic-8-review</td><td class="num">727 (1 skipped, 0 failures)</td></tr>
+          <tr><td>Tests, first real run</td><td class="num">727 (1 skipped, 14 failures)</td></tr>
+          <tr><td>Total review findings</td><td class="num">167</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Findings by epic and severity</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Epic</th><th class="num">Blockers</th><th class="num">Majors</th><th class="num">Mediums</th><th class="num">Minors</th><th class="num">Total</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1 — Hebrew ASR Accuracy</td><td class="num">2</td><td class="num">5</td><td class="num">0</td><td class="num">6</td><td class="num">13</td></tr>
+          <tr><td>2 — LLM Post-Processing</td><td class="num">1</td><td class="num">5</td><td class="num">0</td><td class="num">10</td><td class="num">16</td></tr>
+          <tr><td>3 — Transcription History</td><td class="num">3</td><td class="num">7</td><td class="num">0</td><td class="num">12</td><td class="num">22</td></tr>
+          <tr><td>4 — Profiles &amp; Cursor Context</td><td class="num">2</td><td class="num">8</td><td class="num">0</td><td class="num">17</td><td class="num">27</td></tr>
+          <tr><td>5 — Dictionary &amp; Snippets</td><td class="num">3</td><td class="num">11</td><td class="num">0</td><td class="num">16</td><td class="num">30</td></tr>
+          <tr><td>6 — Command Mode</td><td class="num">2</td><td class="num">6</td><td class="num">7</td><td class="num">9</td><td class="num">24</td></tr>
+          <tr><td>7 — Responsive Capture (VAD)</td><td class="num">0</td><td class="num">5</td><td class="num">0</td><td class="num">9</td><td class="num">14</td></tr>
+          <tr><td>8 — Rebrand + Bilingual</td><td class="num">4</td><td class="num">4</td><td class="num">5</td><td class="num">8</td><td class="num">21</td></tr>
+          <tr class="total"><td>Total</td><td class="num">17</td><td class="num">51</td><td class="num">12</td><td class="num">87</td><td class="num">167</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="foot">
+    Headless run. Verdict rendered on evidence alone, no human override. Full assumptions trail —
+    epic-selection, the skill-contract mismatch, the unfinished-story gate, and the two reported-not-verified
+    process items — is recorded in <code>RETROSPECTIVE.md</code>, the canonical source for this page.
+  </div>
+</div>
