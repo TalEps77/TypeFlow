@@ -2,7 +2,10 @@
 // VocaMac
 //
 // Settings window for VocaMac configuration.
-// Organized into tabs: General, Models, Stats, Audio, Cleanup, Debug, About.
+// Organized as a sidebar (macOS System Settings-style) with nine sections,
+// grouped under App / AI / More. A plain TabView collapsed into an overflow
+// chevron once there were nine tabs, making Cleanup unreachable — the
+// sidebar has no such width limit.
 
 import SwiftUI
 
@@ -10,55 +13,102 @@ extension Notification.Name {
     static let showOnboarding = Notification.Name("com.vocamac.showOnboarding")
 }
 
-struct SettingsView: View {
-    var body: some View {
-        TabView {
-            GeneralSettingsTab()
-                .tabItem {
-                    Label("General", systemImage: "gear")
-                }
+/// One row in the settings sidebar. Raw value is persisted so the window
+/// remembers the last section across launches.
+enum SettingsSection: String, CaseIterable, Identifiable {
+    case general, models, audio
+    case cleanup, profiles, vocabulary
+    case stats, debug, about
 
-            ModelSettingsTab()
-                .tabItem {
-                    Label("Models", systemImage: "brain")
-                }
+    var id: String { rawValue }
 
-            StatsSettingsTab()
-                .tabItem {
-                    Label("Stats", systemImage: "chart.xyaxis.line")
-                }
-
-            AudioSettingsTab()
-                .tabItem {
-                    Label("Audio", systemImage: "waveform")
-                }
-
-            PostProcessSettingsTab()
-                .tabItem {
-                    Label("Cleanup", systemImage: "wand.and.sparkles")
-                }
-
-            ProfilesSettingsTab()
-                .tabItem {
-                    Label("Profiles", systemImage: "person.crop.rectangle.stack")
-                }
-
-            VocabularySettingsTab()
-                .tabItem {
-                    Label("Vocabulary", systemImage: "character.book.closed")
-                }
-
-            DebugTab()
-                .tabItem {
-                    Label("Debug", systemImage: "ladybug")
-                }
-
-            AboutTab()
-                .tabItem {
-                    Label("About", systemImage: "info.circle")
-                }
+    var label: String {
+        switch self {
+        case .general: return "General"
+        case .models: return "Models"
+        case .audio: return "Audio"
+        case .cleanup: return "Cleanup"
+        case .profiles: return "Profiles"
+        case .vocabulary: return "Vocabulary"
+        case .stats: return "Stats"
+        case .debug: return "Debug"
+        case .about: return "About"
         }
-        .frame(minWidth: 560, minHeight: 520)
+    }
+
+    var icon: String {
+        switch self {
+        case .general: return "gear"
+        case .models: return "brain"
+        case .audio: return "waveform"
+        case .cleanup: return "wand.and.sparkles"
+        case .profiles: return "person.crop.rectangle.stack"
+        case .vocabulary: return "character.book.closed"
+        case .stats: return "chart.xyaxis.line"
+        case .debug: return "ladybug"
+        case .about: return "info.circle"
+        }
+    }
+}
+
+/// A sidebar group header and the sections listed under it.
+private struct SettingsSectionGroup {
+    let title: String
+    let sections: [SettingsSection]
+}
+
+private let settingsSectionGroups: [SettingsSectionGroup] = [
+    SettingsSectionGroup(title: "App", sections: [.general, .models, .audio]),
+    SettingsSectionGroup(title: "AI", sections: [.cleanup, .profiles, .vocabulary]),
+    SettingsSectionGroup(title: "More", sections: [.stats, .debug, .about]),
+]
+
+struct SettingsView: View {
+    @AppStorage("vocamac.settings.selectedSection", store: VocaDefaults.store)
+    private var selectedSectionRaw: String = SettingsSection.general.rawValue
+
+    private var selection: Binding<SettingsSection?> {
+        Binding(
+            get: { SettingsSection(rawValue: selectedSectionRaw) ?? .general },
+            set: { selectedSectionRaw = ($0 ?? .general).rawValue }
+        )
+    }
+
+    var body: some View {
+        NavigationSplitView {
+            List(selection: selection) {
+                ForEach(settingsSectionGroups, id: \.title) { group in
+                    Section(group.title) {
+                        ForEach(group.sections) { section in
+                            Label(section.label, systemImage: section.icon)
+                                .tag(section)
+                        }
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(180)
+        } detail: {
+            detailView(for: selection.wrappedValue ?? .general)
+                .navigationTitle((selection.wrappedValue ?? .general).label)
+        }
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 760, minHeight: 520)
+    }
+
+    @ViewBuilder
+    private func detailView(for section: SettingsSection) -> some View {
+        switch section {
+        case .general: GeneralSettingsTab()
+        case .models: ModelSettingsTab()
+        case .audio: AudioSettingsTab()
+        case .cleanup: PostProcessSettingsTab()
+        case .profiles: ProfilesSettingsTab()
+        case .vocabulary: VocabularySettingsTab()
+        case .stats: StatsSettingsTab()
+        case .debug: DebugTab()
+        case .about: AboutTab()
+        }
     }
 }
 
