@@ -213,6 +213,7 @@
       <a href="#hurt">What hurt</a>
       <a href="#actions">Action items</a>
       <a href="#metrics">Metrics</a>
+      <a href="#epic9">Epic 9</a>
     </nav>
   </div>
 </div>
@@ -502,6 +503,104 @@
           <tr class="total"><td>Total</td><td class="num">17</td><td class="num">51</td><td class="num">12</td><td class="num">87</td><td class="num">167</td></tr>
         </tbody>
       </table>
+    </div>
+  </section>
+
+  <section id="epic9">
+    <h2>Epic 9 — Post-Audit Remediation</h2>
+    <p class="section-sub">
+      Not new feature work: the fix pass for defects an adversarial acceptance
+      re-verification round found in Epics 1–8 — the exact round the "what last round
+      skipped" gaps above made necessary.
+    </p>
+
+    <div class="verdict-strip">
+      <span class="pill amber"><b>accepted-with-open-items</b> · epic 9 verdict</span>
+      <span class="pill">4 stories · 0 pending</span>
+      <span class="pill">796 tests green</span>
+      <span class="pill">2 AC violations found + fixed</span>
+      <span class="pill">1 CI hazard closed</span>
+    </div>
+
+    <h3>Why this epic exists</h3>
+    <p>
+      The re-verification round traced all 171 ACs in <code>epics.md</code> to their
+      implementing code and tests: <b>106 SATISFIED</b>, <b>46 PARTIAL</b> (under-verified
+      or a documented deviation), <b>2 VIOLATED</b>, 10 UNVERIFIABLE (manual-only by
+      nature), 7 superseded/cut. The 2 VIOLATED ACs, plus a CI hazard and an epic-8
+      carryover mechanical defect found in the same pass, are Epic 9's four stories.
+    </p>
+    <p>
+      The clearest evidence that the added per-story review layer earns its keep: Story
+      9.2's <em>own first fix</em> for the loopback-enforcement violation introduced a live
+      HTTP redirect exfiltration bypass (a 307/308 from the trusted, configured endpoint
+      could re-POST the full transcript off-box). The original 8-epic run didn't leave this
+      behind — the first Epic 9 review pass did, and the second, independent reviewer
+      caught and closed it before it could ship. That's the review discipline this epic
+      exists to restore, working exactly as intended.
+    </p>
+
+    <h3>Findings — fixed, verified, closed</h3>
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <table>
+        <thead>
+          <tr><th>Story</th><th>Defect</th><th>Fix</th><th>Verdict</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>9.1</td><td>Re-paste injected a Command Mode instruction unfiltered (Epic 6 AC-6.3.2)</td><td><code>HistoryRecord.isRePastable</code> allowlist gate, all call sites</td><td>Approved-with-notes → minors closed</td></tr>
+          <tr><td>9.2</td><td>No loopback enforcement on the LLM endpoint (Epic 2 AC-2.2-6 / NFR-1)</td><td><code>isLoopback</code> predicate + redirect-blocking delegate</td><td>Changes requested → fixed → Approved</td></tr>
+          <tr><td>9.3(a)</td><td>Cask-update workflow had no disable guard; would push a fabricated checksum on a 404</td><td><code>if: false</code> guard + <code>curl -fsSL</code> + DMG sanity check</td><td>Pass</td></tr>
+          <tr><td>9.3(b)</td><td><code>modelSizeFromName</code> misclassified the shipped default model's label</td><td>Size-suffix checks reordered ahead of date-token checks</td><td>Pass</td></tr>
+          <tr><td>9.3(c)</td><td><code>testSelectedModelSizeDefault</code> order-dependent and asserted the wrong default</td><td>Test clears its own key; asserts the real default</td><td>Pass</td></tr>
+          <tr><td>9.4</td><td>Disabling Profiles still leaked an edited Default Profile instead of Epic 2 stock behavior</td><td>Disabled path returns a fresh <code>Profile.makeDefault()</code></td><td>Approved, no findings</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Findings — deferred, explicitly recorded</h3>
+    <div class="stack">
+      <div class="card hurt">
+        <h4>Pre-existing stale-snapshot re-paste race</h4>
+        <p>A history record deleted or retention-pruned during the <code>focusSettleDelay</code> window is still injected, because its text is captured before the delay hop. Predates Epic 9, unrelated to the mode gate. Left for the backlog per the reviewer's own recommendation.</p>
+        <span class="tag">Story 9.1 Code Review</span>
+      </div>
+      <div class="card hurt">
+        <h4>SwiftUI view-layer gates have zero automated coverage</h4>
+        <p>Confirmed independently twice: Story 9.1's review found no <code>HistoryView</code> test references and no ViewInspector/snapshot/UI-test seam in <code>Package.swift</code>. <code>RE-VERIFICATION.md</code> independently found the same gap project-wide — ~46 of 171 audited ACs are under-verified for exactly this reason.</p>
+        <span class="tag">Story 9.1 Code Review · RE-VERIFICATION.md:87</span>
+      </div>
+    </div>
+
+    <h3>Previous-retro follow-through</h3>
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Status</th><th>Evidence</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1–6 (code-signing, retranscribe, screen-context, hands-free mode, second ASR engine, English few-shot set)</td><td>No change</td><td>Not addressed — outside Epic 9's 4 defect-fix stories</td></tr>
+          <tr><td>7 — fix order-dependent <code>testSelectedModelSizeDefault</code></td><td><b>done</b></td><td>Story 9.3(c): isolated run, 1 test, 0 failures; reviewer confirmed no state leak</td></tr>
+          <tr><td>8 — re-point Homebrew casks / re-enable UpdateChecker</td><td><b>partial</b> — left open</td><td>Story 9.3(a) closed the workflow-inertness half only; <code>url</code> re-point and UpdateChecker re-enable still blocked on a release repo</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 style="margin-top:36px;">Action items — Epic 9 (new)</h2>
+    <div class="action-list">
+      <div class="action-item">
+        <span class="action-idx">09</span>
+        <div class="action-body">
+          <p>Fix the pre-existing stale-snapshot re-paste race — a history record deleted/pruned during <code>focusSettleDelay</code> is still injected because its text is captured before the delay hop.<span class="action-epic">epic 9</span></p>
+          <div class="action-source">Story 9.1 Code Review, "PRE-EXISTING" finding</div>
+        </div>
+      </div>
+      <div class="action-item">
+        <span class="action-idx">10</span>
+        <div class="action-body">
+          <p>Add an automated SwiftUI view-layer test seam (ViewInspector, snapshot testing, or a UI-test target) — a recurring gap confirmed independently twice.<span class="action-epic">epic 9</span></p>
+          <div class="action-source">Story 9.1 Code Review (AC 3 note) · RE-VERIFICATION.md:87</div>
+        </div>
+      </div>
     </div>
   </section>
 

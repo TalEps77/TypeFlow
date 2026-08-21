@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Epics 1-2 Acceptance Re-verification</title>
+  <style>
+
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+  <style type="text/css">:root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--bd:#e0e0e0;--acc:#b3261e;--ok:#1b6e3c;--warn:#8a5a00;--code:#f6f6f6}
+@media(prefers-color-scheme:dark){:root{--bg:#151517;--fg:#e8e8e8;--mut:#a0a0a0;--bd:#333;--acc:#ff6b5e;--ok:#5fd08a;--warn:#e0aa4a;--code:#1f1f22}}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;max-width:1180px;margin:0 auto;padding:2.5rem 1.5rem}
+h1{font-size:1.9rem;border-bottom:3px solid var(--acc);padding-bottom:.4rem;margin-bottom:.3rem}
+h2{font-size:1.35rem;margin-top:2.4rem;border-bottom:1px solid var(--bd);padding-bottom:.3rem}
+h3{font-size:1.1rem;margin-top:1.8rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+table{border-collapse:collapse;width:100%;margin:1.2rem 0;font-size:.83rem;display:block;overflow-x:auto}
+th,td{border:1px solid var(--bd);padding:.5rem .6rem;text-align:left;vertical-align:top}
+th{background:var(--code);font-weight:600}
+tr:nth-child(even) td{background:color-mix(in srgb,var(--code) 45%,transparent)}
+code{background:var(--code);padding:.1rem .3rem;border-radius:3px;font-size:.86em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:var(--code);padding:1rem;border-radius:6px;overflow-x:auto}
+blockquote{border-left:3px solid var(--acc);margin-left:0;padding-left:1rem;color:var(--mut)}
+hr{border:none;border-top:1px solid var(--bd);margin:2.5rem 0}
+strong{font-weight:650}
+ol,ul{padding-left:1.4rem}
+li{margin:.35rem 0}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Epics 1-2 Acceptance Re-verification</h1>
+</header>
+<h1 id="post-hoc-acceptance-re-verification-epics-1-2">Post-hoc
+acceptance re-verification — Epics 1 &amp; 2</h1>
+<p><strong>Project:</strong> local-whisper (VocaMac fork, branded
+TypeFlow) — macOS Swift/SwiftPM menu-bar dictation app
+<strong>Date:</strong> 2026-08-22 <strong>Lenses:</strong>
+verification-gap + adversarial (<code>bmad-review</code>) <strong>Source
+of ACs:</strong>
+<code>/Users/talepstein/Projects/local-whisper/_bmad-output/planning-artifacts/epics.md</code>
+lines 102–362 <strong>Suite state at audit:</strong> 784 tests, 0
+failures (reported by caller; not re-run in full)</p>
+<h2 id="why-this-audit-exists">Why this audit exists</h2>
+<p><code>_bmad-output/implementation-artifacts/sprint-status.yaml</code>
+marks all seven stories of Epics 1–2 <code>done</code>, plus
+<code>epic-1-retrospective: done</code> and
+<code>epic-2-retrospective: done</code>. The tracker declares
+<code>story_location: _bmad-output/implementation-artifacts/stories</code>
+— <strong>that directory does not exist</strong>.
+<code>_bmad-output/gate-ledger.yaml</code> records the deliberate skip
+of <code>bmad-create-story</code> and
+<code>bmad-check-implementation-readiness</code>, deferring assurance to
+“post-hoc per-epic acceptance re-verification”. This audit is therefore
+the <strong>only acceptance gate these two epics have ever
+had</strong>.</p>
+<p>All line-number citations inside <code>epics.md</code> predate
+implementation and are stale. Every citation below is a re-derived
+current location.</p>
+<h2 id="verdict-legend">Verdict legend</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Verdict</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SATISFIED</td>
+<td>Implementing code found <strong>and</strong> a test that fails if
+the behavior regresses</td>
+</tr>
+<tr>
+<td>PARTIAL</td>
+<td>Implemented, but a clause is unimplemented or the behavior has no
+test that would catch its loss</td>
+</tr>
+<tr>
+<td>VIOLATED</td>
+<td>The AC as written is not a property of the delivered code</td>
+</tr>
+<tr>
+<td>SUPERSEDED</td>
+<td>A later epic replaced the surface; AC met in substance on the
+replacement</td>
+</tr>
+<tr>
+<td>UNVERIFIABLE</td>
+<td>Cannot be pinned by a unit test at the inference/manual
+boundary</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="epic-1-hebrew-asr-accuracy">Epic 1 — Hebrew ASR Accuracy</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>AC</th>
+<th>Summary</th>
+<th>Verdict</th>
+<th>Implementing code</th>
+<th>Covering test</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1.1-AC1</td>
+<td>ivrit entry appears in Settings→Models with name/size/RAM; selecting
+loads via <code>WhisperService.loadModel</code>; Hebrew dictation
+produces a transcript</td>
+<td>PARTIAL</td>
+<td><code>Sources/VocaMac/Views/SettingsView.swift:689,731,735,804-809</code>;
+<code>Sources/VocaMac/Models/AppState.swift:1870-1919</code></td>
+<td><code>Tests/VocaMacTests/AppStateTests.swift:408-431</code>;
+<code>Tests/VocaMacTests/ModelTests.swift:128-131</code></td>
+<td>Model/state layer wired and tested; row-rendering and Hebrew
+end-to-end clauses are manual-only with no recorded execution</td>
+</tr>
+<tr>
+<td>1.1-AC2</td>
+<td>Arms in all five exhaustive switches +
+<code>whisperKitModelName</code> + the two non-exhaustive string
+ladders</td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Models/WhisperModel.swift:74,93,119,138,157</code>;
+<code>Sources/VocaMac/Services/ModelManager.swift:284-285</code>;
+ladders
+<code>Sources/VocaMac/Services/WhisperService.swift:325-327</code>,
+<code>Sources/VocaMac/Models/AppState.swift:1931-1934</code></td>
+<td><code>Tests/VocaMacTests/WhisperServiceTests.swift:59-62</code>;
+<code>Tests/VocaMacTests/ModelTests.swift:148-163</code></td>
+<td>Five switches compiler-enforced; the <code>WhisperService</code>
+ladder has a real ordering regression test. The <code>AppState</code>
+ladder arm is dead code (extras)</td>
+</tr>
+<tr>
+<td>1.1-AC3</td>
+<td>Support from on-disk presence, not
+<code>WhisperKit.recommendedModels()</code>; entry in
+<code>standardCatalog</code></td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Services/ModelManager.swift:331-333,297-308</code>;
+<code>Sources/VocaMac/Models/WhisperModel.swift:55-57,42</code></td>
+<td><code>Tests/VocaMacTests/ModelTests.swift:268-296,128-131,298-302</code></td>
+<td>Strongest coverage in the epic — both absent and present states
+against a temp dir; non-vacuous</td>
+</tr>
+<tr>
+<td>1.1-AC4</td>
+<td>No download attempted for it; existing download + chip/RAM
+recommendation unchanged</td>
+<td>PARTIAL</td>
+<td><code>Sources/VocaMac/Views/SettingsView.swift:776-780</code>;
+<code>Sources/VocaMac/Views/OnboardingView.swift:543-555</code>;
+<code>Sources/VocaMac/Models/AppState.swift:683,866</code></td>
+<td>none found (searched <code>Tests/</code> for
+<code>isSideloadOnly</code>, <code>downloadModel</code>,
+<code>deviceRecommendedModel</code>)</td>
+<td>Suppression is <strong>UI-only</strong>;
+<code>ModelManager.downloadModel</code> (<code>:437</code>) has no
+sideload guard, unlike <code>deleteModel</code> (<code>:523</code>)</td>
+</tr>
+<tr>
+<td>1.2-AC1</td>
+<td>Absent/incomplete → “Not Installed”, not selectable, expected path
+shown, no download, no crash</td>
+<td>PARTIAL</td>
+<td><code>Sources/VocaMac/Views/SettingsView.swift:693-702,742-749,776-780</code>;
+<code>Sources/VocaMac/Models/WhisperModel.swift:209-211</code></td>
+<td>none found (repo has zero SwiftUI view tests)</td>
+<td>All four clauses implemented correctly but entirely unguarded by
+assertions</td>
+</tr>
+<tr>
+<td>1.2-AC2</td>
+<td><code>startupFallbackModel</code> picks a known-good model, with
+exactly one clear message</td>
+<td>PARTIAL</td>
+<td><code>Sources/VocaMac/Models/AppState.swift:861-875</code>; message
+<code>:2158-2164</code></td>
+<td><code>Tests/VocaMacTests/AppStateTests.swift:377-405,408-431</code>
+— selection only</td>
+<td>The “exactly one clear message” half is entirely unasserted</td>
+</tr>
+<tr>
+<td>1.2-AC3</td>
+<td>Hebrew present and selectable in the picker; stores
+<code>&quot;he&quot;</code>; prior value preserved on upgrade</td>
+<td>SUPERSEDED</td>
+<td><code>Sources/VocaMac/Views/SettingsView.swift:336-347</code>;
+<code>Sources/VocaMac/Models/DictationLanguage.swift:32-35,60</code></td>
+<td><code>Tests/VocaMacTests/DictationLanguageTests.swift:36-37,51</code></td>
+<td>Epic 8.2 replaced 19 hand-written rows with the shared
+<code>DictationLanguage</code> list; Hebrew is
+<code>Choice(code:&quot;he&quot;)</code>. Presence covered; the <code>.tag</code>
+binding and upgrade-preservation are not</td>
+</tr>
+<tr>
+<td>1.3-AC1</td>
+<td>Record carries recording/ASR/post-process ms; zero (not missing) for
+skipped stages</td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Models/HistoryRecord.swift:45,49,53</code>
+(non-optional <code>Double</code>); populated
+<code>Sources/VocaMac/Models/AppState.swift:1326-1327,1648-1660</code></td>
+<td><code>Tests/VocaMacTests/HistoryStoreTests.swift:386-397,439,465,65-66</code></td>
+<td>Real recording path driven; the zero case uses
+<code>TranscriptPipeline.production()</code> so it isn’t vacuous</td>
+</tr>
+<tr>
+<td>1.3-AC2</td>
+<td>History view shows model + ASR duration; two models directly
+comparable</td>
+<td>PARTIAL</td>
+<td><code>Sources/VocaMac/Views/HistoryView.swift:145,186-190</code></td>
+<td>none found (searched <code>Tests/</code> for
+<code>HistoryView</code>, <code>millisecondsLabel</code>)</td>
+<td>Comparability actively undermined by a model-name mislabel — see
+below</td>
+</tr>
+<tr>
+<td>1.3-AC3</td>
+<td>Measurement adds no perceptible latency, no main-thread stalls
+(NFR-4)</td>
+<td>UNVERIFIABLE</td>
+<td>Values reused from existing <code>result.duration</code> /
+<code>StageReport.duration</code>; no new clock started</td>
+<td>none found</td>
+<td>Construction argument is strong; nothing measures it</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Epic 1 counts (10 ACs):</strong> SATISFIED 3 · PARTIAL 5 ·
+SUPERSEDED 1 · UNVERIFIABLE 1 · VIOLATED 0</p>
+<hr />
+<h2 id="epic-2-llm-post-processing">Epic 2 — LLM Post-Processing</h2>
+<h3 id="story-2.1-pipeline-scaffolding">Story 2.1 — Pipeline
+scaffolding</h3>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>AC</th>
+<th>Summary</th>
+<th>Verdict</th>
+<th>Implementing code</th>
+<th>Covering test</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.1-AC1</td>
+<td>Exactly one new call
+<code>await transcriptPipeline.run(context)</code> at the seam; no other
+logic in AppState</td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Models/AppState.swift:1281</code> (decl
+<code>:238</code>, init <code>:461</code>)</td>
+<td><code>Tests/VocaMacTests/PipelineTests.swift:238,247,266</code></td>
+<td>Still the only <code>.run</code> call. AD-1’s “no other logic” has
+since eroded via Epics 4/8 — unguarded (extras)</td>
+</tr>
+<tr>
+<td>2.1-AC2</td>
+<td>Empty pipeline returns input unchanged byte for byte</td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Pipeline/TranscriptPipeline.swift:49-67</code></td>
+<td><code>Tests/VocaMacTests/PipelineTests.swift:35-45</code> — asserts
+<code>Array(String.utf8)</code>, genuinely byte-level</td>
+<td></td>
+</tr>
+<tr>
+<td>2.1-AC3</td>
+<td><code>run</code> cannot throw; failures captured as
+<code>StageOutcome</code>; <code>TranscriptContext</code> struct carries
+all six fields</td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Pipeline/TranscriptStage.swift:127,14-35</code>;
+<code>Sources/VocaMac/Pipeline/TranscriptContext.swift:11,16,20,24,58,69</code></td>
+<td><code>Tests/VocaMacTests/PipelineTests.swift:69-95,157-177</code></td>
+<td>Non-throwing <code>run</code> is compiler-enforced — stronger than a
+test</td>
+</tr>
+<tr>
+<td>2.1-AC4</td>
+<td>Identity corpus: Hebrew+niqqud, mixed HE/EN, empty,
+whitespace-only</td>
+<td>SATISFIED</td>
+<td>as AC2</td>
+<td><code>Tests/VocaMacTests/PipelineTests.swift:16-31</code></td>
+<td>All four required members present individually (<code>:17</code>,
+<code>:18-20</code>, <code>:22-23</code>, <code>:24</code>) plus
+emoji/ZWJ and a 500-word case</td>
+</tr>
+<tr>
+<td>2.1-AC5</td>
+<td><code>@MainActor</code> + <code>async</code>; no <code>actor</code>;
+no strict-concurrency flags</td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Pipeline/TranscriptPipeline.swift:10</code>;
+<code>Package.swift:39-41</code> (<code>-parse-as-library</code>
+only)</td>
+<td>Build-enforced</td>
+<td><code>rg</code> over <code>Sources/</code> finds zero
+<code>actor</code> declarations and zero
+<code>StrictConcurrency</code>/<code>swiftLanguageMode</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="story-2.2-postprocessservice">Story 2.2 —
+PostProcessService</h3>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>AC</th>
+<th>Summary</th>
+<th>Verdict</th>
+<th>Implementing code</th>
+<th>Covering test</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.2-AC1</td>
+<td>Sole owner of HTTP client; one chat-completions request; content
+returned as cleaned text</td>
+<td>PARTIAL</td>
+<td><code>Sources/VocaMac/Services/PostProcessService.swift:711-735,737-787,890-922</code></td>
+<td>request shape
+<code>Tests/VocaMacTests/PostProcessServiceTests.swift:58,139,164</code>;
+<strong>success path through the real service: none found</strong> (zero
+hits for <code>URLProtocol</code>/<code>protocolClasses</code>)</td>
+<td>No test ever drives <code>send</code> to a 2xx; the success branch
+is dead code from the suite’s view</td>
+</tr>
+<tr>
+<td>2.2-AC2</td>
+<td>Connection error caught, input returned unchanged, reason logged +
+reported</td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Services/PostProcessService.swift:912-921</code></td>
+<td><code>Tests/VocaMacTests/PostProcessServiceTests.swift:611-621</code>
+(real refused connection);
+<code>Tests/VocaMacTests/PostProcessStageTests.swift:121-143</code></td>
+<td>Logging itself unasserted</td>
+</tr>
+<tr>
+<td>2.2-AC3</td>
+<td>Deadline via <strong>both</strong> URLSession config and outer Task;
+elapsed bounded</td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Services/PostProcessService.swift:240</code>
+(request timeout), <code>:898-902</code> (watchdog)</td>
+<td><code>Tests/VocaMacTests/PostProcessServiceTests.swift:623-643</code>
+— real never-replying loopback socket, asserts
+<code>.timedOut(1.0)</code> <strong>and</strong>
+<code>elapsed &lt; 2.0</code></td>
+<td>Both mechanisms genuinely present;
+<code>timeoutIntervalForResource</code> unset (extras)</td>
+</tr>
+<tr>
+<td>2.2-AC4</td>
+<td>Reject non-2xx, malformed JSON, empty content, disproportionate
+length</td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Services/PostProcessService.swift:413-462,267-278</code></td>
+<td><code>Tests/VocaMacTests/PostProcessServiceTests.swift:216,223,228,236,241,246</code>;
+boundaries <code>:260-269,271-290</code></td>
+<td>Ratio guard tested on both sides of both bounds</td>
+</tr>
+<tr>
+<td>2.2-AC5</td>
+<td>Prompt construction + validation pure and separately unit-tested;
+defaults <code>static let</code> in <code>Prompts.swift</code></td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Services/PostProcessService.swift:143-244,248-463</code>;
+<code>Sources/VocaMac/Models/Prompts.swift:26,116</code></td>
+<td><code>Tests/VocaMacTests/PostProcessServiceTests.swift:15-182</code>
+(builder), <code>:184-586</code> (validator)</td>
+<td>39 network-free tests</td>
+</tr>
+<tr>
+<td>2.2-AC6</td>
+<td>Requests target <strong>only</strong> the configured loopback
+endpoint (NFR-1)</td>
+<td><strong>VIOLATED</strong></td>
+<td><code>Sources/VocaMac/Services/PostProcessService.swift:156-170,747</code>
+— accepts any scheme/host; UI-only warning
+<code>Sources/VocaMac/Views/PostProcessSettingsTab.swift:22-27,54-58</code></td>
+<td><code>Tests/VocaMacTests/PostProcessServiceTests.swift:175-181</code>
+— <strong>vacuous</strong></td>
+<td>No loopback enforcement anywhere in the service</td>
+</tr>
+</tbody>
+</table>
+<h3 id="story-2.3-wire-post-processing-behind-a-master-toggle">Story 2.3
+— Wire post-processing behind a master toggle</h3>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>AC</th>
+<th>Summary</th>
+<th>Verdict</th>
+<th>Implementing code</th>
+<th>Covering test</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.3-AC1</td>
+<td>Hebrew fillers removed, sentence-final punctuation present</td>
+<td>UNVERIFIABLE</td>
+<td>Prompt rules 2–3
+<code>Sources/VocaMac/Models/Prompts.swift:34-35</code> (HE),
+<code>:124-125</code> (EN)</td>
+<td>inference boundary; <strong>Hebrew prompt text itself
+unpinned</strong> — EN twin exists at
+<code>Tests/VocaMacTests/DictationLanguageTests.swift:143-156</code></td>
+<td>Prompt clauses survive the rule-11 additions, but nothing would
+catch their deletion</td>
+</tr>
+<tr>
+<td>2.3-AC2</td>
+<td>Spoken enumeration formatted as a list</td>
+<td>UNVERIFIABLE</td>
+<td>Prompt rule 5
+<code>Sources/VocaMac/Models/Prompts.swift:37,127</code> + example
+<code>:85-89</code></td>
+<td>EN only
+<code>Tests/VocaMacTests/DictationLanguageTests.swift:154</code>;
+Hebrew: none found</td>
+<td>Same shape — Hebrew clause unasserted</td>
+</tr>
+<tr>
+<td>2.3-AC3</td>
+<td>“נפגש בשתיים… בעצם בשלוש” → only the corrected time</td>
+<td>UNVERIFIABLE</td>
+<td>Prompt rule 4 <code>Sources/VocaMac/Models/Prompts.swift:36</code> +
+worked example <code>:67</code></td>
+<td>EN only
+<code>Tests/VocaMacTests/DictationLanguageTests.swift:146-151</code>;
+Hebrew: none found</td>
+<td></td>
+</tr>
+<tr>
+<td>2.3-AC4</td>
+<td>A dictated question stays a question, is not answered</td>
+<td>UNVERIFIABLE</td>
+<td>Prompt rule 6
+<code>Sources/VocaMac/Models/Prompts.swift:38,128</code></td>
+<td>rule-6 substring incidentally pinned by
+<code>Tests/VocaMacTests/CommandModeTests.swift:272</code>; validator
+backstops
+<code>Tests/VocaMacTests/PostProcessServiceTests.swift:381,367,394</code></td>
+<td>Best covered of the four; the question <em>example</em> at
+<code>Prompts.swift:82-83</code> is still unpinned</td>
+</tr>
+<tr>
+<td>2.3-AC5</td>
+<td>Toggle off ⇒ <strong>no HTTP request at all</strong>; byte-identical
+to pre-epic</td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Pipeline/Stages/PostProcessStage.swift:59-61</code>
+(toggle checked before any work)</td>
+<td><code>Tests/VocaMacTests/PostProcessStageTests.swift:72-84</code> —
+asserts <code>cleanCallCount == 0</code>, not merely unchanged text;
+<code>:86-97</code> corpus; <code>:285</code> production pipeline;
+<code>Tests/VocaMacTests/HistoryStoreTests.swift:405-442</code> through
+real AppState</td>
+<td>The strongest AC in the epic, and correctly tested as a call-count
+spy</td>
+</tr>
+<tr>
+<td>2.3-AC6</td>
+<td>Any failure ⇒ raw transcript injected, <strong>no modal</strong>;
+raw retained alongside final</td>
+<td>PARTIAL</td>
+<td><code>Sources/VocaMac/Pipeline/Stages/PostProcessStage.swift:110-113</code>;
+log-only
+<code>Sources/VocaMac/Pipeline/TranscriptPipeline.swift:113-116</code>;
+both fields
+<code>Sources/VocaMac/Models/AppState.swift:1823-1834</code></td>
+<td>pass-through
+<code>Tests/VocaMacTests/PostProcessStageTests.swift:121-143</code>;
+distinct raw vs final persisted
+<code>Tests/VocaMacTests/HistoryStoreTests.swift:351-359</code>;
+<strong>“no modal”: none found</strong></td>
+<td>Raw-alongside-final properly covered with <em>different</em> values;
+the no-modal clause is structurally true but unasserted</td>
+</tr>
+</tbody>
+</table>
+<h3 id="story-2.4-post-processing-settings-tab">Story 2.4 —
+Post-processing settings tab</h3>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>AC</th>
+<th>Summary</th>
+<th>Verdict</th>
+<th>Implementing code</th>
+<th>Covering test</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.4-AC1</td>
+<td>New tab in the <code>TabView</code> alongside the existing six; own
+file per <code>StatsSettingsTab</code> precedent</td>
+<td>SUPERSEDED</td>
+<td><code>Sources/VocaMac/Views/SettingsView.swift:129</code>
+(<code>case .cleanup: PostProcessSettingsTab()</code>); own file
+<code>Sources/VocaMac/Views/PostProcessSettingsTab.swift</code></td>
+<td>none found</td>
+<td>The <code>TabView</code> was replaced by a
+<code>NavigationSplitView</code> sidebar (commit <code>0c33320</code>);
+the tab is genuinely reachable, so met in substance, but “alongside the
+existing six” no longer describes the UI</td>
+</tr>
+<tr>
+<td>2.4-AC2</td>
+<td>Endpoint/model/timeout/temperature editable, persisted under
+<code>vocamac.postProcess.*</code>, correct defaults</td>
+<td>SATISFIED</td>
+<td><code>Sources/VocaMac/Models/PostProcessSettings.swift:16-36</code></td>
+<td><code>Tests/VocaMacTests/PostProcessSettingsTabTests.swift:35,49,70,98</code></td>
+<td>Defaults verified against AC: <code>http://localhost:1234</code>,
+<code>qwen3-4b-instruct-2507-mlx</code>, <code>5.0</code>s,
+<code>0.0</code>. No drift</td>
+</tr>
+<tr>
+<td>2.4-AC3</td>
+<td>Editable system prompt with “Restore default” from
+<code>Prompts.swift</code></td>
+<td>PARTIAL</td>
+<td><code>Sources/VocaMac/Views/PostProcessSettingsTab.swift:123-138</code></td>
+<td><code>Tests/VocaMacTests/PostProcessSettingsTabTests.swift:84-94</code>
+— <strong>broken verification</strong>: the test performs the assignment
+itself under the comment “What the tab’s Restore Default button
+does”</td>
+<td>Confirmation alert before restoring; no test can fail from any
+change to the button</td>
+</tr>
+<tr>
+<td>2.4-AC4</td>
+<td>“Test connection” reports the responding model id; failure is
+actionable; UI never blocks</td>
+<td>PARTIAL</td>
+<td><code>Sources/VocaMac/Services/PostProcessService.swift:842-875</code>;
+<code>Sources/VocaMac/Views/PostProcessSettingsTab.swift:168-185</code></td>
+<td>none found — only
+<code>Tests/VocaMacTests/Mocks/MockServices.swift:642</code>, whose
+<code>testConnectionResult</code> no test ever reads</td>
+<td>The real <code>testConnection</code> is never exercised by any
+test</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Epic 2 counts (21 ACs):</strong> SATISFIED 11 · PARTIAL 4 ·
+VIOLATED 1 · SUPERSEDED 1 · UNVERIFIABLE 4</p>
+<hr />
+<h2 id="gap-detail-every-non-satisfied-row">Gap detail — every
+non-SATISFIED row</h2>
+<p><strong>1.1-AC1.</strong> The two clauses <code>epics.md:139</code>
+marked manual (row renders; Hebrew dictation produces a transcript
+against real or stubbed weights) have no recorded outcome anywhere — no
+story file, review, or note. The epic explicitly required recording
+whether the real-weights check was pending. Smallest uncaught
+regression: reorder the branch chain at
+<code>SettingsView.swift:776-820</code> and the ivrit row silently loses
+its Load button; 784 tests stay green. Close it with a headless
+assertion that <code>AppState.availableModels</code> contains the ivrit
+entry with <code>isSupported == true</code> given a fixture
+directory.</p>
+<p><strong>1.1-AC4.</strong> “No download is attempted” lives only in
+two view branches. <code>ModelManager.downloadModel(size:)</code>
+(<code>ModelManager.swift:437-450</code>) builds a WhisperKit config for
+<code>ivrit-ai_whisper-large-v3-turbo</code> and would hit HuggingFace
+for a repo that does not exist there — <strong>verified: there is no
+<code>isSideloadOnly</code> guard</strong>, while
+<code>deleteModel</code> (<code>:523</code>) does guard the mirror-image
+invariant. Separately, the “recommendation logic unchanged” clause is
+false in a good way: <code>AppState.swift:683,866</code> now filter
+<code>!$0.size.isSideloadOnly</code>, untested. Close with
+<code>XCTAssertThrowsError(try manager.downloadModel(size: .ivritAiWhisperLargeV3Turbo))</code>.</p>
+<p><strong>1.2-AC1.</strong> All four clauses are implemented in SwiftUI
+body code the test target cannot reach, and “cannot be selected” is
+expressed as the <em>absence</em> of a Load button rather than a
+positive disabled state. Smallest uncaught regression: move
+<code>else if model.isActive</code> above the sideload guard at
+<code>SettingsView.swift:776</code> — exactly what the comment at
+<code>:778-779</code> warns against — and a row shows “Active” while its
+files are gone. Close by extracting the row’s decision into a pure
+<code>action(for:) -&gt; Action</code> and asserting <code>.none</code>
+plus a non-empty expected path.</p>
+<p><strong>1.2-AC2.</strong> <code>AppStateTests.swift:377-405</code>
+asserts only which model was selected. Delete
+<code>AppState.swift:2159-2161</code> entirely and the user gets a
+silently swapped model with no explanation while both tests pass. Close
+with
+<code>XCTAssertEqual(appState.errorMessage, &quot;…is no longer available — using Small instead&quot;)</code>
+plus an assertion that no second message follows.</p>
+<p><strong>1.2-AC3 (SUPERSEDED).</strong> Epic 8.2 replaced the picker
+wholesale; Hebrew is back and
+<code>DictationLanguageTests.swift:36-37</code> genuinely fails if
+<code>&quot;he&quot;</code> leaves the list. Residual gap: nothing asserts the
+picker’s selection binding writes <code>&quot;he&quot;</code>. Change
+<code>SettingsView.swift:340</code> from <code>.tag($0.code)</code> to
+<code>.tag($0.name)</code> and every selection stores a display name —
+WhisperKit then receives <code>&quot;Hebrew&quot;</code> — with no test failing.
+Close with a round-trip of <code>vocamac.selectedLanguage</code> through
+a fresh <code>AppState</code>.</p>
+<p><strong>1.3-AC2.</strong> Two problems. (a)
+<code>millisecondsLabel</code> is <code>fileprivate</code> inside
+<code>HistoryDetailView</code> and the repo has no view tests; delete
+the <code>• ASR …</code> interpolation at
+<code>HistoryView.swift:145</code> and the story’s whole point vanishes
+green. (b) <strong>Verified bug:</strong>
+<code>WhisperService.modelSizeFromName</code>
+(<code>WhisperService.swift:323-338</code>) tests
+<code>contains(&quot;v20240930&quot;)</code> before any size suffix, so the
+default model folder
+<code>openai_whisper-large-v3-v20240930_626MB</code> resolves to
+<code>.largeV3Latest</code>, not <code>.largeV3LatestCompact</code>.
+History therefore records “Large v3 Latest (Best)” for dictations that
+actually ran on the Compact model — directly defeating “the two models’
+typical latencies are directly comparable”. Close with
+<code>XCTAssertEqual(service.modelSizeFromName(&quot;openai_whisper-large-v3-v20240930_626MB&quot;), .largeV3LatestCompact)</code>,
+which fails today.</p>
+<p><strong>1.3-AC3.</strong> No new clock is started (values are reused
+from <code>result.duration</code> / <code>StageReport.duration</code>)
+and <code>HistoryStore</code> saves off the main path, so the
+construction argument holds; nothing measures it. Recorded UNVERIFIABLE
+rather than PARTIAL — a perf test here would cost more than it
+protects.</p>
+<p><strong>2.2-AC1.</strong> Every transport test exercises a failure.
+There is no <code>URLProtocol</code> stub, no responding local server,
+and <code>PostProcessService.init(session:)</code> is never called with
+a session in any test — so the success branch (<code>:770-786</code>) is
+unexecuted. Smallest uncaught regression: return <code>0</code> instead
+of <code>http.statusCode</code> at <code>:909</code> and every real
+request fails with <code>.httpStatus(0)</code> while all 784 tests pass
+and the user silently never sees cleanup. Close with an injected stub
+session returning a 200 and a valid body.</p>
+<p><strong>2.2-AC6 — VIOLATED.</strong>
+<code>PostProcessRequestBuilder.endpointURL</code> rejects a base URL
+only when it lacks a scheme or host. A user who types
+<code>https://api.example.com</code> gets an orange caption warning and
+then their transcripts — plus, with Story 4.4 on, surrounding document
+text — are POSTed to that host. <code>isEndpointLoopback</code> is
+<code>private</code> on a SwiftUI <code>View</code> and unreachable from
+tests. The one test named for this AC feeds in
+<code>http://localhost:1234</code> and asserts the host is
+<code>localhost</code> — a tautology about its own input that would pass
+if the builder had no host handling at all. This is both a violated AC
+and a broken-verification gap. The warn-not-block decision is recorded
+only in a source comment; the AC was never renegotiated.</p>
+<p><strong>2.3-AC1…AC4 (UNVERIFIABLE by design).</strong> These four are
+LLM-semantic outcomes; per the verification-gap lens the inference
+boundary is where verification stops. The prompt-delivery chain
+<em>is</em> fully pinned (<code>PostProcessServiceTests.swift:58</code>,
+<code>DictationLanguageTests.swift:197-221</code>), and every clause the
+ACs name still exists in <code>Prompts.swift</code> (rules 2–6),
+surviving the recent rule-11 additions. <strong>But the content of the
+Hebrew prompt — the one this fork’s users actually receive — is
+unpinned, while the English variant has a real content test</strong>
+(<code>DictationLanguageTests.swift:143-156</code>). Smallest uncaught
+regression: delete rule 5 (<code>Prompts.swift:37</code>) and the
+<code>- כיסאות</code> example (<code>:85-89</code>); Hebrew enumerations
+silently stop becoming lists and 784 tests stay green. Close with a
+Hebrew mirror of that English test asserting the rule text and worked
+examples are present.</p>
+<p><strong>2.3-AC6.</strong> Nothing asserts the absence of user-facing
+error surfacing on a post-process failure. Structurally it holds — the
+only <code>errorMessage</code> writes on the dictation path are the ASR
+catch block (<code>AppState.swift:1348</code>) and Command Mode, and
+<code>TranscriptPipeline.swift:113-116</code> only logs. Smallest
+uncaught regression: someone adds
+<code>errorMessage = &quot;Post-processing failed…&quot;</code> beside that log;
+the AC breaks, the suite stays green, and the user gets a banner on
+every LM Studio hiccup. Close by extending
+<code>HistoryStoreTests.swift:468-477</code> with
+<code>XCTAssertNil(appState.errorMessage)</code> and
+<code>XCTAssertEqual(appState.appStatus, .idle)</code> after a
+<code>.failed</code> PostProcess report.</p>
+<p><strong>2.4-AC1 (SUPERSEDED).</strong> <code>TabView</code> →
+<code>NavigationSplitView</code> sidebar (commits
+<code>c7e2581</code>/<code>0c33320</code>), made precisely because nine
+tabs collapsed into an overflow chevron and rendered Cleanup
+unreachable. The tab is in its own file per the
+<code>StatsSettingsTab</code> precedent, enumerated at
+<code>SettingsView.swift:20,30,44</code>, grouped under “AI” at
+<code>:62</code>, and dispatched at <code>:129</code> — met in
+substance. Residual gap: deleting
+<code>case .cleanup: PostProcessSettingsTab()</code> compiles clean and
+passes 784 tests, re-introducing the exact bug the sidebar was built to
+fix. Close with
+<code>XCTAssertTrue(SettingsSection.allCases.contains(.cleanup))</code>
+plus an assertion that it appears in the section groups.</p>
+<p><strong>2.4-AC3.</strong>
+<code>testRestoreDefaultPromptReturnsTheDocumentedPrompt</code>
+(<code>PostProcessSettingsTabTests.swift:84-94</code>) sets
+<code>appState.postProcessSystemPrompt = Prompts.cleanTranscriptSystemPrompt</code>
+itself — under a comment that admits it is only imitating “what the
+tab’s Restore Default button does” — then asserts it equals that same
+constant. It mocks away the thing under test. Smallest uncaught
+regression: change <code>PostProcessSettingsTab.swift:134</code> to
+assign a different prompt constant, or flip the
+<code>.disabled(...)</code> predicate at <code>:127</code> so the button
+is permanently greyed out. Close by extracting the restore action into a
+testable function and asserting its result, plus asserting the enable
+predicate.</p>
+<p><strong>2.4-AC4.</strong>
+<code>PostProcessService.testConnection</code> (<code>:842-875</code>)
+is never exercised — the only <code>testConnection</code> in
+<code>Tests/</code> is <code>MockServices.swift:642</code> returning a
+canned value. Untested: extracting the responding model id, the
+<code>.httpStatus(n)</code> mapping, and the “response did not name a
+model” rejection. Smallest uncaught regression: return
+<code>configuration.model</code> instead of <code>decoded.model</code>
+at <code>:874</code> and “Test connection” would confirm success against
+a backend serving an entirely different model — the exact confusion the
+feature exists to prevent. Close with a stub session returning a 200
+whose body names a different model, asserting the reported id is the
+response’s.</p>
+<hr />
+<h2 id="adversarial-extras">Adversarial extras</h2>
+<ol type="1">
+<li><strong>Model-name mislabel in history for the default
+model</strong> (see 1.3-AC2b). The most consequential finding: the
+epic’s stated purpose is measuring model A against model B, and the
+app’s own default model is recorded under the wrong name.</li>
+<li><strong><code>AppState.loadModel</code>’s ivrit ladder arm is dead
+code.</strong> <code>AppState.swift:1931-1934</code> is only reached
+when <code>modelManager.modelSize(from:)</code> returns nil, but that
+matches the ivrit folder exactly
+(<code>ModelManager.swift:284-285</code>). Harmless, but it is one of
+the two ladders AC 1.1-AC2 insisted on and it is untested precisely
+because it is unreachable.</li>
+<li><strong><code>HistoryRecord</code>’s three millis fields are
+non-optional <code>Double</code> with no custom decoder.</strong>
+Memberwise-init defaults do <strong>not</strong> apply to synthesized
+<code>Codable</code> decoding, so any <code>history.json</code> lacking
+those keys throws. No such file should exist (they shipped with Story
+3.1), but <code>language</code> is the only field with a decode-compat
+test (<code>DictationLanguageTests.swift:483</code>).</li>
+<li><strong>Asymmetric sideload defense:</strong>
+<code>deleteModel</code> guards, <code>downloadModel</code> does
+not.</li>
+<li><strong>The AppState fallback tests exercise the mock’s AD-11
+bypass, not the real one.</strong>
+<code>MockServices.swift:325-333</code> re-implements the bypass. Delete
+the real one at <code>ModelManager.swift:331-333</code> and
+<code>AppStateTests.swift:377-431</code> stays green — only
+<code>ModelTests.swift:268-296</code> catches it. That single test
+carries AD-11 alone.</li>
+<li><strong>AD-1’s “no other logic in AppState” has quietly
+eroded.</strong> The seam was 5 lines at first delivery;
+<code>AppState.swift:1259-1298</code> now carries captured-context
+consumption, <code>effectiveLanguage</code> resolution, a six-argument
+context construction and a generation guard. Each traces to a later
+story, but no story re-asserted the constraint and nothing would notice
+further accretion.</li>
+<li><strong>The shipping pipeline is not the empty pipeline the
+byte-level corpus tests.</strong>
+<code>TranscriptPipeline.production</code> registers four stages
+unconditionally. The 14-member <code>utf8</code> corpus runs against
+<code>stages: []</code>. The production shape is covered by
+<code>PostProcessStageTests.swift:285</code> with a 4-member corpus
+asserting <code>XCTAssertEqual(String, String)</code> — Swift string
+equality is canonical-equivalence-based, so an NFC↔︎NFD renormalization
+of <code>&quot;שָׁלוֹם עוֹלָם&quot;</code> would pass while changing injected bytes.
+Add <code>Array(...utf8)</code> there.</li>
+<li><strong><code>timeoutIntervalForResource</code> is never
+set.</strong> The only URLSession-layer deadline is the per-request
+<code>timeoutInterval</code>, which the code itself documents as
+idle-only. The wall-clock guarantee rests entirely on one
+<code>Task.sleep</code> watchdog.</li>
+<li><strong>Two <code>PostProcessService</code> instances exist</strong>
+— <code>PostProcessSettingsTab.swift:18</code> builds its own for Test
+Connection, so AD-6’s “sole owner of the HTTP client” is now sole owning
+<em>type</em>, not sole instance.</li>
+<li><strong><code>recordingMillis</code> is audio length, not wall-clock
+hold time</strong> (<code>AppState.swift:1326</code>). Defensible and
+documented, but VAD-trimmed silence is invisible and the field does not
+answer “how long did I hold the key”.</li>
+<li><strong>No story files and no per-story code reviews exist for any
+of the seven stories.</strong> The MAJOR/MINOR annotations threaded
+through the sources imply reviews happened; they were never written
+down. Every “Manual:” step in
+<code>epics.md:136-141, 169-173, 200-203, 241-244, 284-288, 324-327, 357-360</code>
+is unevidenced.</li>
+<li><strong>Cosmetic signature drift:</strong> AC 2.2 names
+<code>clean(text:prompt:)</code>; the shipped shapes are
+<code>clean(text:systemPrompt:)</code> /
+<code>clean(text:systemPrompt:configuration:)</code>.</li>
+<li><strong>There is no end-to-end test of the <em>enabled</em>
+post-processing path.</strong> <code>AppState.swift:440</code> injects
+<code>postProcessService</code> only into
+<code>CommandModeCoordinator</code>; the dictation path’s stage
+constructs its own concrete <code>PostProcessService()</code>
+(<code>TranscriptPipeline.swift:44</code>,
+<code>PostProcessStage.swift:26</code>), so there is no seam. The one
+real-pipeline AppState test (<code>HistoryStoreTests.swift:405</code>)
+deliberately runs with the toggle <strong>off</strong>, and
+<code>PostProcessStageTests.swift:292-301</code> scrubs the key for the
+same reason. Every enabled-path assertion stops at the stage
+boundary.</li>
+<li><strong><code>PostProcessSettingsTab</code> is untestable by
+construction</strong> — <code>PostProcessSettingsTab.swift:18</code>
+holds
+<code>private let postProcessService = PostProcessService()</code>, the
+concrete class rather than the <code>PostProcessing</code> protocol, so
+the <code>ConnectionState</code> machine (<code>:29-34,144-164</code>)
+cannot be covered without a network. Relatedly,
+<code>PostProcessSettingsTabTests</code> never instantiates the tab: all
+five tests operate on <code>AppState</code>’s <code>@AppStorage</code>
+properties, and the file’s coverage would be identical if the tab source
+were deleted.</li>
+<li><strong>Timeout slider allows up to 15s</strong>
+(<code>PostProcessSettingsTab.swift:66</code>, range
+<code>1...15</code>) while AC 2.4-AC2 calls for low single-digit
+seconds. Only the <em>default</em> is guarded
+(<code>PostProcessSettingsTabTests.swift:42</code> asserts
+<code>&lt; 10.0</code>). Defensible as a user knob, but the AC’s latency
+intent is enforced on the default alone.</li>
+<li><strong><code>PostProcessRequestBuilder.modelsURL</code> is dead
+code</strong> — <code>PostProcessService.swift:152</code>, tested at
+<code>PostProcessServiceTests.swift:49</code>, <strong>verified to have
+no caller in <code>Sources/</code></strong>. Presumably a
+<code>/v1/models</code>-based Test Connection replaced by the
+ping-completion approach. Flagged, not recommended for deletion.</li>
+<li><strong><code>testEveryFailureModeReturnsTheInputUnchanged</code></strong>
+(<code>PostProcessStageTests.swift:141</code>) asserts
+<code>.failed(reason: failure.reason)</code> — the error’s reason
+compared against itself. It proves pass-through, which is its point, but
+pins no wording, so the “actionable reason” half of 2.4-AC4 gets no help
+from it.</li>
+</ol>
+<hr />
+<h2 id="bottom-line">Bottom line</h2>
+<p>Epic 2’s core engineering — the pipeline substrate, the identity
+guarantee, the deadline, the validator, and the master toggle — is
+genuinely well built and genuinely well tested; the toggle-off AC in
+particular is verified as a call-count assertion rather than the weaker
+text-unchanged check that a call-and-discard implementation would also
+pass.</p>
+<p>Two things should not carry a <code>done</code> flag as they
+stand:</p>
+<ul>
+<li><strong>NFR-1 is violated</strong> (2.2-AC6). The app will POST
+transcripts to any host the user types, and the test named for that AC
+verifies nothing. Either enforce loopback or renegotiate the AC — but
+the warn-only decision currently exists solely as a source comment.</li>
+<li><strong>The Epic 1 measurement story reports the wrong model
+name</strong> for the app’s default model, which defeats the comparison
+the epic was built to enable.</li>
+</ul>
+<p>Beyond those, three recurring shapes:</p>
+<ol type="1">
+<li><strong>UI-layer ACs across both epics have no automated coverage at
+all</strong> (1.1-AC1, 1.1-AC4, 1.2-AC1, 1.3-AC2, 2.4-AC1, 2.4-AC3,
+2.4-AC4) because the repo has no SwiftUI view tests, and the manual
+steps that were supposed to cover them have no recorded results
+anywhere.</li>
+<li><strong>Two tests look like coverage and are not</strong> —
+<code>testRequestTargetsOnlyTheConfiguredLoopbackHost</code>
+(tautological) and
+<code>testRestoreDefaultPromptReturnsTheDocumentedPrompt</code>
+(re-implements the button it claims to test). Both are
+broken-verification gaps, and both sit on ACs otherwise assumed
+done.</li>
+<li><strong>The enabled post-processing path is never exercised end to
+end.</strong> Every assertion about the feature actually working stops
+at the stage boundary, because the dictation pipeline builds its own
+concrete service with no injection seam.</li>
+</ol>
+<p><strong>Recommended gate verdict:</strong> Epic 1 and Epic 2 should
+not stay <code>done</code> unchanged. Epic 2 carries one violated NFR;
+Epic 1 carries a data-correctness bug that defeats its own measurement
+story. Neither is large, and both are cheap to close — but “784 tests
+green” is not, on this evidence, the same statement as “the acceptance
+criteria are met”.</p>
+<hr />
+<h2 id="method-note">Method note</h2>
+<p>Audited with the <code>bmad-review</code> verification-gap and
+adversarial lenses over three parallel auditors plus an inline pass,
+with each auditor’s load-bearing claims independently re-verified
+against the sources before inclusion. Two verdicts in this report
+(2.3-AC6 and 2.4-AC3) were downgraded from an initial SATISFIED after a
+second reader showed the covering test did not actually observe the
+behavior — recorded here because it is the same failure mode the report
+documents in the code. No builds were run; the suite’s green state is
+taken from the caller.</p>
+</body>
+</html>

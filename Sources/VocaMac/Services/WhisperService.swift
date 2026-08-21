@@ -325,6 +325,12 @@ final class WhisperService: @unchecked Sendable {
         // Checked first: the ivrit.ai folder name also contains "large" and
         // "turbo", which would otherwise mis-match the generic branches below.
         if lowered.contains("ivrit") { return .ivritAiWhisperLargeV3Turbo }
+        // Checked before the bare date-token branches below: the size suffix
+        // distinguishes the compact build from the non-compact one, and must
+        // win over "v20240930" alone (see modelSizeFromName misclassification
+        // in Story 9.3).
+        if lowered.contains("v20240930") && lowered.contains("turbo") && lowered.contains("632mb") { return .largeV3LatestTurboCompact }
+        if lowered.contains("v20240930") && lowered.contains("626mb") { return .largeV3LatestCompact }
         if lowered.contains("v20240930") && lowered.contains("turbo") { return .largeV3LatestTurbo }
         if lowered.contains("v20240930") { return .largeV3Latest }
         if lowered.contains("distil") && lowered.contains("turbo") { return .distilLargeV3TurboCompact }

@@ -1726,6 +1726,15 @@ final class AppState: ObservableObject {
     /// injection on the clipboard and overwrites `lastInjection`, so a
     /// subsequent undo would retract the wrong text.
     func rePaste(_ record: HistoryRecord) {
+        // A Command Mode record's text fields hold the spoken *instruction*
+        // (see `recordCommandHistory`), so re-pasting one would type "make
+        // this shorter" into the document — exactly what Story 6.3's AC
+        // forbids.
+        guard record.isRePastable else {
+            VocaLogger.info(.appState, "Re-paste requested for a Command Mode record — ignoring")
+            return
+        }
+
         guard appStatus == .idle else {
             VocaLogger.info(.appState, "Re-paste requested while \(appStatus.rawValue) — ignoring")
             return
@@ -1768,8 +1777,9 @@ final class AppState: ObservableObject {
 
     /// Re-paste the most recent dictation, if any exist.
     func rePasteMostRecent() {
-        guard let mostRecent = historyStore.records.first else {
-            VocaLogger.info(.appState, "Re-paste requested with no history — nothing to do")
+        guard let mostRecent = historyStore.records.first(where: { $0.isRePastable }) else {
+            let reason = historyStore.records.isEmpty ? "no history" : "only Command Mode records"
+            VocaLogger.info(.appState, "Re-paste requested with \(reason) — nothing to do")
             return
         }
         rePaste(mostRecent)

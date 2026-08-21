@@ -17,13 +17,24 @@ struct PostProcessSettingsTab: View {
     /// pool instead of leaking a new one each time (MINOR 13).
     private let postProcessService = PostProcessService()
 
-    /// NFR-1 expects only loopback traffic; the endpoint is user-configurable
-    /// per the AC, so this is a warning rather than a hard block (MINOR 12).
+    /// NFR-1 allows only loopback traffic, and `PostProcessService` now enforces
+    /// it at the network boundary: a non-loopback endpoint is refused before any
+    /// request is built (Story 9.2). This label explains that refusal — the block
+    /// itself lives in the service, not here.
+    /// Resolved exactly the way the service resolves it, never with a bare
+    /// `URL(string:)`: the builder trims whitespace and strips a trailing
+    /// "/v1", so a padded or `/v1`-suffixed non-loopback URL that the service
+    /// refuses must not read as fine here. An unresolvable string is also
+    /// refused by the service (`.invalidEndpoint`), so it warns too. The one
+    /// exception is an empty field, which falls back to the loopback default
+    /// (`PostProcessSettings.current`) and so is genuinely not a problem.
     private var isEndpointLoopback: Bool {
-        guard let host = URL(string: appState.postProcessBaseURL)?.host?.lowercased() else {
-            return true
+        let typed = appState.postProcessBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty else { return true }
+        guard let url = PostProcessRequestBuilder.chatCompletionsURL(baseURL: typed) else {
+            return false
         }
-        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+        return PostProcessRequestBuilder.isLoopback(url: url)
     }
 
     enum ConnectionState: Equatable {
@@ -53,7 +64,7 @@ struct PostProcessSettingsTab: View {
                     .textFieldStyle(.roundedBorder)
 
                 if !isEndpointLoopback {
-                    Label("This endpoint is not on localhost — TypeFlow will send transcripts to it over the network.", systemImage: "exclamationmark.triangle.fill")
+                    Label("This endpoint is not on localhost. TypeFlow never sends transcripts off this machine, so it will refuse to contact it — post-processing is skipped and your raw transcript is used. Use a loopback address (localhost, 127.0.0.1, or [::1]).", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }

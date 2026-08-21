@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Story 9.4: Restore pristine stock behavior when Profiles is disabled</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <style type="text/css">:root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--bd:#e0e0e0;--acc:#b3261e;--ok:#1b6e3c;--warn:#8a5a00;--code:#f6f6f6}
+@media(prefers-color-scheme:dark){:root{--bg:#151517;--fg:#e8e8e8;--mut:#a0a0a0;--bd:#333;--acc:#ff6b5e;--ok:#5fd08a;--warn:#e0aa4a;--code:#1f1f22}}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;max-width:1180px;margin:0 auto;padding:2.5rem 1.5rem}
+h1{font-size:1.9rem;border-bottom:3px solid var(--acc);padding-bottom:.4rem;margin-bottom:.3rem}
+h2{font-size:1.35rem;margin-top:2.4rem;border-bottom:1px solid var(--bd);padding-bottom:.3rem}
+h3{font-size:1.1rem;margin-top:1.8rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+table{border-collapse:collapse;width:100%;margin:1.2rem 0;font-size:.83rem;display:block;overflow-x:auto}
+th,td{border:1px solid var(--bd);padding:.5rem .6rem;text-align:left;vertical-align:top}
+th{background:var(--code);font-weight:600}
+tr:nth-child(even) td{background:color-mix(in srgb,var(--code) 45%,transparent)}
+code{background:var(--code);padding:.1rem .3rem;border-radius:3px;font-size:.86em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:var(--code);padding:1rem;border-radius:6px;overflow-x:auto}
+blockquote{border-left:3px solid var(--acc);margin-left:0;padding-left:1rem;color:var(--mut)}
+hr{border:none;border-top:1px solid var(--bd);margin:2.5rem 0}
+strong{font-weight:650}
+ol,ul{padding-left:1.4rem}
+li{margin:.35rem 0}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Story 9.4: Restore pristine stock behavior when
+Profiles is disabled</h1>
+</header>
+<h1
+id="story-9.4-restore-pristine-stock-behavior-when-profiles-is-disabled">Story
+9.4: Restore pristine stock behavior when Profiles is disabled</h1>
+<p>Status: done</p>
+<!-- Remediation story. Source: adversarial acceptance audit, 2026-08-22.
+Violates Epic 4 AC ("Given Profiles are disabled entirely... the Default
+Profile always applies and behavior matches Epic 2's" — epics.md:575-577,
+Story 4.2). -->
+<h2 id="story">Story</h2>
+<p>As a user who turns the Profiles master toggle off, I want dictation
+to behave exactly like it did in Epic 2 — no leftover prompt override or
+toggle changes from whatever I’d edited into the Default Profile, So
+that disabling Profiles is a real, complete opt-out rather than a
+partial one.</p>
+<h2 id="context-defect">Context / Defect</h2>
+<p>Epic 4’s AC for disabling Profiles is explicit: “the Default Profile
+always applies and behavior matches Epic 2’s” (epics.md:575-577) —
+i.e. stock, pre-Profiles behavior: no prompt override, default
+toggles.</p>
+<p><code>ProfileManager.resolve(bundleIdentifier:profilesEnabled:)</code>
+(<code>Sources/VocaMac/Services/ProfileManager.swift:32-37</code>)
+is:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode swift"><code class="sourceCode swift"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">func</span> <span class="fu">resolve</span><span class="op">(</span><span class="va">bundleIdentifier</span><span class="op">:</span> <span class="dt">String</span><span class="op">?,</span> <span class="va">profilesEnabled</span><span class="op">:</span> <span class="dt">Bool</span><span class="op">)</span> -&gt; <span class="fu">Profile</span> <span class="op">{</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">guard</span> profilesEnabled<span class="op">,</span> <span class="kw">let</span> <span class="va">bundleIdentifier</span> <span class="cf">else</span> <span class="op">{</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> defaultProfile<span class="op">()</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> store<span class="op">.</span>profiles<span class="op">.</span>first <span class="op">{</span> $<span class="fl">0.</span>bundleIdentifiers<span class="op">.</span>contains<span class="op">(</span>bundleIdentifier<span class="op">)</span> <span class="op">}</span> <span class="op">??</span> defaultProfile<span class="op">()</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p><code>defaultProfile()</code>
+(<code>ProfileManager.swift:43-45</code>) returns
+<code>store.profiles.first { $0.isDefault }</code> — the
+<strong>persisted, user-editable</strong> Default Profile record. The
+Profiles settings UI lets the user edit the Default Profile’s
+<code>promptOverride</code>, <code>postProcessEnabled</code>, and
+<code>contextCaptureEnabled</code> (<code>Profile.swift:23-29</code>)
+like any other Profile. If the user has edited the Default Profile —
+e.g. added a prompt override — and then flips the Profiles master toggle
+<strong>off</strong>, <code>resolve</code> still returns that edited
+record, because the
+<code>guard profilesEnabled, let bundleIdentifier else</code>
+short-circuits straight to <code>defaultProfile()</code> without ever
+discarding the user’s edits. The edited prompt override (and any toggle
+changes) leak through into what is supposed to be a full opt-out back to
+Epic 2 stock behavior.</p>
+<p><code>Profile.makeDefault()</code> (<code>Profile.swift:66-77</code>)
+is the pristine built-in Default: <code>promptOverride: ""</code>,
+<code>postProcessEnabled: true</code>,
+<code>contextCaptureEnabled: false</code> — exactly Epic 2’s stock
+behavior. The existing test
+<code>testProfilesDisabledAlwaysResolvesToDefaultEvenWithAMatchingProfile</code>
+(<code>Tests/VocaMacTests/ProfileManagerTests.swift:80-88</code>)
+doesn’t catch this gap because it seeds the store with an
+<em>unedited</em> <code>Profile.makeDefault()</code> as the Default —
+the edited-Default case is never exercised.</p>
+<h2 id="acceptance-criteria">Acceptance Criteria</h2>
+<ol type="1">
+<li>With Profiles disabled (<code>profilesEnabled == false</code>),
+<code>ProfileManager .resolve</code> returns pristine built-in defaults
+— no prompt override, stock toggles
+(<code>postProcessEnabled: true</code>,
+<code>contextCaptureEnabled: false</code>) — <strong>even when</strong>
+the user has edited the persisted Default Profile in the store.
+Implement via whichever is the smaller diff: returning a fresh
+<code>Profile.makeDefault()</code> instance directly for the disabled
+case, or otherwise bypassing the store’s edited record for that path. Do
+not change what “Default” means for the <em>enabled</em> case.</li>
+<li>With Profiles enabled, the persisted (possibly user-edited) Default
+Profile still wins exactly as it does today — this story must not change
+resolution behavior when <code>profilesEnabled == true</code> in any way
+(matching bundle id, no match, nil bundle id all unchanged).</li>
+<li>Unit tests pin both (1) and (2):
+<ul>
+<li>A disabled-resolution test where the store’s Default Profile has
+been edited (non-empty <code>promptOverride</code>, and/or
+<code>postProcessEnabled: false</code> /
+<code>contextCaptureEnabled: true</code>) — asserts the resolved Profile
+matches <code>Profile.makeDefault()</code>’s values (empty override,
+stock toggles), not the edited store record.</li>
+<li>An enabled-resolution test with the same edited store Default —
+asserts the resolved Profile <strong>is</strong> the edited record (its
+<code>promptOverride</code> and toggles come through unchanged),
+guarding against an overcorrection that breaks the enabled path.</li>
+</ul></li>
+<li>Full suite green (<code>swift test</code>).</li>
+</ol>
+<h2 id="tasks-subtasks">Tasks / Subtasks</h2>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" />Task 1 — Fix
+<code>resolve</code> (AC: 1, 2)</label>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" />In
+<code>ProfileManager.resolve(bundleIdentifier:profilesEnabled:)</code>
+(<code>ProfileManager.swift:32-37</code>), split the current combined
+guard so the disabled case is handled on its own and returns
+<code>Profile.makeDefault()</code> directly, without touching
+<code>store.profiles</code> at all:
+<code>swift     func resolve(bundleIdentifier: String?, profilesEnabled: Bool) -&gt; Profile {         guard profilesEnabled else { return Profile.makeDefault() }         guard let bundleIdentifier else { return defaultProfile() }         return store.profiles.first { $0.bundleIdentifiers.contains(bundleIdentifier) } ?? defaultProfile()     }</code>
+(Illustrative — match existing style; the essential change is that
+<code>profilesEnabled == false</code> must never reach
+<code>defaultProfile()</code>/
+<code>store.profiles</code>.)</label></li>
+<li><label><input type="checkbox" checked="" />Confirm
+<code>defaultProfile()</code> (<code>ProfileManager.swift:43-45</code>)
+is otherwise untouched — it’s still correct for the enabled,
+nil-bundle-identifier and no-match paths.</label></li>
+</ul></li>
+<li><label><input type="checkbox" checked="" />Task 2 — Tests (AC:
+3)</label>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" />Add to
+<code>Tests/VocaMacTests/ProfileManagerTests.swift</code>, near
+<code>testProfilesDisabledAlwaysResolvesToDefaultEvenWithAMatchingProfile</code>
+(line 80): -
+<code>testProfilesDisabledIgnoresAnEditedDefaultProfile</code>: seed the
+store with an edited Default
+(e.g. <code>Profile(id:       Profile.defaultProfileID, name: "Default", promptOverride: "be       extremely formal", postProcessEnabled: false,       contextCaptureEnabled: true, isDefault: true)</code>)
+plus an unrelated bound Profile. Call
+<code>manager.resolve(bundleIdentifier: ...,       profilesEnabled: false)</code>.
+Assert the result equals <code>Profile.makeDefault()</code> on the
+fields that matter (<code>promptOverride == ""</code>,
+<code>postProcessEnabled == true</code>,
+<code>contextCaptureEnabled == false</code>) — not the edited record’s
+values. -
+<code>testProfilesEnabledStillUsesTheEditedDefaultProfile</code>: same
+seeded edited Default, call
+<code>resolve(bundleIdentifier: nil,       profilesEnabled: true)</code>
+(or a non-matching bundle id). Assert the result’s
+<code>promptOverride</code>/toggles match the <strong>edited</strong>
+record, proving the enabled path is unaffected by this fix.</label></li>
+</ul></li>
+<li><label><input type="checkbox" checked="" />Task 3 — Full suite (AC:
+4)</label>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" /><code>swift test</code>
+green.</label></li>
+</ul></li>
+</ul>
+<h2 id="dev-notes">Dev Notes</h2>
+<ul>
+<li>Repo is Swift/SwiftPM (Xcode 26.6 installed); baseline 784 tests
+green.</li>
+<li><code>Profile</code> is <code>Equatable</code>
+(<code>Profile.swift:10</code>), but comparing whole structs directly in
+the new “disabled” test would also compare <code>id</code> — a fresh
+<code>Profile.makeDefault()</code> and the resolved value should both
+carry <code>Profile.defaultProfileID</code>
+(<code>Profile.swift:64, 69</code>), so whole-struct equality against
+<code>Profile.makeDefault()</code> should work; if it doesn’t (e.g. due
+to <code>bundleIdentifiers</code> differing), assert the individual
+fields called out in the AC instead.</li>
+<li>Do not touch <code>Profile.swift</code>, <code>ProfileStore</code>,
+or the Profiles settings UI — this defect is entirely inside
+<code>ProfileManager.resolve</code>.</li>
+<li>No commits by the dev agent.</li>
+</ul>
+<h3 id="project-structure-notes">Project Structure Notes</h3>
+<ul>
+<li>Touches only
+<code>Sources/VocaMac/Services/ProfileManager.swift</code> and
+<code>Tests/VocaMacTests/ProfileManagerTests.swift</code>.</li>
+</ul>
+<h3 id="references">References</h3>
+<ul>
+<li>[Source: Sources/VocaMac/Services/ProfileManager.swift:1-47]</li>
+<li>[Source: Sources/VocaMac/Models/Profile.swift:10-77]</li>
+<li>[Source: Tests/VocaMacTests/ProfileManagerTests.swift:1-88]</li>
+<li>[Source: _bmad-output/planning-artifacts/epics.md:509-590 (Epic 4,
+Story 4.2 AC)]</li>
+</ul>
+<h2 id="dev-agent-record">Dev Agent Record</h2>
+<h3 id="agent-model-used">Agent Model Used</h3>
+<p>claude-opus-5[1m] (BMAD dev agent, <code>bmad-build</code>)</p>
+<h3 id="debug-log-references">Debug Log References</h3>
+<ul>
+<li><code>swift test</code> — 786 tests, 1 skipped, 0 failures (baseline
+784 + the 2 added here). One earlier run aborted with “input file
+HistoryView.swift was modified during the build” — a concurrent agent’s
+edit, unrelated to this story; the immediate re-run was clean.</li>
+</ul>
+<h3 id="completion-notes-list">Completion Notes List</h3>
+<ul>
+<li>The fix is the split guard from Task 1, verbatim in shape:
+<code>guard profilesEnabled else { return Profile.makeDefault() }</code>
+ahead of the nil-bundle-identifier guard, so the disabled path never
+reaches <code>defaultProfile()</code> or <code>store.profiles</code>.
+<code>defaultProfile()</code> is untouched.</li>
+<li>A four-line comment above the guard records <em>why</em> disabled
+returns a fresh built-in rather than the stored record, matching the
+file’s existing habit of explaining resolution decisions in place.</li>
+<li>Whole-struct <code>XCTAssertEqual</code> against
+<code>Profile.makeDefault()</code> works as the Dev Notes predicted —
+the returned value carries <code>Profile.defaultProfileID</code> and
+empty <code>bundleIdentifiers</code>, so no per-field fallback was
+needed. The edited-Default fixture is shared by both new tests via a
+small <code>editedDefault()</code> helper so the two ACs are pinned
+against literally the same record.</li>
+<li>The enabled-path test asserts both unmatched routes (nil bundle id
+<em>and</em> a non-matching bundle id) still return the edited Default,
+since both flow through <code>defaultProfile()</code>.</li>
+<li>Checked the one production caller
+(<code>AppState.swift:1074</code>): the resolved Profile is consumed by
+value for the context-capture gate and <code>language</code>, never used
+as a store lookup key, so returning a fresh instance changes nothing
+beyond the intended field values. No files outside this story’s stated
+surface were touched; no commits made.</li>
+</ul>
+<h3 id="file-list">File List</h3>
+<ul>
+<li><code>Sources/VocaMac/Services/ProfileManager.swift</code>
+(modified)</li>
+<li><code>Tests/VocaMacTests/ProfileManagerTests.swift</code>
+(modified)</li>
+</ul>
+<h2 id="change-log">Change Log</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Date</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-08-22</td>
+<td>Story implemented: <code>resolve</code> returns pristine
+<code>Profile.makeDefault()</code> when Profiles are disabled; 2 tests
+added pinning the disabled and enabled paths against the same edited
+Default. Suite green (786). Status → review.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><strong>Validation: PASSED 2026-08-22</strong> — the fix is a
+two-line, fully-specified change with an illustrative diff, and both ACs
+(disabled-bypasses-edits, enabled-unaffected) are pinned by tests that
+seed the exact same edited Default record so the “smaller diff”
+instruction can’t accidentally overcorrect the enabled path. No fixes
+needed.</p>
+<h2 id="code-review">Code Review</h2>
+<p><strong>Reviewer:</strong> bmad-review-adversarial-general (fresh, no
+prior context) <strong>Date:</strong> 2026-08-22 <strong>Verdict:
+APPROVED</strong></p>
+<h3 id="verified">Verified</h3>
+<ul>
+<li><strong>Diff matches the spec exactly.</strong> <code>resolve</code>
+now short-circuits
+<code>guard profilesEnabled else { return Profile.makeDefault() }</code>
+before the bundle-identifier guard; <code>defaultProfile()</code> is
+untouched
+(<code>Sources/VocaMac/Services/ProfileManager.swift:33-39</code>).</li>
+<li><strong>All call sites traced.</strong> Every production consumer of
+profile resolution goes through <code>ProfileManager.resolve</code> with
+<code>profilesEnabled</code> correctly threaded —
+<code>AppState.swift:891</code> (menu-bar language override, itself
+gated by an outer <code>guard profilesEnabled</code>),
+<code>:1074</code> (dictation capture, feeds
+<code>capturedProfile</code> → <code>resolvedProfile</code> → the
+post-ASR pipeline at <code>:1284</code>), and <code>:1425</code>
+(Command Mode language). None reads <code>store.profiles</code> or
+<code>store.defaultProfile()</code> directly; there is no alternate path
+into <code>defaultProfile()</code> that bypasses the new guard.</li>
+<li><strong><code>Profile.makeDefault()</code> is genuinely pristine and
+matches Epic-2 stock</strong>: <code>promptOverride: ""</code>,
+<code>postProcessEnabled: true</code>,
+<code>contextCaptureEnabled: false</code>,
+<code>bundleIdentifiers: []</code>, <code>language: nil</code>
+(<code>Profile.swift:67-77</code>) — the <code>nil</code> language falls
+back to <code>AppState.selectedLanguage</code>, which is exactly Epic
+2’s (pre-Profiles, pre-8.2) behavior, not a new user-visible
+default.</li>
+<li><strong>Tests assert full-struct equality</strong>, not single
+fields: <code>XCTAssertEqual(resolved, Profile.makeDefault())</code> and
+<code>XCTAssertEqual(resolved, edited)</code> — both meaningful because
+<code>editedDefault()</code> shares
+<code>id</code>/<code>bundleIdentifiers: []</code>/<code>language: nil</code>
+with <code>makeDefault()</code>, so the only fields that can make the
+disabled-path assertion pass are the ones the bug leaked
+(<code>promptOverride</code>, <code>postProcessEnabled</code>,
+<code>contextCaptureEnabled</code>).</li>
+<li><strong>No regression on the enabled path</strong>: the enabled
+branch’s logic (<code>nil</code> bundle id →
+<code>defaultProfile()</code>; match → bound profile; no match →
+<code>defaultProfile()</code>) is byte-for-byte unchanged, and
+<code>testProfilesEnabledStillUsesTheEditedDefaultProfile</code> pins it
+against the same edited fixture, covering both the nil and
+non-matching-bundle-id routes.</li>
+<li><strong><code>swift test --filter ProfileManagerTests</code></strong>:
+9/9 passed, 0 failures.</li>
+</ul>
+<h3 id="findings">Findings</h3>
+<p>None — no BLOCKER, MAJOR, or MINOR findings. Scope was held exactly
+to the two stated files.</p>
+</body>
+</html>

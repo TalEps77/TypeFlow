@@ -172,12 +172,43 @@ final class PostProcessRequestBuilderTests: XCTestCase {
         XCTAssertNotNil(request.httpBody)
     }
 
-    func testRequestTargetsOnlyTheConfiguredLoopbackHost() throws {
-        // NFR-1: the app must keep working with no internet route, which it can
-        // only do if nothing here reaches past the configured endpoint.
-        let url = try XCTUnwrap(PostProcessRequestBuilder.chatCompletionsURL(baseURL: "http://localhost:1234"))
-        XCTAssertEqual(url.host, "localhost")
-        XCTAssertEqual(url.port, 1234)
+    // MARK: - Loopback predicate (Story 9.2)
+
+    func testLoopbackHostsAreAccepted() {
+        for host in ["localhost", "LocalHost", "127.0.0.1", "127.0.0.2", "127.255.255.254", "::1", "[::1]"] {
+            XCTAssertTrue(PostProcessRequestBuilder.isLoopback(host: host), "\(host) is loopback")
+        }
+    }
+
+    func testNonLoopbackHostsAreRejected() {
+        // `127.example.com` and `1270.0.0.1` are the cases a string match on
+        // "127." would wave through; `128.0.0.1` is the /8 boundary.
+        for host in [
+            "192.168.1.10",
+            "evil.example.com",
+            "127.example.com",
+            "1270.0.0.1",
+            "128.0.0.1",
+            "126.255.255.255",
+            "localhost.evil.com",
+            "127.0.0",
+            "",
+            // `URL.host` percent-decodes, so `localhost%20` arrives here as
+            // "localhost " while the wire authority keeps the escape. The
+            // predicate matches verbatim rather than trimming (MINOR-5).
+            "localhost ",
+            " 127.0.0.1"
+        ] {
+            XCTAssertFalse(PostProcessRequestBuilder.isLoopback(host: host), "\(host) is not loopback")
+        }
+    }
+
+    func testLoopbackCheckReadsTheHostOfAResolvedEndpoint() throws {
+        let loopback = try XCTUnwrap(PostProcessRequestBuilder.chatCompletionsURL(baseURL: "http://localhost:1234"))
+        XCTAssertTrue(PostProcessRequestBuilder.isLoopback(url: loopback))
+
+        let remote = try XCTUnwrap(PostProcessRequestBuilder.chatCompletionsURL(baseURL: "http://evil.example.com"))
+        XCTAssertFalse(PostProcessRequestBuilder.isLoopback(url: remote))
     }
 }
 
@@ -638,6 +669,259 @@ final class PostProcessServiceTransportTests: XCTestCase {
 
         XCTAssertEqual(result.failureError, .timedOut(1.0))
         XCTAssertLessThan(elapsed, 2.0, "the outer Task deadline must cut the wait close to the timeout")
+    }
+
+    // MARK: - Loopback enforcement at the service boundary (Story 9.2)
+
+    /// Every accepted host must actually reach the transport — otherwise the
+    /// reject assertions below would pass for a service that never sends
+    /// anything at all. All three entry points are driven, so inverting any one
+    /// of the three guards fails the suite (MEDIUM-3).
+    func testLoopbackEndpointsReachTheTransport() async {
+        for host in ["localhost", "127.0.0.1", "127.0.0.2", "[::1]"] {
+            RecordingURLProtocol.reset()
+            let service = PostProcessService(session: RecordingURLProtocol.session())
+            let configuration = PostProcessConfiguration(baseURL: "http://\(host):1234", timeout: 5)
+
+            _ = await service.clean(text: "שלום עולם", systemPrompt: "s", configuration: configuration)
+            XCTAssertEqual(RecordingURLProtocol.requestCount, 1, "clean should have contacted \(host)")
+
+            _ = await service.command(selection: "שלום עולם", instruction: "תקן", configuration: configuration)
+            XCTAssertEqual(RecordingURLProtocol.requestCount, 2, "command should have contacted \(host)")
+
+            _ = await service.testConnection(configuration: configuration)
+            XCTAssertEqual(RecordingURLProtocol.requestCount, 3, "testConnection should have contacted \(host)")
+        }
+    }
+
+    /// AC 9.2-2/3: a non-loopback endpoint is refused before a request is
+    /// built, so nothing whatsoever reaches URLSession.
+    func testNonLoopbackEndpointsNeverReachTheTransport() async {
+        for host in ["192.168.1.10", "evil.example.com"] {
+            let baseURL = "http://\(host):1234"
+
+            RecordingURLProtocol.reset()
+            let service = PostProcessService(session: RecordingURLProtocol.session())
+            let configuration = PostProcessConfiguration(baseURL: baseURL, timeout: 5)
+
+            let cleaned = await service.clean(text: "שלום עולם", systemPrompt: "s", configuration: configuration)
+            let commanded = await service.command(selection: "שלום", instruction: "תקן", configuration: configuration)
+            let tested = await service.testConnection(configuration: configuration)
+
+            XCTAssertEqual(cleaned.failureError, .invalidEndpoint(baseURL), "clean must refuse \(host)")
+            XCTAssertEqual(commanded.failureError, .invalidEndpoint(baseURL), "command must refuse \(host)")
+            XCTAssertEqual(tested.failureError, .invalidEndpoint(baseURL), "testConnection must refuse \(host)")
+            XCTAssertEqual(RecordingURLProtocol.requestCount, 0, "nothing may leave for \(host)")
+        }
+    }
+
+    // MARK: - Redirects (Story 9.2, MAJOR-1)
+
+    /// The loopback guard runs once, on the configured endpoint. A malicious or
+    /// compromised process owning that local port could answer `307` and have
+    /// URLSession re-POST the whole transcript to whatever `Location` names —
+    /// the guard never sees the second host. Both listeners here are on
+    /// loopback because a test cannot bind a public address, but "the redirect
+    /// target is a different server that must receive nothing" is exactly the
+    /// property under test; substitute a public host and this is exfiltration.
+    func testARedirectFromTheConfiguredEndpointIsNeverFollowed() async throws {
+        let completion = #"{"model":"m","choices":[{"message":{"role":"assistant","content":"שלום עולם."},"finish_reason":"stop"}]}"#
+        // Answers a *valid* cleaned transcript, so a followed redirect would
+        // make `clean` succeed — a loud, unmistakable failure of this test.
+        let target = try XCTUnwrap(
+            StubHTTPListener(
+                response: "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(completion.utf8.count)\r\nConnection: close\r\n\r\n" + completion
+            ),
+            "could not bind the redirect-target listener"
+        )
+        let redirector = try XCTUnwrap(
+            StubHTTPListener(
+                response: "HTTP/1.1 307 Temporary Redirect\r\nLocation: http://127.0.0.1:\(target.port)/v1/chat/completions\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            ),
+            "could not bind the redirecting listener"
+        )
+
+        let service = PostProcessService()
+        let configuration = PostProcessConfiguration(baseURL: "http://127.0.0.1:\(redirector.port)", timeout: 5)
+
+        let result = await service.clean(text: "שלום עולם", systemPrompt: "s", configuration: configuration)
+
+        XCTAssertTrue(target.requests.isEmpty, "the transcript must never reach the redirect target")
+        XCTAssertEqual(result.failureError, .httpStatus(307), "an unfollowed redirect is a failure, so the pipeline keeps the raw transcript")
+        XCTAssertEqual(redirector.requests.count, 1, "sanity: the configured loopback endpoint was contacted")
+        XCTAssertTrue(
+            redirector.requests.first?.contains("שלום עולם") == true,
+            "sanity: the body this test proves does not get forwarded was in fact sent to the configured endpoint"
+        )
+    }
+}
+
+// MARK: - Recording transport (Story 9.2)
+
+/// Answers every request locally and counts the ones that actually reached
+/// URLSession, so "the endpoint was contacted" and "nothing left the app" are
+/// both directly assertable without opening a socket.
+private final class RecordingURLProtocol: URLProtocol {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var count = 0
+
+    static var requestCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    static func reset() {
+        lock.lock()
+        count = 0
+        lock.unlock()
+    }
+
+    static func session() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RecordingURLProtocol.self]
+        return URLSession(configuration: configuration)
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        // `startLoading` runs exactly once per request that URLSession decided
+        // to issue, which is what "a request left the service" means here.
+        Self.lock.lock()
+        Self.count += 1
+        Self.lock.unlock()
+
+        guard let url = request.url,
+              let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil) else {
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
+        let body = Data(#"{"model":"m","choices":[{"message":{"role":"assistant","content":"שלום עולם."},"finish_reason":"stop"}]}"#.utf8)
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+// MARK: - Local canned-response socket (Story 9.2, MAJOR-1)
+
+/// A loopback TCP listener that answers every connection with one canned HTTP
+/// response and records the raw bytes it was sent. Two of these reproduce the
+/// redirect scenario end to end against the real production `URLSession`,
+/// which a `URLProtocol` stub cannot do — URLSession's own redirect handling
+/// is the thing under test.
+private final class StubHTTPListener: @unchecked Sendable {
+
+    /// Shared with the accept thread so the listener itself stays deallocatable
+    /// (its `deinit` closes the socket, which is what ends that thread).
+    private final class Log: @unchecked Sendable {
+        private let lock = NSLock()
+        private var entries: [String] = []
+
+        func append(_ entry: String) {
+            lock.lock()
+            entries.append(entry)
+            lock.unlock()
+        }
+
+        var all: [String] {
+            lock.lock()
+            defer { lock.unlock() }
+            return entries
+        }
+    }
+
+    let port: UInt16
+    private let fd: Int32
+    private let log = Log()
+
+    var requests: [String] { log.all }
+
+    init?(response: String) {
+        let socketFD = socket(AF_INET, SOCK_STREAM, 0)
+        guard socketFD >= 0 else { return nil }
+
+        var reuse: Int32 = 1
+        setsockopt(socketFD, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
+
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+        addr.sin_port = 0 // ask the kernel for a free ephemeral port
+
+        let bindResult = withUnsafePointer(to: &addr) { pointer -> Int32 in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(socketFD, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        guard bindResult == 0, listen(socketFD, 4) == 0 else {
+            close(socketFD)
+            return nil
+        }
+
+        var boundAddr = sockaddr_in()
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let nameResult = withUnsafeMutablePointer(to: &boundAddr) { pointer -> Int32 in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                getsockname(socketFD, $0, &length)
+            }
+        }
+        guard nameResult == 0 else {
+            close(socketFD)
+            return nil
+        }
+
+        self.fd = socketFD
+        self.port = UInt16(bigEndian: boundAddr.sin_port)
+
+        let log = self.log
+        Thread.detachNewThread {
+            while true {
+                let client = accept(socketFD, nil, nil)
+                // `deinit` closes the listening socket, which is how this
+                // thread is told to stop.
+                guard client >= 0 else { return }
+
+                // Headers and body arrive in separate segments, so read until
+                // the peer goes quiet (the receive timeout below ends it) —
+                // a single recv, or one that stops on a short read, would
+                // capture the headers and miss the transcript.
+                var timeout = timeval(tv_sec: 0, tv_usec: 250_000)
+                setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+                // URLSession closes the connection as soon as it has decided
+                // not to follow a redirect, which can happen before the write
+                // below. Writing to a socket the peer already closed raises
+                // SIGPIPE, whose default disposition kills the whole xctest
+                // process (exit 141) rather than failing one test. This makes
+                // the write return EPIPE instead.
+                var noSIGPIPE: Int32 = 1
+                setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &noSIGPIPE, socklen_t(MemoryLayout<Int32>.size))
+                var received = Data()
+                var buffer = [UInt8](repeating: 0, count: 4096)
+                while true {
+                    let count = recv(client, &buffer, buffer.count, 0)
+                    guard count > 0 else { break }
+                    received.append(contentsOf: buffer[0..<count])
+                }
+                log.append(String(decoding: received, as: UTF8.self))
+
+                let bytes = Array(response.utf8)
+                _ = bytes.withUnsafeBytes { raw in
+                    Darwin.send(client, raw.baseAddress, raw.count, 0)
+                }
+                close(client)
+            }
+        }
+    }
+
+    deinit {
+        close(fd)
     }
 }
 

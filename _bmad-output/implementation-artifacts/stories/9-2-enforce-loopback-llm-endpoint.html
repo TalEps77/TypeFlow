@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Story 9.2: Enforce a loopback-only LLM endpoint</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <style type="text/css">:root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--bd:#e0e0e0;--acc:#b3261e;--ok:#1b6e3c;--warn:#8a5a00;--code:#f6f6f6}
+@media(prefers-color-scheme:dark){:root{--bg:#151517;--fg:#e8e8e8;--mut:#a0a0a0;--bd:#333;--acc:#ff6b5e;--ok:#5fd08a;--warn:#e0aa4a;--code:#1f1f22}}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;max-width:1180px;margin:0 auto;padding:2.5rem 1.5rem}
+h1{font-size:1.9rem;border-bottom:3px solid var(--acc);padding-bottom:.4rem;margin-bottom:.3rem}
+h2{font-size:1.35rem;margin-top:2.4rem;border-bottom:1px solid var(--bd);padding-bottom:.3rem}
+h3{font-size:1.1rem;margin-top:1.8rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+table{border-collapse:collapse;width:100%;margin:1.2rem 0;font-size:.83rem;display:block;overflow-x:auto}
+th,td{border:1px solid var(--bd);padding:.5rem .6rem;text-align:left;vertical-align:top}
+th{background:var(--code);font-weight:600}
+tr:nth-child(even) td{background:color-mix(in srgb,var(--code) 45%,transparent)}
+code{background:var(--code);padding:.1rem .3rem;border-radius:3px;font-size:.86em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:var(--code);padding:1rem;border-radius:6px;overflow-x:auto}
+blockquote{border-left:3px solid var(--acc);margin-left:0;padding-left:1rem;color:var(--mut)}
+hr{border:none;border-top:1px solid var(--bd);margin:2.5rem 0}
+strong{font-weight:650}
+ol,ul{padding-left:1.4rem}
+li{margin:.35rem 0}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Story 9.2: Enforce a loopback-only LLM endpoint</h1>
+</header>
+<h1 id="story-9.2-enforce-a-loopback-only-llm-endpoint">Story 9.2:
+Enforce a loopback-only LLM endpoint</h1>
+<p>Status: done</p>
+<!-- Remediation story. Source: adversarial acceptance audit, 2026-08-22.
+Violates Epic 2 AC ("it targets only the configured loopback endpoint" —
+epics.md:280-282, Story 2.2) and NFR-1 ("Offline-first — only loopback
+network traffic" — epics.md:60). -->
+<h2 id="story">Story</h2>
+<p>As a user relying on TypeFlow’s offline-first guarantee, I want the
+app to refuse to send my transcript to any non-loopback host, So that a
+mistyped or malicious endpoint can never exfiltrate what I dictate.</p>
+<h2 id="context-defect">Context / Defect</h2>
+<p>Epic 2’s AC for <code>PostProcessService</code> states: “it targets
+only the configured loopback endpoint, and the app remains fully
+functional with no internet route” (epics.md:280-282). Nothing in the
+code enforces this.</p>
+<p><code>PostProcessRequestBuilder.endpointURL(baseURL:path:)</code>
+(<code>Sources/VocaMac/Services/PostProcessService.swift:156-170</code>)
+validates only that the string parses to a <code>URL</code> with a
+scheme and a host — any host, including a public one.
+<code>PostProcessService._clean</code>, <code>_command</code>, and
+<code>testConnection</code> (same file, ~lines 737-876) all build their
+request off that URL with no further check, then hand it straight to
+<code>URLSession</code>. If the user’s <code>postProcessBaseURL</code>
+(<code>AppState.swift:133</code>, default
+<code>http://localhost:1234</code> from
+<code>PostProcessSettings.Default.baseURL</code>) is ever set to a
+non-loopback host — by mistake, by a bad paste, or by something that
+edits the setting programmatically — every transcript for post-
+processing and every Command Mode instruction+selection goes out over
+the network with zero resistance.</p>
+<p>The only existing loopback awareness is cosmetic:
+<code>PostProcessSettingsTab .isEndpointLoopback</code>
+(<code>Sources/VocaMac/Views/PostProcessSettingsTab.swift: 20-27</code>)
+shows an orange warning label when the host isn’t
+<code>localhost</code>/<code>127.0.0.1</code>/<code>::1</code> — “a
+warning rather than a hard block” per its own doc comment — and does not
+stop the request. It also only matches the literal string
+<code>127.0.0.1</code>, not the full <code>127.0.0.0/8</code> loopback
+range.</p>
+<p>The audit found the AC-named test tautological: it exercises the URL
+building/parsing logic without ever asserting that a non-loopback host
+is rejected before a network call is attempted.</p>
+<h2 id="acceptance-criteria">Acceptance Criteria</h2>
+<ol type="1">
+<li>A service-boundary check runs before any HTTP request leaves
+<code>PostProcessService</code> (<code>_clean</code>,
+<code>_command</code>, <code>testConnection</code>): the configured host
+must resolve as loopback — <code>localhost</code>, the
+<code>127.0.0.0/8</code> range (not just the literal
+<code>127.0.0.1</code>), or <code>::1</code>.</li>
+<li>When the host is non-loopback, the request is never issued (no call
+reaches <code>URLSession</code>/the injected transport), and the caller
+receives the existing transparent-degrade path —
+i.e. <code>_clean</code> behaves exactly like any other rejection today:
+the pipeline falls back to the raw transcript (AD-2), with no
+modal/dialog. <code>_command</code> returns a
+<code>PostProcessError</code> the same way it does for its other
+rejections (Command Mode’s abort-and-change-nothing behavior, AD-4) — do
+not invent new error-handling paths at call sites; reuse
+<code>PostProcessError</code>.</li>
+<li>A unit test using a mock/injected <code>URLSession</code> (or a fake
+transport, per whatever <code>PostProcessServiceTests.swift</code>
+already uses to avoid real sockets — see its loopback <code>TCP</code>
+listener helper) asserts <strong>zero</strong> requests are issued for a
+non-loopback <code>baseURL</code>.</li>
+<li>The tautological AC-2.2-6 test is replaced with real accept/reject
+cases: <code>http://localhost:1234</code>,
+<code>http://127.0.0.1:1234</code>, and <code>http://[::1]:1234</code>
+are accepted (request is attempted);
+<code>http:// 192.168.1.10:1234</code> and
+<code>http://evil.example.com</code> are refused (request is never
+attempted). Include at least one case elsewhere in
+<code>127.0.0.0/8</code> (e.g. <code>http://127.0.0.2:1234</code>) to
+prove the check isn’t hardcoded to the single literal address.</li>
+<li>Full suite green (<code>swift test</code>).</li>
+</ol>
+<h2 id="tasks-subtasks">Tasks / Subtasks</h2>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" />Task 1 — Loopback
+predicate (AC: 1, 4)</label>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" />Add a pure, testable
+loopback check — e.g.
+<code>PostProcessRequestBuilder.isLoopback(host: String) -&gt; Bool</code>
+(or a module-level function/enum case near <code>endpointURL</code>,
+matching this file’s existing “pure functions live in
+<code>PostProcessRequestBuilder</code>/<code>PostProcessResponseValidator</code>”
+pattern so it stays unit-testable with no network per NFR-6). Must
+accept <code>localhost</code>, any <code>127.x.x.x</code> (the full
+<code>127.0.0.0/8</code> block — parse the first octet, don’t
+string-match <code>"127.0.0.1"</code> only), and <code>::1</code>;
+reject everything else, case-insensitively on the host
+string.</label></li>
+<li><label><input type="checkbox" checked="" />Consider whether
+<code>PostProcessSettingsTab.isEndpointLoopback</code>
+(<code>PostProcessSettingsTab.swift:20-27</code>) should now call the
+same predicate instead of carrying its own narrower copy — smaller
+surface to keep in sync, and fixes the <code>127.0.0.0/8</code> gap
+there too. Not required by the ACs above, but do it if it’s a small
+diff; otherwise leave the UI file alone and note it.</label></li>
+</ul></li>
+<li><label><input type="checkbox" checked="" />Task 2 — Enforce at the
+service boundary (AC: 1, 2)</label>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" />In
+<code>PostProcessService._clean</code> and <code>_command</code>
+(<code>PostProcessService.swift:737, 789</code>), after resolving
+<code>url</code> via
+<code>PostProcessRequestBuilder.chatCompletionsURL(baseURL:)</code> and
+before constructing/sending the request, check the resolved URL’s host
+against the loopback predicate. On failure, return
+<code>.failure(.invalidEndpoint(configuration.baseURL))</code> (the
+existing error case already used for an unparseable endpoint at
+<code>PostProcessService.swift:748, 800</code> — reuse it rather than
+adding a new <code>PostProcessError</code> case, since “not loopback”
+and “not a valid endpoint” are both “this endpoint cannot be used” from
+the caller’s perspective).</label></li>
+<li><label><input type="checkbox" checked="" />Apply the same guard in
+<code>testConnection</code>
+(<code>PostProcessService.swift:842-876</code>) so “Test Connection” in
+Settings reports the same rejection instead of silently attempting a
+real network call.</label></li>
+<li><label><input type="checkbox" checked="" />Confirm no request is
+constructed/sent when the guard fires — the check must come before the
+<code>send(request, ...)</code> call, not after.</label></li>
+</ul></li>
+<li><label><input type="checkbox" checked="" />Task 3 — Tests (AC: 3,
+4)</label>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" />In
+<code>Tests/VocaMacTests/PostProcessServiceTests.swift</code>, find and
+replace the existing loopback/AC-2.2-6 test (search for “loopback” —
+there is already a loopback TCP listener helper near line 646 for other
+tests in this file; reuse its pattern for the “accepted” cases so a
+genuine local listener answers, proving the request was actually
+attempted).</label></li>
+<li><label><input type="checkbox" checked="" />Add explicit accept
+cases: <code>localhost</code>, <code>127.0.0.1</code>,
+<code>127.0.0.2</code>, <code>[::1]</code> (all pointed at the test’s
+loopback listener or a stub that proves a request reached the
+transport).</label></li>
+<li><label><input type="checkbox" checked="" />Add explicit reject
+cases: <code>192.168.1.10</code>, <code>evil.example.com</code> — assert
+<code>.failure(.invalidEndpoint(...))</code> and that the mock transport
+/ listener saw <strong>zero</strong> connections.</label></li>
+</ul></li>
+<li><label><input type="checkbox" checked="" />Task 4 — Full suite (AC:
+5)</label>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" /><code>swift test</code>
+green.</label></li>
+</ul></li>
+</ul>
+<h2 id="dev-notes">Dev Notes</h2>
+<ul>
+<li>Repo is Swift/SwiftPM (Xcode 26.6 installed); baseline 784 tests
+green.</li>
+<li><code>PostProcessConfiguration.baseURL</code>
+(<code>Sources/VocaMac/Models/ PostProcessSettings.swift:99-116</code>)
+is the single source of truth for the configured endpoint; it flows into
+<code>PostProcessService</code> per-call (not held on the service), per
+the existing doc comment there.</li>
+<li><code>PostProcessRequestBuilder.endpointURL</code> already does host
+parsing via <code>URL(string:)?.host</code>
+(<code>PostProcessService.swift:166</code>) — reuse that parsed
+<code>URL</code>’s <code>.host</code> for the loopback check rather than
+re-parsing the raw string a second time.</li>
+<li>Do not touch <code>PostProcessResponseValidator</code> or
+<code>PostProcessCommandValidator</code> — this defect is entirely at
+the request-issuing boundary, not response validation.</li>
+<li><code>PostProcessSettingsTab.isEndpointLoopback</code> is a UI-only
+cosmetic warning today (its own doc comment says so) — leave its
+behavior (warn, don’t block) as-is in the UI; the enforcement being
+added here is at the service layer, which is the actual network boundary
+(AD-6).</li>
+<li>No commits by the dev agent.</li>
+</ul>
+<h3 id="project-structure-notes">Project Structure Notes</h3>
+<ul>
+<li>Primary changes:
+<code>Sources/VocaMac/Services/PostProcessService.swift</code>
+(predicate + two/three call sites) and
+<code>Tests/VocaMacTests/PostProcessServiceTests.swift</code>.
+Optionally
+<code>Sources/VocaMac/Views/PostProcessSettingsTab.swift</code> if
+reusing the new predicate there (small diff only).</li>
+</ul>
+<h3 id="references">References</h3>
+<ul>
+<li>[Source: Sources/VocaMac/Services/PostProcessService.swift:140-244,
+709-923]</li>
+<li>[Source:
+Sources/VocaMac/Views/PostProcessSettingsTab.swift:20-27]</li>
+<li>[Source:
+Sources/VocaMac/Models/PostProcessSettings.swift:99-116]</li>
+<li>[Source: Tests/VocaMacTests/PostProcessServiceTests.swift:646
+(existing loopback listener helper)]</li>
+<li>[Source: _bmad-output/planning-artifacts/epics.md:60, 280-288
+(NFR-1; Epic 2, Story 2.2 AC)]</li>
+</ul>
+<h2 id="dev-agent-record">Dev Agent Record</h2>
+<h3 id="agent-model-used">Agent Model Used</h3>
+<p>claude-opus-5[1m] (BMAD dev agent, <code>bmad-build</code>
+step-03)</p>
+<h3 id="debug-log-references">Debug Log References</h3>
+<ul>
+<li><code>swift build --build-tests</code> — clean, no warnings
+introduced.</li>
+<li><code>swift test --filter "testLoopback|testNonLoopback"</code> — 5
+new tests ran and passed (confirmed by name, so none is silently
+unregistered).</li>
+<li><code>swift test</code> — 794 tests, 1 skipped, 0 failures.</li>
+</ul>
+<p>Review remediation pass (2026-08-22):</p>
+<ul>
+<li><code>swift build --build-tests</code> — clean, no new
+warnings.</li>
+<li><strong>MINOR-4</strong> — the working filter is
+<code>swift test --filter "PostProcessRequestBuilderTests|PostProcessServiceTransportTests"</code>.
+There is no <code>PostProcessServiceTests</code> <strong>class</strong>
+(only a file of that name), so filtering on it runs zero tests and still
+exits 0. Post-remediation: <strong>26 tests, 0 failures</strong> in
+those two classes.</li>
+<li>Mutation checks (each reverted immediately afterward):
+<ul>
+<li><code>send</code> without the delegate → redirect test fails, and
+<code>clean</code> returns success from the redirect target.</li>
+<li><code>_command</code> / <code>testConnection</code> guards inverted
+→ accept test fails on both.</li>
+</ul></li>
+<li><code>swift test</code> — <strong>796 tests, 1 skipped, 0
+failures.</strong> (794 → 796: +1 for the new redirect test, +1 from a
+sibling story agent working the same tree.)</li>
+</ul>
+<h3 id="completion-notes-list">Completion Notes List</h3>
+<ul>
+<li><strong>AC 1</strong> —
+<code>PostProcessRequestBuilder.isLoopback(host:)</code> is a pure
+predicate living next to <code>endpointURL</code>, matching the file’s
+“pure functions are unit-testable with no network” pattern (NFR-6). It
+lowercases, strips the brackets Foundation may keep around an IPv6
+literal, accepts <code>localhost</code> and <code>::1</code>, and
+otherwise <em>parses</em> the dotted quad — four ASCII-numeric octets
+each ≤ 255, first octet 127 — so the whole <code>127.0.0.0/8</code>
+block passes while <code>127.example.com</code>,
+<code>1270.0.0.1</code>, and <code>128.0.0.1</code> do not. A four-line
+<code>isLoopback(url:)</code> overload keeps the three call sites to one
+line each.</li>
+<li><strong>AC 2</strong> — The guard sits immediately after the
+<code>chatCompletionsURL</code> resolution and before the
+body/<code>URLRequest</code> is built in <code>_clean</code>,
+<code>_command</code>, and <code>testConnection</code>, and returns the
+pre-existing <code>.invalidEndpoint(configuration.baseURL)</code>. No
+new <code>PostProcessError</code> case and no new call-site handling:
+<code>_clean</code> degrades to the raw transcript exactly as it does
+for an unparseable endpoint (AD-2), <code>_command</code> aborts and
+changes nothing (AD-4). <code>_clean</code>/<code>_command</code> log a
+one-line warning on their existing channels (<code>.postProcess</code> /
+<code>.commandMode</code>), matching how other rejections are logged;
+<code>testConnection</code> has no logging today, so none was
+added.</li>
+<li><strong>AC 3/4</strong> — The tautological
+<code>testRequestTargetsOnlyTheConfiguredLoopbackHost</code> is gone.
+Replacing it: three predicate tests plus two service-boundary tests
+driven by a new <code>RecordingURLProtocol</code> injected via
+<code>PostProcessService(session:)</code>. It counts requests in
+<code>startLoading()</code>, which runs exactly once per request
+URLSession decided to issue — a stricter signal than
+<code>canInit</code>, which can fire more than once.
+<code>localhost</code>, <code>127.0.0.1</code>, <code>127.0.0.2</code>,
+and <code>[::1]</code> each record exactly 1 request;
+<code>192.168.1.10</code> and <code>evil.example.com</code> record
+<strong>0</strong> across all three entry points and return
+<code>.invalidEndpoint</code>. The accept half is what keeps the reject
+half honest — a service that sent nothing at all would fail it.</li>
+<li><strong>Task 1 optional item — done.</strong>
+<code>PostProcessSettingsTab.isEndpointLoopback</code> now delegates to
+the shared predicate (4 lines swapped), which removes the duplicate and
+fixes its <code>127.0.0.0/8</code> gap. Its behavior is unchanged: still
+a warning label, still not a block, still returns “loopback” for an
+unparseable URL. The enforcement is at the service layer, which is the
+real network boundary (AD-6).</li>
+<li><strong>Test count</strong> — baseline 784; this story removes 1
+test and adds 5. The suite reports 794 because sibling story agents
+(9-1/9-3/9-4) were adding tests in the same working tree concurrently. 0
+failures.</li>
+<li>No <code>.html</code> companion was generated for this story: no
+story in <code>_bmad-output/implementation-artifacts/stories/</code> has
+one, and the wrap-up (close-story) step owns that regeneration.</li>
+<li>No commits made, per the story’s Dev Notes.</li>
+</ul>
+<h3 id="file-list">File List</h3>
+<ul>
+<li><code>Sources/VocaMac/Services/PostProcessService.swift</code> —
+added <code>PostProcessRequestBuilder.isLoopback(host:)</code> /
+<code>isLoopback(url:)</code> (after <code>endpointURL</code>); added
+the loopback guard in <code>_clean</code>, <code>_command</code>, and
+<code>testConnection</code>. <em>Review pass:</em> added the
+<code>RedirectBlocker</code> <code>URLSessionTaskDelegate</code>,
+attached it per task in <code>send</code>, added the <code>3xx</code> →
+<code>.httpStatus</code> conversion, and dropped the whitespace trim
+from <code>isLoopback(host:)</code>. <em>Adversarial pass:</em> set
+<code>configuration.connectionProxyDictionary = [:]</code> in
+<code>init</code> so a system HTTP proxy/PAC cannot divert the POST body
+off-box (<code>:791-800</code>); added the missing refusal log line to
+the <code>testConnection</code> guard (<code>:928</code>); removed the
+redundant <code>3xx</code> guard in <code>send</code>
+(<code>:995-1002</code>) — every caller already rejects non-2xx with the
+identical <code>.httpStatus</code>, so it was unobservable and
+unpinnable.</li>
+<li><code>Sources/VocaMac/Views/PostProcessSettingsTab.swift</code> —
+<code>isEndpointLoopback</code> now calls the shared predicate instead
+of its own narrower copy. <em>Review pass:</em> the warning label and
+the doc comment now describe the enforced block and the degrade-to-raw
+consequence instead of claiming the app will send over the network.
+<em>Adversarial pass:</em> <code>isEndpointLoopback</code>
+(<code>:24-38</code>) now resolves via
+<code>PostProcessRequestBuilder.chatCompletionsURL</code> +
+<code>isLoopback(url:)</code> — exactly as the service does — instead of
+a bare <code>URL(string:)</code>, so a padded or
+<code>/v1</code>-suffixed non-loopback URL warns instead of reading as
+fine; an unresolvable string warns too, while an empty field stays
+silent because it falls back to the loopback default. Label advice
+corrected to <code>localhost</code>, <code>127.0.0.1</code>,
+<code>[::1]</code> (<code>:66</code>).</li>
+<li><code>Tests/VocaMacTests/PostProcessServiceTests.swift</code> —
+replaced <code>testRequestTargetsOnlyTheConfiguredLoopbackHost</code>
+with <code>testLoopbackHostsAreAccepted</code>,
+<code>testNonLoopbackHostsAreRejected</code>,
+<code>testLoopbackCheckReadsTheHostOfAResolvedEndpoint</code>,
+<code>testLoopbackEndpointsReachTheTransport</code>,
+<code>testNonLoopbackEndpointsNeverReachTheTransport</code>; added the
+<code>RecordingURLProtocol</code> test transport. <em>Review pass:</em>
+added <code>testARedirectFromTheConfiguredEndpointIsNeverFollowed</code>
+and the <code>StubHTTPListener</code> two-socket helper; extended
+<code>testLoopbackEndpointsReachTheTransport</code> to
+<code>command</code> + <code>testConnection</code>; added the
+whitespace-host reject cases. <em>Adversarial pass:</em>
+<code>StubHTTPListener</code> now sets <code>SO_NOSIGPIPE</code> on each
+accepted client socket (<code>:897-905</code>) — without it, URLSession
+closing the connection before the canned response is written raises
+<code>SIGPIPE</code>, which kills the whole <code>xctest</code> process
+(exit 141) instead of failing one test.</li>
+<li><code>_bmad-output/implementation-artifacts/sprint-status.yaml</code>
+— <code>9-2</code> → <code>review</code>.</li>
+</ul>
+<h2 id="change-log">Change Log</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Date</th>
+<th>Change</th>
+<th>By</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-08-22</td>
+<td>Loopback enforced at the <code>PostProcessService</code> request
+boundary (<code>_clean</code>, <code>_command</code>,
+<code>testConnection</code>) via a new parsed
+<code>127.0.0.0/8</code>-aware predicate; non-loopback endpoints now
+degrade transparently through the existing <code>.invalidEndpoint</code>
+path with zero requests issued. Tautological AC-2.2-6 test replaced with
+real accept/reject coverage. Status → review.</td>
+<td>Dev agent (claude-opus-5)</td>
+</tr>
+<tr>
+<td>2026-08-22</td>
+<td>Review remediation. <strong>MAJOR-1:</strong> HTTP redirects are now
+refused outright — a <code>RedirectBlocker</code> task delegate returns
+<code>nil</code> from <code>willPerformHTTPRedirection</code> and
+<code>send</code> turns any unfollowed <code>3xx</code> into
+<code>.httpStatus</code>, closing the hole where a <code>307</code> from
+the configured loopback port re-POSTed the whole transcript off-box;
+covered by a two-listener test that fails (and leaks) without the fix.
+<strong>MEDIUM-2:</strong> Settings copy and doc comment now state the
+endpoint is refused and post-processing degrades to the raw transcript.
+<strong>MEDIUM-3:</strong> accept-side coverage extended to
+<code>command</code> and <code>testConnection</code> — inverting either
+guard now fails the suite. <strong>MINOR-5:</strong> whitespace trim
+dropped from the loopback predicate, so <code>localhost%20</code> is
+refused. <strong>MINOR-4:</strong> no code change — the test classes are
+<code>PostProcessRequestBuilderTests</code> /
+<code>PostProcessServiceTransportTests</code>; there is no
+<code>PostProcessServiceTests</code> class, so that filter runs zero
+tests and exits 0. With MAJOR-1 closed, the NFR-1 claim stands. Status
+stays <code>review</code> for re-review.</td>
+<td>Dev agent (claude-opus-5)</td>
+</tr>
+<tr>
+<td>2026-08-22</td>
+<td>Post-approval adversarial findings closed: proxy, SIGPIPE, UI
+parity. <strong>BLOCKER — proxy diversion:</strong> the session never
+opted out of system proxy resolution, so an HTTP proxy or PAC script
+received the full transcript POST while the loopback guard saw only a
+<code>127.0.0.1</code> URL;
+<code>configuration.connectionProxyDictionary = [:]</code> now disables
+proxying for this session. Probe-confirmed both ways: with an explicit
+proxy configured the body (<code>SECRET-TRANSCRIPT</code>) reached the
+proxy and the origin got nothing; with <code>[:]</code> the proxy saw no
+new connection and the origin received the request. <strong>BLOCKER —
+SIGPIPE:</strong> <code>StubHTTPListener</code> wrote via
+<code>Darwin.send</code> with no <code>SO_NOSIGPIPE</code>, so
+URLSession dropping the connection first killed the entire
+<code>xctest</code> process (exit 141) rather than failing one test;
+<code>SO_NOSIGPIPE</code> is now set beside the existing
+<code>SO_RCVTIMEO</code>, and the redirect test ran 8/8 clean.
+<strong>MAJOR — UI/service disagreement:</strong>
+<code>isEndpointLoopback</code> parsed the raw string with
+<code>URL(string:)</code> while the service resolves through
+<code>PostProcessRequestBuilder</code>, so padded non-loopback URLs
+(<code>"  http://evil.example.com/v1  "</code>,
+<code>" http://10.0.0.5:1234 "</code>) were silently refused by the
+service with no UI warning — probe-confirmed
+<code>URL(string:).host</code> is <code>nil</code> for both while the
+builder resolves them to <code>evil.example.com</code> /
+<code>10.0.0.5</code>. The predicate now resolves exactly as the service
+does and treats an unresolvable URL as warn-worthy; the empty field
+still stays silent because it falls back to the loopback default. Label
+advice corrected from the wrong <code>127.x.x.x</code> / bare
+<code>::1</code> to <code>localhost</code>, <code>127.0.0.1</code>,
+<code>[::1]</code>. <strong>Advisories:</strong> added the missing
+refusal log line to the <code>testConnection</code> guard; deleted the
+redundant <code>3xx</code> guard in <code>send</code> rather than
+leaving it untested — all three callers already reject non-2xx with the
+identical <code>.httpStatus</code>, so no test could distinguish it.
+Suite 796 tests, 0 failures, 1 skipped. Status stays
+<code>review</code>.</td>
+<td>Dev agent (claude-opus-5)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="code-review">Code Review</h2>
+<p><strong>Reviewer:</strong> adversarial review agent (fresh context,
+nothing from the Dev Agent Record taken on trust) ·
+<strong>Date:</strong> 2026-08-22 · <strong>Model:</strong>
+claude-opus-5[1m]</p>
+<h3 id="verdict-changes-requested">Verdict: CHANGES REQUESTED</h3>
+<p>The predicate and the three guards are correct, well-placed, and
+survived a deliberate hunt for parser bypasses — I could not find a host
+string that the check accepts but that resolves off-box. Two things
+block sign-off anyway: the story’s own threat statement (“a mistyped or
+<strong>malicious</strong> endpoint can never exfiltrate what I
+dictate”) is still open through HTTP redirects, which I reproduced; and
+the Settings UI now tells the user the exact opposite of what the app
+does. The literal AC checklist is arguably satisfiable without fixing
+MAJOR-1, so it can be split into a follow-up — but this story must not
+be recorded as closing NFR-1 while it stands.</p>
+<h3 id="major">MAJOR</h3>
+<p><strong>MAJOR-1 — Redirects are followed to any host; the configured
+loopback server can bounce the transcript off-box.</strong>
+<code>PostProcessService.init</code> builds
+<code>URLSession(configuration:)</code> with <strong>no
+delegate</strong> (<code>PostProcessService.swift:747-767</code>) and
+<code>send(_:timeout:)</code> is a plain
+<code>session.data(for: request)</code>
+(<code>PostProcessService.swift:936-942</code>). Nothing implements
+<code>urlSession(_:task:willPerformHTTPRedirection:newRequest:completionHandler:)</code>
+and nothing inspects <code>Location</code>. Reproduced against that
+exact session config: a loopback server answering <code>307</code>
+re-POSTed the <strong>complete request body</strong> to the redirect
+target, and the loopback predicate never ran a second time — final URL
+was whatever <code>Location</code> named. Substitute a public host and
+the dictated transcript leaves the machine. No privilege is needed to
+mount this: any unprivileged local process that owns (or wins the race
+for) the configured high loopback port is the “malicious endpoint” the
+story names. 307/308 preserve the body; even 302 (which downgrades to
+GET) leaks liveness, headers, and the URL. Fix: a delegate whose
+redirect handler returns <code>nil</code>, or re-runs
+<code>isLoopback</code> on <code>newRequest.url</code>, plus a test
+asserting a 307 to a non-loopback host is not followed.</p>
+<h3 id="medium">MEDIUM</h3>
+<p><strong>MEDIUM-2 — The Settings UI now states the opposite of the
+enforced behavior.</strong> <code>PostProcessSettingsTab.swift:56</code>
+still reads “This endpoint is not on localhost — TypeFlow <strong>will
+send</strong> transcripts to it over the network,” and the doc comment
+at <code>:20-21</code> still says “a warning rather than a hard block.”
+Neither is true any more. A user pointing at a real LAN LLM
+(<code>http://192.168.1.50:1234</code> — an ordinary LM Studio setup)
+now gets a silent degrade-to-raw on every dictation with no explanation,
+and Test Connection reports
+<code>invalid endpoint: http://192.168.1.50:1234</code>
+(<code>PostProcessService.swift:57-58</code>), which names the wrong
+cause. This is a spec gap the story handed the dev (“leave its behavior
+as-is in the UI”), not dev disobedience — but shipping enforcement while
+the UI calls it a warning is worse than either alone. Update the copy
+and the comment to say <em>blocked</em>, and give the refusal a reason
+the user can act on.</p>
+<p><strong>MEDIUM-3 — Verification gap: the accept half only covers
+<code>_clean</code>.</strong>
+<code>testLoopbackEndpointsReachTheTransport</code>
+(<code>Tests/VocaMacTests/PostProcessServiceTests.swift:672-683</code>)
+calls only <code>service.clean(...)</code>.
+<code>testNonLoopbackEndpointsNeverReachTheTransport</code> covers all
+three entry points, but nothing proves <code>_command</code> or
+<code>testConnection</code> still <em>send</em> for a loopback host —
+invert either of those two guards and the suite stays green. The
+completion note’s argument (“the accept half is what keeps the reject
+half honest”) holds for <code>clean</code> only. Two added lines close
+it.</p>
+<h3 id="minor">MINOR</h3>
+<p><strong>MINOR-4 —
+<code>swift test --filter PostProcessServiceTests</code> runs zero tests
+and exits 0.</strong> No class carries that name; the file holds
+<code>PostProcessRequestBuilderTests</code> and
+<code>PostProcessServiceTransportTests</code>. The command emits
+“warning: No matching test cases were run” and still exits 0 — a
+green-looking run that verified nothing. Anyone re-verifying this story
+from the filename will be misled. Actual run:
+<code>swift test --filter "PostProcessRequestBuilderTests|PostProcessServiceTransportTests"</code>
+→ <strong>24 tests, 0 failures</strong>, all five new tests present by
+name. The Debug Log’s
+<code>--filter "testLoopback|testNonLoopback"</code> claim checks
+out.</p>
+<p><strong>MINOR-5 — The predicate trims whitespace off the host, which
+can only loosen it.</strong> <code>isLoopback(host:)</code> starts with
+<code>.trimmingCharacters(in: .whitespaces)</code>
+(<code>PostProcessService.swift:178</code>). <code>URL.host</code> is
+percent-<strong>decoded</strong>, so
+<code>http://localhost%20:1234</code> yields host
+<code>"localhost "</code> → trimmed → <strong>accepted</strong>, while
+the wire authority stays <code>localhost%20</code>. Not exploitable — I
+probed the decoded-vs-wire divergence specifically (<code>%00</code>
+truncation, <code>%31%32%37%2e%30%2e%30%2e%31</code>, U+3002 ideographic
+dot, backslash-authority) and every case lands fail-closed, because
+decoding can shorten a host but never graft a new authority onto it. The
+trim buys nothing and widens the accepted set for no reason; drop
+it.</p>
+<h3 id="low">LOW</h3>
+<p><strong>LOW-6 — Legitimate loopback spellings that are
+refused</strong> (all fail-<em>closed</em>, so safe; listing them so a
+future bug report isn’t mistaken for a regression):
+<code>localhost.</code> and <code>127.0.0.1.</code> (trailing root dot),
+<code>[::ffff:127.0.0.1]</code> (IPv4-mapped IPv6),
+<code>[0:0:0:0:0:0:0:1]</code> (expanded <code>::1</code>),
+<code>127.1</code> (short form), <code>0177.0.0.1</code> and
+<code>2130706433</code> (octal/decimal forms that BSD
+<code>inet_aton</code> does resolve to 127.0.0.1). <code>0.0.0.0</code>
+is also refused although macOS routes it to loopback. Refusing is the
+right direction in every case — worth one comment. Note also that AC 4’s
+<code>127.0.0.2</code> is unreachable on a stock macOS without
+<code>ifconfig lo0 alias 127.0.0.2</code>; the /8 check is still correct
+per RFC 1122, and the test only exercises the predicate/transport, so
+nothing is wrong here.</p>
+<p><strong>LOW-7 — Scheme is unvalidated.</strong>
+<code>endpointURL</code> requires only a non-nil scheme
+(<code>PostProcessService.swift:166</code>), so
+<code>ftp://127.0.0.1:1234</code> clears the loopback guard. Harmless in
+practice (URLSession errors out), but the guard would read better as
+scheme ∈ {http, https} <em>and</em> loopback.</p>
+<p><strong>LOW-8 — Pre-existing, out of scope.</strong>
+<code>endpointURL</code> string-concatenates the path, so a baseURL
+carrying a fragment or query yields
+<code>http://127.0.0.1:1234#x/v1/chat/completions</code> — the path is
+swallowed into the fragment and the request lands on <code>/</code>. Not
+introduced by this story.</p>
+<h3 id="verified-tried-to-break-these-and-could-not">Verified — tried to
+break these and could not</h3>
+<ul>
+<li><strong>Guard placement.</strong> <code>:785</code>,
+<code>:841</code>, <code>:889</code> all sit after URL resolution and
+before the body and <code>URLRequest</code> are built. Confirmed by
+reading, and independently by the zero-request assertion.</li>
+<li><strong>Userinfo tricks resolve correctly in both
+directions.</strong> <code>http://evil.example.com@127.0.0.1:1234</code>
+→ host <code>127.0.0.1</code>, accepted, and it genuinely connects to
+loopback. <code>http://127.0.0.1@evil.example.com:1234</code> → host
+<code>evil.example.com</code>, refused. Same for
+<code>user:pass@127.0.0.1</code>.</li>
+<li><strong>Parser bypasses.</strong> <code>LOCALHOST</code> accepted;
+<code>127.example.com</code>, <code>1270.0.0.1</code>,
+<code>128.0.0.1</code>, <code>126.255.255.255</code>,
+<code>localhost.evil.com</code>, <code>127.0.0.256</code>, and
+<code>localhost。evil.example.com</code> (U+3002, which Foundation
+normalizes to a real dot) all refused. <code>①27.0.0.1</code> normalizes
+to <code>127.0.0.1</code> and is accepted — correctly, it connects to
+loopback. <code>127.00.0.1</code> accepted, also correct.</li>
+<li><strong>No TOCTOU.</strong> <code>url</code> is resolved once,
+checked, and that same value is handed to
+<code>urlRequest(url:...)</code>; <code>configuration</code> is a value
+type and <code>baseURL</code> is never re-read between check and
+send.</li>
+<li><strong>No other egress in the service.</strong>
+<code>modelsURL</code> (<code>:152</code>) is dead code, called from
+nowhere. <code>UpdateChecker</code> is the only other
+<code>URLSession</code> user in <code>Sources/</code> and is
+deliberately internet-facing (out of scope).</li>
+<li><strong>Degrade-to-raw is real, not asserted.</strong>
+<code>_clean</code> failure →
+<code>Sources/VocaMac/Pipeline/Stages/PostProcessStage.swift:110-113</code>
+returns <code>StageResult(text: text, outcome: .failed(reason:))</code>
+— raw transcript, no modal (AD-2). <code>_command</code> failure →
+<code>Sources/VocaMac/Services/CommandModeCoordinator.swift:198-200</code>
+returns <code>.failure(.llm(error))</code> before anything is written to
+the document (AD-4).</li>
+<li><strong><code>RecordingURLProtocol</code> observes real
+behavior.</strong> It counts in <code>startLoading()</code>, which fires
+once per request URLSession actually issues — the right hook, and
+stricter than <code>canInit</code>.</li>
+</ul>
+<h3 id="ac-status">AC status</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>AC</th>
+<th>Status</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 — guard before any request in
+<code>_clean</code>/<code>_command</code>/<code>testConnection</code></td>
+<td>Met</td>
+<td>All three verified by reading and by test</td>
+</tr>
+<tr>
+<td>2 — no request issued; existing degrade paths reused</td>
+<td>Met</td>
+<td>Degrade-to-raw and command-abort traced to their call sites</td>
+</tr>
+<tr>
+<td>3 — zero requests asserted via injected transport</td>
+<td>Met</td>
+<td><code>RecordingURLProtocol</code>, counts in
+<code>startLoading()</code></td>
+</tr>
+<tr>
+<td>4 — tautological test replaced with accept/reject cases</td>
+<td>Met, thin</td>
+<td>See MEDIUM-3: accept side covers <code>clean</code> only</td>
+</tr>
+<tr>
+<td>5 — full suite green</td>
+<td>Met</td>
+<td>24/24 in the two relevant classes; see MINOR-4 on the filter
+name</td>
+</tr>
+<tr>
+<td>Story goal — “a malicious endpoint can never exfiltrate”</td>
+<td><strong>Not met</strong></td>
+<td>MAJOR-1, redirects</td>
+</tr>
+</tbody>
+</table>
+<h3 id="required-before-this-closes">Required before this closes</h3>
+<ol type="1">
+<li><label><input type="checkbox" checked="" />MAJOR-1 — block or
+re-check redirects, with a test. If deferred, open the follow-up story
+and drop the NFR-1 claim from this one’s Change Log.</label></li>
+<li><label><input type="checkbox" checked="" />MEDIUM-2 — UI copy and
+doc comment must match enforced behavior.</label></li>
+<li><label><input type="checkbox" checked="" />MEDIUM-3 — extend the
+accept test to <code>command</code> and
+<code>testConnection</code>.</label></li>
+<li><label><input type="checkbox" checked="" />MINOR-5 — drop the
+whitespace trim from the loopback predicate.</label></li>
+<li><label><input type="checkbox" checked="" />MINOR-4 — no code change;
+the correct filter is recorded in the Change Log and the Debug Log
+below.</label></li>
+</ol>
+<h3 id="review-remediation-2026-08-22">Review Remediation
+(2026-08-22)</h3>
+<p><strong>MAJOR-1 — redirects blocked outright.</strong>
+<code>RedirectBlocker</code>
+(<code>Sources/VocaMac/Services/PostProcessService.swift:753-766</code>)
+is a <code>URLSessionTaskDelegate</code> whose
+<code>willPerformHTTPRedirection</code> calls
+<code>completionHandler(nil)</code>. It is attached <strong>per
+task</strong> in <code>send</code>
+(<code>PostProcessService.swift:973</code>,
+<code>session.data(for:delegate:)</code>) rather than to the session, so
+an injected session gets the same rule as the built-in one
+(<code>redirectBlocker</code> is held at <code>:775</code>). The
+unfollowed <code>3xx</code> comes back as the response, and
+<code>send</code> (<code>PostProcessService.swift:986-991</code>)
+converts any <code>300...399</code> into
+<code>.failure(.httpStatus(code))</code> so no caller can mistake it for
+an answer — it lands on the existing degrade path (<code>_clean</code> →
+raw transcript, AD-2; <code>_command</code> → abort, AD-4). Fail-closed
+by design: LM Studio and every other OpenAI-compatible backend answer
+chat-completions directly, so nothing legitimate is refused.</p>
+<p><strong>MEDIUM-2 — Settings copy now matches enforcement.</strong>
+<code>PostProcessSettingsTab.swift:58</code> reads “This endpoint is not
+on localhost. TypeFlow never sends transcripts off this machine, so it
+will refuse to contact it — post-processing is skipped and your raw
+transcript is used. Use a loopback address (localhost, 127.x.x.x, or
+::1).” The doc comment at <code>:20-23</code> no longer claims “a
+warning rather than a hard block”; it states that the service enforces
+the block and that this label only explains it.</p>
+<p><strong>MEDIUM-3 — accept side now covers all three entry
+points.</strong> <code>testLoopbackEndpointsReachTheTransport</code>
+drives <code>clean</code>, <code>command</code>, and
+<code>testConnection</code> and asserts the running request count 1 → 2
+→ 3 per host.</p>
+<p><strong>MINOR-5 — trim dropped.</strong>
+<code>isLoopback(host:)</code>
+(<code>PostProcessService.swift:177-182</code>) matches the host
+verbatim (<code>.lowercased()</code> only); the reason the trim was
+wrong (percent-decoded <code>URL.host</code> vs. the wire authority) is
+now a doc comment, and <code>"localhost "</code> /
+<code>" 127.0.0.1"</code> are reject cases in
+<code>testNonLoopbackHostsAreRejected</code>.</p>
+<p><strong>Mutation-verified, not just green.</strong> Each new
+assertion was proven to fail against the unfixed code before being
+accepted:</p>
+<ul>
+<li>Reverting <code>send</code> to a bare
+<code>session.data(for: request)</code> →
+<code>testARedirectFromTheConfiguredEndpointIsNeverFollowed</code> fails
+on <em>both</em> “the transcript must never reach the redirect target”
+and a <code>nil</code> error — i.e. <code>clean</code>
+<strong>succeeded</strong> off-box. That is the reviewer’s exfiltration,
+reproduced and then closed.</li>
+<li>Inverting the <code>_command</code> guard and the
+<code>testConnection</code> guard →
+<code>testLoopbackEndpointsReachTheTransport</code> fails on both, for
+all four hosts.</li>
+</ul>
+<p><strong>Not done, deliberately.</strong> MEDIUM-2’s second half —
+“<code>invalid endpoint: http://192.168.1.50:1234</code> names the wrong
+cause” — would mean a new <code>PostProcessError</code> case or reworded
+<code>reason</code>, which the story’s AC 2 explicitly forbids (“do not
+invent new error-handling paths… reuse <code>PostProcessError</code>”).
+The Settings label now supplies the actionable explanation instead.
+Worth a follow-up if the Test Connection wording still reads wrong to
+the reviewer. LOW-6/7/8 remain open by the reviewer’s own assessment
+(all fail-closed or pre-existing).</p>
+<h3 id="re-review-2026-08-22">Re-review (2026-08-22)</h3>
+<p><strong>Reviewer:</strong> fresh adversarial reviewer (nothing in the
+Dev Agent Record or the Remediation section taken on trust; every claim
+re-derived from source, from independent probes written outside the
+repo, and from executed test runs) · <strong>Model:</strong>
+claude-opus-5[1m]</p>
+<h4 id="verdict-approved">Verdict: APPROVED</h4>
+<p>All five “Required before this closes” items are genuinely closed.
+MAJOR-1 in particular was re-verified against an <em>independent</em>
+reproduction rather than against the repo’s own test — the exfiltration
+was real, and it is now shut.</p>
+<h4 id="major-1-closed-independently-reproduced-both-ways">MAJOR-1 —
+closed, independently reproduced both ways</h4>
+<ul>
+<li><code>RedirectBlocker</code>
+(<code>PostProcessService.swift:753-765</code>) is a
+<code>URLSessionTaskDelegate</code> returning
+<code>completionHandler(nil)</code>; held at <code>:775</code>, passed
+<strong>per task</strong> at <code>:973</code>
+(<code>session.data(for:delegate:)</code>).</li>
+<li><strong>The delegate is on every network call, because there is
+exactly one.</strong> Grepping the whole file for <code>session.</code>,
+<code>dataTask</code>, <code>.data(</code>, <code>.bytes(</code>,
+<code>.upload(</code>, <code>.download(</code> yields a single call site
+— <code>:973</code>. All three entry points funnel through the one
+<code>send</code> at <code>:966</code> (<code>_clean</code>
+<code>:835</code>, <code>_command</code> <code>:890</code>,
+<code>testConnection</code> <code>:937</code>). There is no second path
+to miss.</li>
+<li><strong>No injected session bypasses it.</strong> The delegate rides
+the <em>call</em>, not the session, so any injected
+<code>URLSession</code> is covered by construction. Production never
+injects one: <code>PostProcessStage.swift:26</code>,
+<code>AppState.swift:440</code>, and
+<code>PostProcessSettingsTab.swift:18</code> all use
+<code>PostProcessService()</code>. Only tests pass a session.
+<code>data(for:delegate:)</code> needs macOS 12+; the package targets
+<code>.macOS(.v13)</code> (<code>Package.swift:9</code>).</li>
+<li><strong>Independent probe</strong> (standalone Swift, two loopback
+listeners, a session configured exactly like production, run outside the
+test suite): <em>without</em> the delegate a <code>307</code> and a
+<code>308</code> re-POST the complete body — a unique marker string was
+observed arriving at the redirect target. <em>With</em> the delegate the
+target received <strong>zero</strong> connections for <code>301</code>,
+<code>302</code>, <code>307</code>, and <code>308</code>, and the 3xx
+came back as the response with no error. So the prior reviewer’s
+exfiltration is confirmed real, and the fix closes it across all four
+codes — including <code>301</code>/<code>302</code>, which do not carry
+the body but did leak liveness, headers, and the URL.</li>
+</ul>
+<p>The <code>(300...399)</code> → <code>.httpStatus</code> conversion at
+<code>:989-991</code> is <strong>defense in depth, not
+load-bearing</strong>: all three consumers already reject anything
+outside <code>200...299</code> (<code>:456</code>, <code>:615</code>,
+<code>:941</code>) and produce the identical
+<code>.httpStatus(code)</code>. Harmless, and it introduces no
+regression for any existing caller or test.</p>
+<h4 id="the-307-test-is-rigorous-not-decorative">The 307 test is
+rigorous, not decorative</h4>
+<p><code>testARedirectFromTheConfiguredEndpointIsNeverFollowed</code>
+binds <strong>two real sockets</strong> on distinct ephemeral loopback
+ports, drives the real production <code>URLSession</code>, and asserts
+<code>target.requests.isEmpty</code> — zero bytes at the redirect
+target. Critically, it also asserts that the <em>redirector</em>
+received the request <strong>and that the transcript body was in
+it</strong>, which is what stops the zero-bytes assertion from passing
+vacuously had the helper failed to bind or its accept thread died. Run
+5× in isolation: stable, 0 failures.</p>
+<h4 id="the-other-four-items">The other four items</h4>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Item</th>
+<th>Status</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MEDIUM-2 — UI copy matches enforcement</td>
+<td>Closed</td>
+<td><code>PostProcessSettingsTab.swift:58</code> states the refusal, the
+degrade-to-raw consequence, and an actionable remedy; doc comment
+<code>:20-23</code> no longer claims “a warning rather than a hard
+block”</td>
+</tr>
+<tr>
+<td>MEDIUM-3 — accept side covers all three entry points</td>
+<td>Closed</td>
+<td><code>testLoopbackEndpointsReachTheTransport</code> drives
+<code>clean</code>→<code>command</code>→<code>testConnection</code>
+asserting 1→2→3 for each of four loopback hosts; inverting any one guard
+fails it</td>
+</tr>
+<tr>
+<td>MINOR-5 — trim dropped</td>
+<td>Closed</td>
+<td>Predicate matches verbatim (<code>:181-199</code>);
+<code>"localhost "</code> and <code>" 127.0.0.1"</code> are explicit
+reject cases</td>
+</tr>
+<tr>
+<td>MINOR-4 — correct filter recorded</td>
+<td>Closed</td>
+<td>Recorded in Change Log and Debug Log; see NIT-12 on the count</td>
+</tr>
+</tbody>
+</table>
+<h4 id="predicate-re-probed-in-the-dangerous-direction">Predicate
+re-probed in the dangerous direction</h4>
+<p>Independently ran the shipped predicate over 25 host spellings and
+resolved each accepted one through <code>getaddrinfo</code>.
+<strong>Every accepted host resolves to a loopback address; zero
+accepted-but-off-box cases.</strong> <code>127.000.000.001</code> and
+<code>127.0.0.0000000001</code> are accepted and do resolve to
+<code>127.0.0.1</code>; <code>127.0.0.256</code>,
+<code>1270.0.0.1</code>, <code>128.0.0.1</code>,
+<code>126.255.255.255</code>, <code>127.1</code>,
+<code>0177.0.0.1</code>, <code>2130706433</code>, <code>0.0.0.0</code>,
+<code>127..0.1</code>, and the trailing-dot forms are all refused.
+Fail-closed throughout.</p>
+<h4 id="test-runs">Test runs</h4>
+<ul>
+<li><code>swift test --filter "PostProcessRequestBuilderTests|PostProcessServiceTransportTests"</code>
+→ <strong>25 tests, 0 failures.</strong></li>
+<li><code>swift test</code> → <strong>796 tests, 1 skipped, 0
+failures</strong>, exit 0.</li>
+</ul>
+<h4 id="non-blocking-findings-new-none-gate-this-story">Non-blocking
+findings (new; none gate this story)</h4>
+<p><strong>NEW-LOW-9 — redirects are refused even
+loopback→loopback.</strong> Returning <code>nil</code> unconditionally
+also refuses a <em>local</em> redirect, e.g. a loopback reverse proxy
+that <code>301</code>s for path normalization in front of the LLM. That
+configuration would now hard-fail into a silent degrade-to-raw.
+Diagnosable — Test Connection reports <code>HTTP 301</code> — and the
+prior review explicitly sanctioned <code>nil</code> as an acceptable
+fix, so this is a deliberate fail-closed trade, not a defect. Re-running
+<code>isLoopback</code> on <code>newRequest.url</code> would preserve
+legitimate local redirects if this ever bites a real user.</p>
+<p><strong>NEW-LOW-10 — <code>StubHTTPListener</code> can leak its
+accept thread (test-only).</strong> <code>deinit</code> calls
+<code>close(fd)</code> while a detached thread is blocked in
+<code>accept()</code>. On macOS, closing a descriptor does not reliably
+wake a blocked <code>accept()</code>, so the thread can outlive the
+listener and — if the descriptor number is recycled — could in principle
+accept a later connection. No flakiness observed over 5 isolated runs
+plus the full suite, and the pre-existing never-replying-socket helper
+in the same file uses the same pattern, so this is consistent with
+existing style rather than a new sin.</p>
+<p><strong>NIT-11 — doc drift in the line numbers cited above.</strong>
+The Remediation section cites <code>isLoopback</code> at
+<code>:177-182</code> (actual <code>:181-199</code>) and
+<code>RedirectBlocker</code> at <code>:753-766</code> (actual
+<code>:753-765</code>). Cosmetic.</p>
+<p><strong>NIT-12 — the Debug Log says “26 tests” for the two-class
+filter; the actual count is 25</strong> (18 in
+<code>PostProcessRequestBuilderTests</code>, 7 in
+<code>PostProcessServiceTransportTests</code>). Cosmetic.</p>
+<p>LOW-6, LOW-7, and LOW-8 from the first pass remain open by design —
+all fail-closed or pre-existing, and none was in scope for this
+remediation.</p>
+<h4 id="story-goal">Story goal</h4>
+<p>The threat statement — “a mistyped or <strong>malicious</strong>
+endpoint can never exfiltrate what I dictate” — now holds for the paths
+this story owns. The loopback guard covers all three entry points, the
+single transport call refuses every redirect, and
+<code>PostProcessService</code> is the only sender of transcript data in
+<code>Sources/</code> (the sole other <code>URLSession</code> user,
+<code>UpdateChecker.swift</code>, is deliberately internet-facing and
+carries no transcript). NFR-1 claim stands.</p>
+<hr />
+<p><strong>Validation: PASSED 2026-08-22</strong> — ACs are concrete
+(named hosts to accept/ reject, “zero requests issued” is directly
+assertable against the existing mock transport/listener) and
+self-contained (exact call sites in <code>PostProcessService</code>, the
+existing error case to reuse, the existing test helper to build on).
+Task 1’s UI-reuse suggestion is explicitly marked optional so it can’t
+block AC completion. No fixes needed.</p>
+</body>
+</html>

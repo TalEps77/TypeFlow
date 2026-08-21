@@ -169,6 +169,42 @@ enum PostProcessRequestBuilder {
         return url
     }
 
+    /// NFR-1 says only loopback traffic ever leaves the app, and Epic 2's AC
+    /// says post-processing "targets only the configured loopback endpoint".
+    /// Parsing rather than string-matching is the point: the whole
+    /// `127.0.0.0/8` block is loopback, so `127.0.0.2` must pass while
+    /// `127.example.com` and `1270.0.0.1` must not (Story 9.2).
+    /// The host is matched verbatim, never trimmed: `URL.host` is percent-
+    /// *decoded*, so `http://localhost%20:1234` yields `"localhost "` while the
+    /// authority on the wire stays `localhost%20`. Trimming could only ever
+    /// widen the accepted set, never narrow it (MINOR-5).
+    static func isLoopback(host: String) -> Bool {
+        var candidate = host.lowercased()
+        // Some Foundation versions hand back an IPv6 literal still wrapped in
+        // the brackets the URL carried; normalize both shapes.
+        if candidate.hasPrefix("["), candidate.hasSuffix("]") {
+            candidate = String(candidate.dropFirst().dropLast())
+        }
+        if candidate == "localhost" || candidate == "::1" {
+            return true
+        }
+
+        let octets = candidate.split(separator: ".", omittingEmptySubsequences: false)
+        guard octets.count == 4 else { return false }
+        let values = octets.compactMap { octet -> UInt8? in
+            guard octet.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+            return UInt8(octet)
+        }
+        return values.count == 4 && values[0] == 127
+    }
+
+    /// Convenience over `isLoopback(host:)` for a URL already resolved by
+    /// `endpointURL(baseURL:path:)`, which guarantees a non-nil host.
+    static func isLoopback(url: URL) -> Bool {
+        guard let host = url.host else { return false }
+        return isLoopback(host: host)
+    }
+
     static func body(
         text: String,
         systemPrompt: String,
@@ -706,11 +742,38 @@ extension PostProcessing {
     }
 }
 
+// MARK: - Redirects
+
+/// Refuses every HTTP redirect. The loopback guard runs once, on the
+/// configured endpoint — a `307` from that endpoint would otherwise re-POST
+/// the *entire* request body to whatever `Location` names, off-box, without
+/// the guard ever seeing the new host. An OpenAI-compatible backend answers
+/// chat-completions directly (LM Studio never redirects), so refusing outright
+/// costs nothing legitimate and fails closed (Story 9.2, MAJOR-1).
+private final class RedirectBlocker: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        // nil = do not follow; the 3xx itself comes back as the response, which
+        // the callers' non-2xx checks turn into an ordinary failure on the
+        // existing degrade path.
+        completionHandler(nil)
+    }
+}
+
 // MARK: - Service
 
 final class PostProcessService: PostProcessing, @unchecked Sendable {
 
     private let session: URLSession
+
+    /// Attached per task rather than to the session, so an injected session
+    /// (tests, AD-6) is covered by the same rule as the built-in one.
+    private let redirectBlocker = RedirectBlocker()
 
     init(session: URLSession? = nil) {
         if let session {
@@ -728,6 +791,15 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
             configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             configuration.httpCookieAcceptPolicy = .never
             configuration.httpShouldSetCookies = false
+            // The loopback guard checks the URL we resolved, but a system HTTP
+            // proxy or PAC script is applied *after* that check: URLSession
+            // would open the connection to the proxy and hand it the whole
+            // transcript in the request body, off this machine, while the
+            // guard saw only a `127.0.0.1` URL. An empty proxy dictionary
+            // opts this session out of system proxy resolution entirely, which
+            // is what makes the loopback guarantee hold on the wire and not
+            // just in the URL (Story 9.2).
+            configuration.connectionProxyDictionary = [:]
             // Fail fast instead of parking a request until the backend appears.
             configuration.waitsForConnectivity = false
             self.session = URLSession(configuration: configuration)
@@ -745,6 +817,13 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
             return .failure(.emptyInput)
         }
         guard let url = PostProcessRequestBuilder.chatCompletionsURL(baseURL: configuration.baseURL) else {
+            return .failure(.invalidEndpoint(configuration.baseURL))
+        }
+        // Nothing is built or sent for a non-loopback endpoint (NFR-1). The
+        // caller sees the same rejection as an unparseable one, so the
+        // pipeline degrades to the raw transcript with no dialog (AD-2).
+        guard PostProcessRequestBuilder.isLoopback(url: url) else {
+            VocaLogger.warning(.postProcess, "clean refused — endpoint is not loopback")
             return .failure(.invalidEndpoint(configuration.baseURL))
         }
 
@@ -799,6 +878,10 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
         guard let url = PostProcessRequestBuilder.chatCompletionsURL(baseURL: configuration.baseURL) else {
             return .failure(.invalidEndpoint(configuration.baseURL))
         }
+        guard PostProcessRequestBuilder.isLoopback(url: url) else {
+            VocaLogger.warning(.commandMode, "command refused — endpoint is not loopback")
+            return .failure(.invalidEndpoint(configuration.baseURL))
+        }
 
         let body = PostProcessRequestBuilder.commandBody(
             selection: selection,
@@ -841,6 +924,10 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
     /// model identifier the backend answered with.
     func testConnection(configuration: PostProcessConfiguration) async -> Result<String, PostProcessError> {
         guard let url = PostProcessRequestBuilder.chatCompletionsURL(baseURL: configuration.baseURL) else {
+            return .failure(.invalidEndpoint(configuration.baseURL))
+        }
+        guard PostProcessRequestBuilder.isLoopback(url: url) else {
+            VocaLogger.warning(.postProcess, "testConnection refused — endpoint is not loopback")
             return .failure(.invalidEndpoint(configuration.baseURL))
         }
 
@@ -892,8 +979,9 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
         timeout: TimeInterval
     ) async -> Result<(Data, Int), PostProcessError> {
         let session = self.session
+        let redirectBlocker = self.redirectBlocker
         let work = Task { () -> (Data, URLResponse) in
-            try await session.data(for: request)
+            try await session.data(for: request, delegate: redirectBlocker)
         }
         let watchdog = Task {
             try await Task.sleep(nanoseconds: UInt64(max(timeout, 0.1) * 1_000_000_000))
@@ -906,6 +994,13 @@ final class PostProcessService: PostProcessing, @unchecked Sendable {
             guard let http = response as? HTTPURLResponse else {
                 return .failure(.malformedResponse("response was not HTTP"))
             }
+            // A 3xx reaching here means `RedirectBlocker` refused to follow it.
+            // It needs no guard of its own: every caller of `send` rejects any
+            // non-2xx status with `.httpStatus` before reading the body
+            // (`PostProcessResponseValidator`, `PostProcessCommandValidator`,
+            // and `testConnection`), so an unfollowed redirect already fails
+            // closed and a guard here could only duplicate that unobservably
+            // (Story 9.2, MAJOR-1).
             return .success((data, http.statusCode))
         } catch is CancellationError {
             return .failure(.timedOut(timeout))

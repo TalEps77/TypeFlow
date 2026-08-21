@@ -2,8 +2,9 @@
 
 ## Project Overview
 
-VocaMac is a **native macOS menu bar application** for local voice-to-text dictation, built with **Swift 5.9+** and **SwiftUI**. It uses **WhisperKit** (CoreML-based) for on-device speech recognition. The project also includes a **static marketing website** (`web/`) deployed to GitHub Pages at [vocamac.com](https://vocamac.com).
+VocaMac is a **native macOS menu bar application** for local voice-to-text dictation, built with **Swift 5.9+** and **SwiftUI**. It uses **WhisperKit** (CoreML-based) for on-device speech recognition. The project also includes a **Hugo-based marketing website** (`web/`) deployed to GitHub Pages at [vocamac.com](https://vocamac.com).
 
+- **Branding split (deliberate — do not "fix"):** The app ships as **TypeFlow** (`DISPLAY_NAME` in `scripts/app-name.sh`, `/Applications/TypeFlow.app`), while the executable name, bundle id (`com.vocamac.app`), entitlements file, single-instance check, and `~/Library/Application Support/VocaMac` data directory all stay on the original `VocaMac`/`APP_NAME` identifiers so existing installs keep their preferences and models across the rename. See the comment block at the top of `scripts/app-name.sh` for the full rationale.
 - **License:** AGPL-3.0
 - **Minimum target:** macOS 13 (Ventura)
 - **Build system:** Swift Package Manager
@@ -40,17 +41,20 @@ git worktree prune
 ```
 VocaMac/
 ├── Sources/VocaMac/
-│   ├── App/              # App entry point, MenuBarExtra, MenuBarIcon
-│   ├── Models/           # AppState, TranscriptionResult, WhisperModel
-│   ├── Services/         # AudioEngine, HotKeyManager, ModelManager,
-│   │                     #   SystemInfo, TextInjector, WhisperService
-│   ├── Views/            # MenuBarView, SettingsView
-│   └── Resources/        # Bundled resources (.gitkeep placeholder)
-├── Tests/VocaMacTests/   # Unit tests
-├── web/                  # Static website (HTML/CSS/JS, deployed to GitHub Pages)
-├── Makefile              # make build, install, test, clean
-├── scripts/              # build.sh, install.sh, uninstall.sh
-├── docs/                 # ARCHITECTURE.md, DATA_MODEL.md, PRD.md
+│   ├── App/              # App entry point (VocaMacApp.swift)
+│   ├── Models/           # AppState, TranscriptionResult, WhisperModel, Prompts, ...
+│   ├── Services/         # AudioEngine, HotKeyManager, ModelManager, Logger,
+│   │                     #   SystemInfo, TextInjector, WhisperService, PostProcessService, ...
+│   ├── Stores/           # JSONFileStore-backed persistence: History, Profile, Dictionary, Snippet, ...
+│   ├── Pipeline/         # TranscriptPipeline + Stages/ (Dictionary, Snippet, PostProcess, Rehydrate)
+│   ├── Views/            # MenuBarView, SettingsView, HistoryView, OnboardingView, ...
+│   └── Resources/        # AppIcon.icns, dmg-background images
+├── Sources/VocaMacObjC/  # Objective-C helpers (exception catching, etc.)
+├── Tests/VocaMacTests/   # Unit tests (~780 test functions, XCTest)
+├── web/                  # Hugo static site (content/, layouts/, static/) → vocamac.com via GitHub Pages
+├── Makefile              # make build, install, install-cli, dmg, release, test, run, clean, reset
+├── scripts/              # app-name.sh, build.sh, dist.sh, install.sh, uninstall.sh, release.sh
+├── docs/                 # ARCHITECTURE.md, DATA_MODEL.md, HOMEBREW.md, RELEASE.md, screenshots/
 ├── Package.swift         # SPM manifest
 └── VocaMac.entitlements  # App sandbox entitlements
 ```
@@ -66,11 +70,23 @@ make install
 # Build .app bundle in repo root (fast dev iteration)
 make build
 
-# Install CLI commands to ~/.local/bin
+# Install CLI commands (vocamac, vocamac-build) to ~/.local/bin
 make install-cli
+
+# Build a DMG for distribution
+make dmg
+
+# Tag and push a release (triggers CI signing + notarization)
+make release VERSION=X.Y.Z
 
 # Run tests
 make test
+
+# Launch the locally built .app
+make run
+
+# Delete all local app data (models, cache, prefs) — app must not be running
+make reset
 
 # Clean build artifacts
 make clean
@@ -110,7 +126,7 @@ The project builds on **macOS only** (requires AppKit, CoreML, AVFoundation). CI
 - Never force-unwrap (`!`) unless the value is guaranteed (e.g., system symbols)
 - Use `do/catch` with meaningful error types
 - Surface errors to the user via `AppState.appStatus = .error` with clear messages
-- Log errors with `print()` (we don't have a logging framework yet — use descriptive prefixes like `[AudioEngine]`, `[WhisperService]`)
+- Log via `VocaLogger` (`Sources/VocaMac/Services/Logger.swift`) — e.g. `VocaLogger.error(.audioEngine, "message")`. It wraps `os.Logger` (Console.app integration) plus rotating file logs under `~/Library/Application Support/VocaMac/logs`. Do not use bare `print()` for anything beyond throwaway debugging — add a `LogCategory` case if the component doesn't have one yet.
 
 ### Performance
 - This is a **menu bar app** — it must be lightweight and responsive
@@ -127,7 +143,7 @@ The project builds on **macOS only** (requires AppKit, CoreML, AVFoundation). CI
 - **All new logic must have corresponding tests** in `Tests/VocaMacTests/`
 - Test file naming: `<ClassName>Tests.swift` (e.g., `WhisperServiceTests.swift`)
 - Use **XCTest** framework
-- Run tests with `swift test` — this is what CI executes
+- Run tests with `swift test` — this is what CI executes. Requires a full Xcode install (not just CLI Tools) for the XCTest module; currently ~780 test functions, full suite runs in well under a minute
 
 ### What to Test
 - Model logic and state transitions in `AppState`
@@ -144,13 +160,12 @@ The project builds on **macOS only** (requires AppKit, CoreML, AVFoundation). CI
 
 ## Website (`web/`)
 
-- **Pure HTML/CSS/JS** — no build tools, no frameworks, no npm
-- Served as static files from the `web/` directory
+- **Hugo static site generator** — content in `web/content/` (Markdown), templates in `web/layouts/`, static assets in `web/static/`
+- Built via `hugo --minify` (see `.github/workflows/deploy-website.yml`, uses `peaceiris/actions-hugo`)
 - Deployed to GitHub Pages on release via `.github/workflows/deploy-website.yml`
-- Custom domain: `vocamac.com` (configured via `web/CNAME`)
-- Logo: `web/logo.png` — SF Symbol `mic.fill` rendered in #007AFF (Apple system blue)
-- Supports light/dark theme toggle
-- Test locally: `cd web && python3 -m http.server 8080`
+- Custom domain: `vocamac.com` (configured via `web/static/CNAME`)
+- Logo: `web/static/logo.png`
+- Test locally: `cd web && hugo server` (requires Hugo installed — `brew install hugo`). Raw files under `web/content/` are Markdown, not directly viewable HTML.
 
 ---
 
@@ -204,7 +219,7 @@ See `docs/RELEASE.md` → **Release Notes (out-of-tree)** for the full process.
 
 | Dependency | Purpose | Version |
 |-----------|---------|---------|
-| [WhisperKit](https://github.com/argmaxinc/WhisperKit) | On-device speech-to-text via CoreML | 0.9.4+ |
+| [WhisperKit](https://github.com/argmaxinc/WhisperKit) | On-device speech-to-text via CoreML | 0.18.0 (resolved; `Package.swift` floor is `from: "0.9.4"`) |
 
 Keep dependencies minimal. This app values being lightweight and self-contained.
 
@@ -214,8 +229,8 @@ Keep dependencies minimal. This app values being lightweight and self-contained.
 
 - **Entitlements** (`VocaMac.entitlements`): App uses microphone access and accessibility APIs
 - **LSUIElement:** App runs as a menu bar agent (no dock icon)
-- **Code signing:** Release builds are Developer ID signed and notarized. Local development builds fall back to ad-hoc signing if no Developer ID cert is in the Keychain.
-- **Permissions:** With Developer ID signing, permissions persist across updates. Ad-hoc (local dev) builds will reset permissions on every rebuild.
+- **Code signing:** `scripts/build.sh` auto-detects a signing identity in this priority order: `Developer ID Application` → `Apple Development` → ad-hoc (`-`) as a last resort. Release builds (CI) are Developer ID signed and notarized; local dev machines without a Developer ID cert commonly sign with an auto-detected `Apple Development` identity instead. Override with the `CODE_SIGN_IDENTITY` env var; set it to `-` only if you deliberately want to force ad-hoc.
+- **Permissions:** With Developer ID *or* Apple Development signing, the code signature (and its TCC grants) stays stable across rebuilds. **Ad-hoc signing must be avoided for local dev** — every ad-hoc rebuild changes the cdhash, which resets Accessibility/Input Monitoring TCC grants and forces re-granting permissions from scratch.
 - **MenuBarExtra limitations:** The label only renders `Image` or `Text` — custom SwiftUI views like `Canvas` won't appear. Use `NSImage` with `isTemplate = false` for colored menu bar icons.
 
 ---
@@ -225,5 +240,5 @@ Keep dependencies minimal. This app values being lightweight and self-contained.
 1. **MenuBarExtra ignores SwiftUI colors** — Use `NSImage` with `sourceAtop` tinting and `isTemplate = false` for colored states
 2. **`Canvas` doesn't work in menu bar** — It renders in popovers but not in `MenuBarExtra` labels
 3. **Browser caches SVG/PNG aggressively** — When testing website changes, always hard refresh (`Cmd+Shift+R`)
-4. **Accessibility permission resets on rebuild** — Expected with ad-hoc signing; release builds are Developer ID signed so permissions persist
+4. **Accessibility/Input Monitoring permissions reset on rebuild** — Only happens with ad-hoc signing (`CODE_SIGN_IDENTITY=-`); never force ad-hoc for local dev. Developer ID and Apple Development signing both keep permissions stable across rebuilds
 5. **WhisperKit model download** — First run requires internet to download the whisper model; all subsequent runs are offline

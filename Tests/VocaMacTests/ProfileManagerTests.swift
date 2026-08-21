@@ -87,6 +87,42 @@ final class ProfileManagerTests: XCTestCase {
         XCTAssertEqual(resolved.id, defaultProfile.id)
     }
 
+    /// An edited Default Profile, as the Profiles tab lets the user leave it.
+    private static func editedDefault() -> Profile {
+        Profile(
+            id: Profile.defaultProfileID,
+            name: "Default",
+            promptOverride: "be extremely formal",
+            postProcessEnabled: false,
+            contextCaptureEnabled: true,
+            isDefault: true
+        )
+    }
+
+    /// Story 9.4: disabling Profiles is a full opt-out back to Epic 2's
+    /// behavior, so the user's edits to the Default Profile must not leak
+    /// through — the pristine built-in Default applies, not the stored record.
+    func testProfilesDisabledIgnoresAnEditedDefaultProfile() {
+        let bound = Profile(name: "Code Editor", bundleIdentifiers: ["com.apple.dt.Xcode"])
+        let (manager, _) = makeManager(profiles: [Self.editedDefault(), bound])
+
+        let resolved = manager.resolve(bundleIdentifier: "com.apple.dt.Xcode", profilesEnabled: false)
+
+        XCTAssertEqual(resolved, Profile.makeDefault())
+    }
+
+    /// The other half of Story 9.4: the enabled path is untouched — an edited
+    /// Default is still exactly what an unmatched dictation resolves to.
+    func testProfilesEnabledStillUsesTheEditedDefaultProfile() {
+        let edited = Self.editedDefault()
+        let (manager, _) = makeManager(profiles: [edited, Profile(name: "Code Editor", bundleIdentifiers: ["com.apple.dt.Xcode"])])
+
+        let resolved = manager.resolve(bundleIdentifier: nil, profilesEnabled: true)
+
+        XCTAssertEqual(resolved, edited)
+        XCTAssertEqual(manager.resolve(bundleIdentifier: "com.apple.Safari", profilesEnabled: true), edited)
+    }
+
     /// The one case where order genuinely decides the answer (MINOR 4):
     /// `resolve` matches with `.first`, so two Profiles bound to the same
     /// bundle identifier are resolved by list position. Nothing stops a user

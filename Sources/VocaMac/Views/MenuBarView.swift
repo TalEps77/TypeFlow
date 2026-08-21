@@ -485,7 +485,7 @@ struct MenuBarView: View {
                 )
             }
             .buttonStyle(MenuRowButtonStyle())
-            .disabled(appState.historyStore.records.isEmpty)
+            .disabled(!appState.historyStore.records.contains { $0.isRePastable })
 
             if appState.canUndoLastInjection {
                 Button {

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 08-19-2026 17:29
-last_updated: 08-20-2026 14:30
+last_updated: 08-22-2026 00:30
 project: local-whisper
 project_key: NOKEY
 tracking_system: file-system
@@ -133,6 +133,28 @@ development_status:
   8-1-rebrand-to-typeflow: done
   8-2-bilingual-hebrew-english-dictation: done
   epic-8-retrospective: done
+
+  epic-9: done
+  # Post-audit remediation. Source: adversarial acceptance audit, 2026-08-22.
+  # Four defects confirmed against shipped code, not epics.md text:
+  #   9.1  Epic 6 AC-6.3.2 ("instruction text is never injected") violated —
+  #        Command Mode history records are unfiltered by Re-paste.
+  #   9.2  Epic 2 AC-2.2-6 (loopback-only LLM endpoint) violated — no
+  #        enforcement anywhere; AC-named test was tautological.
+  #   9.3  Three independent mechanical defects: inert-but-unguarded
+  #        Homebrew cask workflow (closes epic-8-retro-item-8's workflow
+  #        half); modelSizeFromName misclassifies the shipped default;
+  #        testSelectedModelSizeDefault order-dependent and wrong (closes
+  #        epic-8-retro-item-7).
+  #   9.4  Epic 4 AC-4.2-e shortfall — disabling Profiles master toggle
+  #        leaks an edited Default Profile through instead of restoring
+  #        Epic 2 stock behavior.
+  9-1-gate-command-mode-records-out-of-re-paste: done
+  9-2-enforce-loopback-llm-endpoint: done
+  9-3-inert-cask-workflow-size-label-isolation-test: done
+  9-4-stock-behavior-when-profiles-disabled: done
+  epic-9-retrospective: done
+
 action_items:
   - id: "epic-1-retro-item-1-add-a-second-local-asr-engine-as-a-plugg"
     epic: 1
@@ -182,12 +204,31 @@ action_items:
     action: "Fix the order-dependent testSelectedModelSizeDefault (AppStateRecordingTests.swift:128),
       currently left as its own chip."
     owner: "Tal"
-    status: open
-    ref: "_bmad-output/RETROSPECTIVE.md"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/stories/9-3-inert-cask-workflow-size-label-isolation-test.md"
   - id: "epic-8-retro-item-8-re-point-both-homebrew-casks-url-and-re"
     epic: 8
     action: "Re-point both Homebrew casks url and re-enable UpdateChecker once this
-      fork has a release repo of its own."
+      fork has a release repo of its own. Partially addressed by story 9-3: the cask
+      workflow is now guarded inert (will not run against upstream's VocaMac assets).
+      The cask url re-pointing and UpdateChecker re-enable remain open, still blocked
+      on this fork having its own release repo."
+    owner: "Tal"
+    status: open
+    ref: "_bmad-output/RETROSPECTIVE.md"
+  - id: "epic-9-retro-item-9-fix-the-pre-existing-stale-snapshot-re-paste-race"
+    epic: 9
+    action: "Fix the pre-existing stale-snapshot re-paste race - a history record
+      deleted/pruned during focusSettleDelay is still injected because its text is
+      captured before the delay hop."
+    owner: "Tal"
+    status: open
+    ref: "_bmad-output/RETROSPECTIVE.md"
+  - id: "epic-9-retro-item-10-add-automated-swiftui-view-layer-test-coverage"
+    epic: 9
+    action: "Add an automated SwiftUI view-layer test seam (ViewInspector, snapshot
+      testing, or a UI-test target) - a recurring gap confirmed independently by story
+      9-1 code review and by RE-VERIFICATION.md project-wide acceptance audit."
     owner: "Tal"
     status: open
     ref: "_bmad-output/RETROSPECTIVE.md"

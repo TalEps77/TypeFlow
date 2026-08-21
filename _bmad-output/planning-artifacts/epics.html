@@ -1380,6 +1380,23 @@ and cantillation marks are stripped, <strong>And</strong> matres
 lectionis variants (ו/וו, י/יי) are unified, <strong>And</strong>
 final-form letters are normalized to their base forms,
 <strong>And</strong> geresh and gershayim are handled.</p>
+<p><em>(amended 2026-08-22 post-audit: this line describes the
+original AC intent, not the shipped <code>normalize</code> pipeline.
+<code>HebrewNormalizer.normalize</code> deliberately excludes
+matres-lectionis collapsing — the standalone
+<code>normalizeMatresLectionis</code> function exists, tested, but is
+not called from <code>normalize</code> and is not used by any matcher.
+The exclusion is intentional: collapsing ו/וו and י/יי merges distinct
+Hebrew words — מוות/מות, עוול/עול, ראייה/ראיה, חייב/חיב — and the
+exact-match tiers that consume <code>normalize</code> (
+<code>DictionaryService</code>'s first pass,
+<code>SnippetService</code>'s cue matching,
+<code>SnippetStore.hasCollision</code>) bypass similarity thresholds
+entirely, so a silent collapse would rewrite words the user actually
+said. Edit distance in the fuzzy tier already covers the intended
+benefit without the false-merge risk. See in-source reasoning at
+<code>Sources/VocaMac/Models/HebrewNormalizer.swift:81-116,
+170-173</code>.)</em></p>
 <p><strong>Given</strong> transcripts mix Hebrew and English technical
 terms, <strong>When</strong> normalization runs, <strong>Then</strong>
 Latin text passes through unchanged.</p>
@@ -1765,6 +1782,18 @@ transcription.</li>
 <p><strong>Known limitations (as delivered — documented, not
 fixed):</strong></p>
 <ul>
+<li><strong>(amended 2026-08-22 post-audit) The "measurably faster" AC
+above was not met.</strong> Commit f2d826c's own verification measured
+a 71.7s composite clip at 6.42s (unchunked, <code>nil</code>) vs 6.29s
+(chunked, <code>.vad</code>) — statistically a wash on this
+model/hardware, and the commit message says outright that
+parallelizing "isn't the main win here." <code>.vad</code> chunking was
+kept anyway, but for correctness and memory/robustness: the same test
+found the unchunked path silently drops a transcript segment around
+the 30s mark and stops entirely before the clip's second half, while
+<code>.vad</code> transcribes the complete clip correctly. Treat this
+AC as satisfied on correctness/no-regression grounds, not on
+speed.</li>
 <li><strong>Up to ~1 second can be dropped from the tail of a chunked
 recording.</strong> <code>VADAudioChunker</code> pads its windows by
 <code>windowPadding</code> = 16000 samples (1 s at 16 kHz), so the last
@@ -2103,7 +2132,12 @@ prefilled ahead of the language detection it then skewed. That
 combination was never tested. Auto now decodes with
 <code>usePrefillPrompt: false</code>, the shipped path, and
 <code>DecodingOptionsLanguageTests.testDecodingOptionsTable</code> pins
-the whole he/en/auto × glossary/none table.)</em></p>
+the whole he/en/auto × glossary/none table.</em></p>
+<p><em>(amended 2026-08-22 post-audit: the class is real but the
+citation's implied filename was not —
+<code>DecodingOptionsLanguageTests</code> lives in
+<code>Tests/VocaMacTests/DictationLanguageTests.swift:73</code>, not in
+a file of its own name.)</em></p>
 <p><strong>Given</strong> dictations should show what language was
 actually used, <strong>When</strong> a <code>HistoryRecord</code> is
 written, <strong>Then</strong> it carries a new optional

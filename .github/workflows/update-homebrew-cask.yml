@@ -9,6 +9,8 @@ on:
 jobs:
   update-cask:
     runs-on: ubuntu-latest
+    # fork has no release repo; re-enable when casks re-pointed
+    if: false
     steps:
       - name: Checkout main repo
         uses: actions/checkout@v4
@@ -25,7 +27,12 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           DMG_URL="https://github.com/jatinkrmalik/vocamac/releases/download/v${VERSION}/TypeFlow-${VERSION}-arm64.dmg"
-          curl -sL -o vocamac.dmg "$DMG_URL"
+          curl -fsSL -o vocamac.dmg "$DMG_URL"
+          # Sanity check: a real DMG is not a small HTML error page.
+          if ! file vocamac.dmg | grep -qi "disk image\|zlib\|UDIF"; then
+            echo "Downloaded file does not look like a DMG (got: $(file -b vocamac.dmg))" >&2
+            exit 1
+          fi
           echo "Downloaded DMG from ${DMG_URL}"
 
       - name: Compute DMG sha256

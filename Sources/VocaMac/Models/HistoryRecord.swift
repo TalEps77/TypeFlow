@@ -105,6 +105,14 @@ struct HistoryRecord: Codable, Identifiable, Equatable {
         self.language = language
     }
 
+    /// Whether this record's text is safe to re-inject (FR-21 / Story 6.3
+    /// AC). Allowlisted on `.dictation` rather than denylisted on
+    /// `.command`, so a future third `Mode` case fails closed instead of
+    /// silently becoming re-pastable by default.
+    var isRePastable: Bool {
+        mode == .dictation
+    }
+
     /// Short preview for list rows — collapses newlines so multi-line
     /// dictations still read as one line in the history list.
     var preview: String {

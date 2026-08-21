@@ -674,6 +674,7 @@ So that every fuzzy match in this epic compares like with like.
 **When** it normalizes text,
 **Then** niqqud and cantillation marks are stripped,
 **And** matres lectionis variants (ו/וו, י/יי) are unified,
+*(amended 2026-08-22 post-audit: this line describes the original AC intent, not the shipped `normalize` pipeline. `HebrewNormalizer.normalize` deliberately excludes matres-lectionis collapsing — the standalone `normalizeMatresLectionis` function exists, tested, but is not called from `normalize` and is not used by any matcher. The exclusion is intentional: collapsing ו/וו and י/יי merges distinct Hebrew words — מוות/מות, עוול/עול, ראייה/ראיה, חייב/חיב — and the exact-match tiers that consume `normalize` (`DictionaryService`'s first pass, `SnippetService`'s cue matching, `SnippetStore.hasCollision`) bypass similarity thresholds entirely, so a silent collapse would rewrite words the user actually said. Edit distance in the fuzzy tier already covers the intended benefit without the false-merge risk. See in-source reasoning at `Sources/VocaMac/Models/HebrewNormalizer.swift:81-116, 170-173`.)*
 **And** final-form letters are normalized to their base forms,
 **And** geresh and gershayim are handled.
 
@@ -1039,6 +1040,7 @@ So that a two-minute dictation does not feel like a two-minute wait.
 
 **Known limitations (as delivered — documented, not fixed):**
 
+- **(amended 2026-08-22 post-audit) The "measurably faster" AC above was not met.** Commit f2d826c's own verification measured a 71.7s composite clip at 6.42s (unchunked, `nil`) vs 6.29s (chunked, `.vad`) — statistically a wash on this model/hardware, and the commit message says outright that parallelizing "isn't the main win here." `.vad` chunking was kept anyway, but for correctness and memory/robustness: the same test found the unchunked path silently drops a transcript segment around the 30s mark and stops entirely before the clip's second half, while `.vad` transcribes the complete clip correctly. Treat this AC as satisfied on correctness/no-regression grounds, not on speed.
 - **Up to ~1 second can be dropped from the tail of a chunked recording.** `VADAudioChunker` pads its windows by `windowPadding` = 16000 samples (1 s at 16 kHz), so the last chunk can lose up to a second of trailing audio. In push-to-talk, a user who releases the key immediately after the last word can lose the final syllable. Chunking only engages for recordings longer than 30 s, so short dictations are unaffected. There is no code fix in this story.
 - **With auto-detect, language detection runs per chunk.** When the transcription language is `nil`, WhisperKit detects the language separately for each chunk, so a long mixed-language dictation can switch script mid-transcript between chunks. Low impact in practice: `selectedLanguage` defaults to `"he"` (Hebrew), so the language is normally pinned and per-chunk detection never runs.
 
@@ -1188,7 +1190,7 @@ So that I don't have to dig into the 19-language Settings picker every time I sw
 **When** the resolved language for a recording is explicitly `"en"` **or is Auto**,
 **Then** the vocabulary/`promptTokens` hint is not passed to WhisperKit for that recording.
 
-*(AC amended after Epic 8 adversarial review, MAJOR 3. The original carved out Auto — "Auto mode still gets it, since the language isn't known until decode completes" — which is exactly the defect: passing `promptTokens` with `language: nil` makes `decodingOptions` set `usePrefillPrompt: true` alongside `detectLanguage: true`, so a Hebrew glossary was prefilled ahead of the language detection it then skewed. That combination was never tested. Auto now decodes with `usePrefillPrompt: false`, the shipped path, and `DecodingOptionsLanguageTests.testDecodingOptionsTable` pins the whole he/en/auto × glossary/none table.)*
+*(AC amended after Epic 8 adversarial review, MAJOR 3. The original carved out Auto — "Auto mode still gets it, since the language isn't known until decode completes" — which is exactly the defect: passing `promptTokens` with `language: nil` makes `decodingOptions` set `usePrefillPrompt: true` alongside `detectLanguage: true`, so a Hebrew glossary was prefilled ahead of the language detection it then skewed. That combination was never tested. Auto now decodes with `usePrefillPrompt: false`, the shipped path, and `DecodingOptionsLanguageTests.testDecodingOptionsTable` pins the whole he/en/auto × glossary/none table. *(amended 2026-08-22 post-audit: the class is real but the citation's implied filename was not — `DecodingOptionsLanguageTests` lives in `Tests/VocaMacTests/DictationLanguageTests.swift:73`, not in a file of its own name.)*
 
 **Given** dictations should show what language was actually used,
 **When** a `HistoryRecord` is written,

@@ -80,6 +80,17 @@ final class HistoryRecordTests: XCTestCase {
         let record = HistoryRecord(rawTranscript: "raw", finalText: "  line one\nline two  ", modelName: "Tiny")
         XCTAssertEqual(record.preview, "line one line two")
     }
+
+    /// Allowlisted on `.dictation` (not denylisted on `.command`) so a future
+    /// third `Mode` case fails closed rather than becoming re-pastable by
+    /// default (Story 9.1 code review, MINOR 3).
+    func testIsRePastableIsTrueOnlyForDictationMode() {
+        let dictation = HistoryRecord(rawTranscript: "raw", finalText: "final", modelName: "Tiny", mode: .dictation)
+        let command = HistoryRecord(rawTranscript: "make this shorter", finalText: "make this shorter", modelName: "Tiny", mode: .command)
+
+        XCTAssertTrue(dictation.isRePastable)
+        XCTAssertFalse(command.isRePastable)
+    }
 }
 
 // MARK: - HistoryStore
@@ -530,6 +541,53 @@ final class AppStateRePasteTests: XCTestCase {
 
     func testRePasteMostRecentDoesNothingWhenHistoryIsEmpty() {
         let (appState, mocks) = AppState.makeTestState()
+
+        appState.rePasteMostRecent()
+
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 0)
+    }
+
+    // MARK: - Command Mode gate (Story 9.1)
+    //
+    // A Command Mode record stores the spoken *instruction* in both text
+    // fields, so re-pasting one would type "make this shorter" into the
+    // document — the exact failure Story 6.3's AC forbids.
+
+    func testRePasteRefusesACommandModeRecord() {
+        let (appState, mocks) = AppState.makeTestState()
+        let record = HistoryRecord(
+            rawTranscript: "make this shorter",
+            finalText: "make this shorter",
+            modelName: "Tiny",
+            mode: .command
+        )
+
+        appState.rePaste(record)
+
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 0,
+                       "The spoken instruction must never be injected")
+    }
+
+    func testRePasteMostRecentSkipsCommandModeRecords() {
+        let (appState, mocks) = AppState.makeTestState()
+        mocks.historyStore.records = [
+            HistoryRecord(timestamp: Date(timeIntervalSince1970: 2), rawTranscript: "make this shorter", finalText: "make this shorter", modelName: "Tiny", mode: .command),
+            HistoryRecord(timestamp: Date(timeIntervalSince1970: 1), rawTranscript: "older", finalText: "older final", modelName: "Tiny")
+        ]
+
+        appState.rePasteMostRecent()
+
+        XCTAssertEqual(mocks.textInjector.injectCallCount, 1)
+        XCTAssertEqual(mocks.textInjector.lastInjectedText, "older final",
+                       "The newest dictation is re-pasted, skipping the newer command record")
+    }
+
+    func testRePasteMostRecentDoesNothingWhenOnlyCommandRecordsExist() {
+        let (appState, mocks) = AppState.makeTestState()
+        mocks.historyStore.records = [
+            HistoryRecord(timestamp: Date(timeIntervalSince1970: 2), rawTranscript: "make this shorter", finalText: "make this shorter", modelName: "Tiny", mode: .command),
+            HistoryRecord(timestamp: Date(timeIntervalSince1970: 1), rawTranscript: "translate this", finalText: "translate this", modelName: "Tiny", mode: .command)
+        ]
 
         appState.rePasteMostRecent()
 

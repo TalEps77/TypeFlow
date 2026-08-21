@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Re-Verification Report — local-whisper (TypeFlow)</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f6f7f9;
+    --text: #1a1d23;
+    --text-dim: #5a616e;
+    --border: #e2e5ea;
+    --accent: #2b5fd9;
+    --ok: #1a8a4a;
+    --ok-bg: #eafaf1;
+    --warn: #9a6b00;
+    --warn-bg: #fff8e6;
+    --bad: #b3261e;
+    --bad-bg: #fdecea;
+    --mono-bg: #f0f2f5;
+    --code-border: #dde1e7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161a;
+      --bg-alt: #1c1f25;
+      --text: #e7e9ee;
+      --text-dim: #a3aab5;
+      --border: #2c3038;
+      --accent: #7ea2ff;
+      --ok: #57d38c;
+      --ok-bg: #10281c;
+      --warn: #e0b656;
+      --warn-bg: #2b2410;
+      --bad: #f28b82;
+      --bad-bg: #341613;
+      --mono-bg: #1c1f25;
+      --code-border: #33373f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a;
+    --bg-alt: #1c1f25;
+    --text: #e7e9ee;
+    --text-dim: #a3aab5;
+    --border: #2c3038;
+    --accent: #7ea2ff;
+    --ok: #57d38c;
+    --ok-bg: #10281c;
+    --warn: #e0b656;
+    --warn-bg: #2b2410;
+    --bad: #f28b82;
+    --bad-bg: #341613;
+    --mono-bg: #1c1f25;
+    --code-border: #33373f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 5rem;
+  }
+  h1 {
+    font-size: 1.7rem;
+    margin: 0 0 0.3rem;
+    letter-spacing: -0.01em;
+  }
+  h2 {
+    font-size: 1.2rem;
+    margin: 2.5rem 0 0.9rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid var(--border);
+  }
+  h3 {
+    font-size: 1rem;
+    margin: 1.6rem 0 0.6rem;
+    color: var(--text);
+  }
+  .meta {
+    color: var(--text-dim);
+    font-size: 0.92rem;
+    margin: 0.2rem 0;
+  }
+  .prompt-box {
+    background: var(--bg-alt);
+    border-left: 4px solid var(--accent);
+    padding: 0.9rem 1.1rem;
+    border-radius: 6px;
+    margin: 1.2rem 0 0.6rem;
+    font-style: italic;
+    color: var(--text-dim);
+  }
+  p { margin: 0.7rem 0; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: 0.35rem 0; }
+  code {
+    background: var(--mono-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 4px;
+    padding: 0.08em 0.35em;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+  }
+  pre {
+    background: var(--mono-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  .table-wrap { overflow-x: auto; margin: 1rem 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.92rem;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.7rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: var(--bg-alt);
+    font-weight: 600;
+  }
+  tr:nth-child(even) td { background: var(--bg-alt); }
+  .tag {
+    display: inline-block;
+    padding: 0.12em 0.55em;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .tag-ok { background: var(--ok-bg); color: var(--ok); }
+  .tag-warn { background: var(--warn-bg); color: var(--warn); }
+  .tag-bad { background: var(--bad-bg); color: var(--bad); }
+  .card {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.1rem 1.3rem;
+    margin: 1rem 0;
+  }
+  .stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin: 1rem 0 1.4rem;
+  }
+  .stat {
+    flex: 1 1 130px;
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.8rem 1rem;
+    text-align: center;
+  }
+  .stat .n { font-size: 1.6rem; font-weight: 700; display: block; }
+  .stat .l { font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
+  .stat.ok .n { color: var(--ok); }
+  .stat.bad .n { color: var(--bad); }
+  .stat.warn .n { color: var(--warn); }
+  .file-list {
+    list-style: none;
+    padding: 0;
+  }
+  .file-list li {
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin: 0.4rem 0;
+    background: var(--bg-alt);
+  }
+  .file-list code { font-weight: 600; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+  .footnote { color: var(--text-dim); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<h1>Re-Verification Report — local-whisper (TypeFlow)</h1>
+<p class="meta"><strong>Date:</strong> 2026-08-22</p>
+
+<div class="prompt-box">
+  Original prompt (2026-08-22): "re-verify the project the bmad way; not all bmad stories/steps ran last round; goal: best product we could have delivered."
+</div>
+
+<p>This document closes a re-verification round on a project where all 8 planned epics had already been implemented and marked done, but the BMad process that should have accompanied that work only partly ran. The goal was not to re-litigate scope, but to find what was never actually checked, and fix what checking found broken.</p>
+
+<h2>1. What last round skipped</h2>
+<ul>
+  <li><strong>Zero story files</strong> for 27 stories marked "done." No Dev Agent Record, no acceptance-criteria checklist, no reviewer sign-off artifact existed for any of them on disk.</li>
+  <li><strong>No story validation</strong> — stories were never checked against the PRD/epics before being called done.</li>
+  <li><strong>No per-story code review</strong>, except a single adversarial pass at the end of Epic 8.</li>
+  <li><strong>No PRD validation</strong> — the PRD's own definition of success was never checked against what shipped.</li>
+  <li><strong>No readiness gate</strong> (<code>bmad-check-implementation-readiness</code>) ever ran.</li>
+  <li><strong>No e2e test step.</strong></li>
+  <li><strong>No project-context.md/AGENTS.md audit</strong> — agent-facing repo instructions had drifted from the actual codebase with no one checking.</li>
+</ul>
+
+<h2>2. What ran this round</h2>
+
+<div class="stat-row">
+  <div class="stat ok"><span class="n">784 → 796</span><span class="l">tests green</span></div>
+  <div class="stat warn"><span class="n">Fair</span><span class="l">PRD validation verdict</span></div>
+  <div class="stat"><span class="n">7</span><span class="l">AGENTS.md facts fixed</span></div>
+  <div class="stat"><span class="n">171</span><span class="l">ACs audited</span></div>
+  <div class="stat bad"><span class="n">2</span><span class="l">ACs violated</span></div>
+  <div class="stat"><span class="n">3</span><span class="l">epics.md corrections</span></div>
+</div>
+
+<p><strong>Full test suite</strong>, run twice: 784 tests green as the starting baseline, 796 tests green as the final state after Epic 9 remediation (net +12: new regression tests added, one vacuous test removed and replaced). See <code>test-run.md</code> for the baseline run.</p>
+
+<p><strong>PRD validation</strong> (<code>_bmad-output/planning-artifacts/prd-validation-report.md</code>) — verdict <strong>Fair</strong>. The PRD is well-structured as a requirements contract (FR/NFR/SM IDs, Assumptions Index, and epics.md's FR Coverage Map all round-trip cleanly), but its own Success Metrics were never operationalized: <strong>SM-1 through SM-6 — including the flagship claim that the ivrit.ai model beats the baseline on Hebrew WER — were never measured</strong>, and <strong>two Open Questions gated on "before Phase 1 closes" / "before significant investment" (memory headroom, AGPL confirmation) remain unresolved</strong> despite that checkpoint having long passed.</p>
+
+<p><strong>AGENTS.md audit</strong> (<code>project-context-audit.md</code>) — 7 stale facts found and fixed: a claimed absence of a logging framework (a full <code>VocaLogger</code> exists), a wrong website tech stack (documented as static HTML/JS, actually Hugo), a stale repository-structure diagram (missing <code>Stores/</code>, <code>Pipeline/</code>, an entire target), an incomplete Makefile command list (missing the destructive <code>reset</code> target), an incomplete code-signing description (missed the actual local-dev path — Apple Development signing, not ad-hoc), an outdated WhisperKit version floor, and no mention of the deliberate TypeFlow/VocaMac branding split.</p>
+
+<h3>Per-epic acceptance audit</h3>
+<p>Every acceptance criterion in <code>epics.md</code> traced to its implementing code and to a test that actually pins the claim (not just a passing-but-vacuous one). Full detail in the four <code>verify-epics-*.md</code> files in this directory. Totals across all 8 epics:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Verdict</th><th>Count</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><span class="tag tag-ok">SATISFIED</span></td><td>106</td><td>Implemented and a test would fail if it regressed</td></tr>
+<tr><td><span class="tag tag-warn">PARTIAL</span></td><td>46</td><td>Implemented correctly but under-verified, or a documented deliberate deviation</td></tr>
+<tr><td><span class="tag tag-bad">VIOLATED</span></td><td><strong>2</strong></td><td>The AC as written is not actually a property of the delivered code</td></tr>
+<tr><td>UNVERIFIABLE</td><td>10</td><td>Only real Accessibility-API/perceptual behavior can settle it — manual-only by nature</td></tr>
+<tr><td>Superseded/cut</td><td>7</td><td>Explicitly decided out of scope (e.g. story 7.3's spike concluded CUT)</td></tr>
+<tr><td><strong>Total ACs audited</strong></td><td><strong>171</strong></td><td></td></tr>
+</tbody>
+</table>
+</div>
+<p class="footnote">The 2 VIOLATED ACs are the ones Epic 9 exists to fix (§3).</p>
+
+<h3><code>epics.md</code> corrected in 3 places</h3>
+<p>Annotated in-place as "amended 2026-08-22 post-audit," not rewritten:</p>
+<ol>
+  <li><strong>Story 7.2</strong> — the "measurably faster" performance claim was not met. The commit's own measurement showed a statistical wash (6.42s unchunked vs. 6.29s chunked on a 71.7s clip); chunking was kept for correctness (the unchunked path silently drops a transcript segment), not speed. The AC is now marked satisfied on correctness grounds only.</li>
+  <li><strong>Story 5.1</strong> — the matres-lectionis normalization AC ("ו/וו, י/יי unified") does not match the shipped <code>HebrewNormalizer.normalize</code> pipeline, which deliberately excludes that collapsing (it would merge distinct words like מוות/מות, עוול/עול). The standalone function exists and is tested but is intentionally not wired in.</li>
+  <li><strong>Story 8.2</strong> — a test-citation correction: <code>DecodingOptionsLanguageTests</code> is real, but it lives in <code>DictationLanguageTests.swift</code>, not in a file of its own name as the original citation implied.</li>
+</ol>
+
+<h2>3. Epic 9 — Remediation</h2>
+<p>Four stories, each run through a full create → validate → dev → review cycle, targeting the defects the acceptance audit surfaced. Full detail in <code>_bmad-output/implementation-artifacts/stories/9-*.md</code>.</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr><th>Story</th><th>Defect</th><th>Fix</th><th>Review verdict</th></tr></thead>
+<tbody>
+<tr>
+  <td><strong>9.1</strong> — Gate Command Mode records out of Re-paste</td>
+  <td>Re-paste injected a Command Mode record's spoken <em>instruction</em> into the document unfiltered (violates Epic 6 AC 6.3.2 — "instruction text is never injected into the document")</td>
+  <td>Added a <code>mode != .command</code> guard in <code>AppState.rePaste</code>/<code>rePasteMostRecent</code>, hid the Re-paste controls for command records in <code>HistoryView</code></td>
+  <td><span class="tag tag-ok">APPROVED-WITH-NOTES</span><br>security contract holds (no reachable injection path); 4 MINOR polish findings, none blocking</td>
+</tr>
+<tr>
+  <td><strong>9.2</strong> — Enforce a loopback-only LLM endpoint</td>
+  <td><code>PostProcessService</code> accepted any host as the LLM endpoint — no enforcement of loopback-only traffic (violates Epic 2 AC 2.2-AC6 / NFR-1)</td>
+  <td>Added a loopback-host predicate before all three request paths (<code>_clean</code>, <code>_command</code>, <code>testConnection</code>); UI copy corrected to state the block instead of a warning</td>
+  <td><span class="tag tag-bad">CHANGES REQUESTED</span> → fixed → <span class="tag tag-ok">APPROVED</span><br>First review found and reproduced a live <strong>307-redirect exfiltration bypass</strong>: even with the loopback guard passing, an HTTP redirect from the configured (trusted) loopback server could re-POST the full transcript to an arbitrary off-box host, since nothing checked <code>Location</code> on a redirect. Fixed with a per-task <code>URLSessionTaskDelegate</code> (<code>RedirectBlocker</code>) that refuses all redirects; independently re-reproduced both broken and fixed behavior with a standalone probe outside the test suite before sign-off.</td>
+</tr>
+<tr>
+  <td><strong>9.3</strong> — Inert cask workflow, correct size label, isolation-safe test</td>
+  <td>(a) <code>update-homebrew-cask.yml</code> had no disable guard and would push a fabricated checksum to a public tap on a 404; (b) <code>modelSizeFromName</code> misclassified the shipped default model; (c) a model-size-default test was order-dependent (poisoned by state left from another test)</td>
+  <td>(a) <code>if: false</code> job-level guard + <code>curl -fsSL</code>; (b) reordered branch matching; (c) test now cleans up its own defaults key</td>
+  <td><span class="tag tag-ok">PASS</span><br>all three fixes independently verified, no findings</td>
+</tr>
+<tr>
+  <td><strong>9.4</strong> — Restore pristine stock behavior when Profiles is disabled</td>
+  <td>Turning the Profiles master toggle off still applied a user-edited Default Profile record (leftover prompt override/toggle changes) instead of true Epic-2 stock behavior</td>
+  <td><code>ProfileManager.resolve</code> now returns a pristine <code>Profile.makeDefault()</code> when <code>profilesEnabled</code> is false, instead of the persisted, user-editable Default Profile</td>
+  <td><span class="tag tag-ok">APPROVED</span><br>no findings</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h2>4. Skip ledger</h2>
+<p>Verbatim from <code>_bmad-output/gate-ledger.yaml</code>:</p>
+<pre><code>bmad_version: 6.11.0
+updated: '2026-08-22T00:20:09'
+skips:
+- step: bmad-create-story
+  reason: 'Retroactive: 27 stories implemented+done in prior sessions without story
+    files on disk; authoring them post-hoc adds no product value. Replaced by post-hoc
+    per-epic acceptance re-verification this session.'
+  ts: '2026-08-22T00:00:09'
+- step: bmad-check-implementation-readiness
+  reason: Never ran; all 8 epics already shipped. Replaced by post-hoc acceptance
+    re-verification wave (2026-08-21).
+  ts: '2026-08-22T00:00:09'
+decisions:
+- step: bmad-qa-generate-e2e-tests
+  decision: skip
+  reason: 'App is a menu-bar AX/TCC-gated dictation app: true e2e needs mic + Accessibility
+    grants + a signed UI-test host; no headless seam exists. Coverage rests on 784
+    unit/integration tests + manual smoke. Revisit if a release repo/CI signing ceremony
+    lands.'
+  ts: '2026-08-22T00:20:09'</code></pre>
+
+<h2>5. Residual risks / deliberately not done</h2>
+<ul>
+  <li><strong>WER and the other Success Metrics are still unmeasured.</strong> SM-1 (the flagship claim that the local ivrit.ai model beats the baseline on Hebrew WER) has no held-out set, no story, and no verification step anywhere in this project's history. This is the single biggest open item from the PRD validation and was intentionally out of scope for this round (fixing it means designing and running a WER benchmark, not a code fix).</li>
+  <li><strong>Two Open Questions remain open</strong>: AGPL distribution obligations were never confirmed with the relevant party, and ivrit.ai-model + Q4-LLM peak memory headroom was never measured — both were explicitly gated on checkpoints ("before Phase 1 closes" / "before significant investment") that have since passed.</li>
+  <li><strong>The ~46 PARTIAL acceptance criteria are mostly untested UI-layer clauses.</strong> The SwiftUI view layer has no test seam (no ViewInspector, no snapshot testing, no UI-test target) — the underlying model/service logic behind most of these is tested; the view wiring on top of it is verified by reading, not by an automated assertion.</li>
+  <li><strong>A pre-existing stale-snapshot re-paste race is backlogged, not fixed.</strong> Flagged during 9.1's review: a history record deleted or retention-pruned during the <code>focusSettleDelay</code> window is still injected, because the record's text is captured before the delay. This predates Epic 9 and is unrelated to the mode-gate fix (the mode value travels with the captured record, so it can't go stale). Deliberately left for a future story per the reviewer's own recommendation.</li>
+  <li><strong>Homebrew casks still point at upstream's release assets</strong>, not this fork's — blocked on this fork having no release repo of its own. Story 9.3 made the cask-update workflow inert rather than trying to stand up a real release pipeline.</li>
+  <li><strong>A handful of Hebrew-matching edge cases are known and accepted, not fixed</strong>: a literal-placeholder collision, a bound-prefix false match, and maqaf-compound handling gaps in the Dictionary/Snippet matchers — surfaced as PARTIAL findings in the Epic 5/6 acceptance audit and judged low-impact enough not to warrant their own Epic 9 story.</li>
+</ul>
+
+<h2>6. Verification evidence</h2>
+<ul>
+  <li><strong>Test counts:</strong> 784 tests green (baseline, <code>test-run.md</code>) → 796 tests green (final, after Epic 9). Zero failures at either point.</li>
+  <li><strong>Review verdicts:</strong> 9.1 APPROVED-WITH-NOTES, 9.2 CHANGES REQUESTED → APPROVED (after fixing a real redirect-exfiltration bypass), 9.3 PASS, 9.4 APPROVED. All four reviews were run by a fresh reviewer taking nothing from the Dev Agent Record on trust.</li>
+  <li><strong>Mutation checks:</strong> Story 9.1's reviewer confirmed both new production guards are load-bearing by reverting each independently and watching the corresponding test fail (<code>testRePasteRefusesACommandModeRecord</code>, <code>testRePasteMostRecentSkipsCommandModeRecords</code>). Story 9.2's re-reviewer reproduced the redirect exfiltration independently outside the test suite (a standalone two-listener probe), confirmed it succeeded against the unfixed code and failed (zero bytes reaching the redirect target) against the fixed code, across all of 301/302/307/308.</li>
+  <li><strong>Independent probes:</strong> 9.2's reviewer ran the shipped loopback predicate against 25+ adversarial host spellings (percent-encoding, octal/decimal IP forms, userinfo tricks, IDN dot variants) resolving each accepted host via <code>getaddrinfo</code> — every accepted host genuinely resolves to loopback, zero bypasses found.</li>
+</ul>
+
+<hr>
+
+<h2>Source files in this directory</h2>
+<ul class="file-list">
+  <li><code>verify-epics-1-2.md</code> / <code>.html</code> — Epic 1–2 acceptance audit</li>
+  <li><code>verify-epics-3-4.md</code> / <code>.html</code> — Epic 3–4 acceptance audit</li>
+  <li><code>verify-epics-5-6.md</code> / <code>.html</code> — Epic 5–6 acceptance audit (contains the 6.3.2 VIOLATED finding that led to Story 9.1)</li>
+  <li><code>verify-epics-7-8.md</code> — Epic 7–8 acceptance audit (no .html twin was produced upstream)</li>
+  <li><code>test-run.md</code> — full test suite baseline run (784 green)</li>
+  <li><code>project-context-audit.md</code> — AGENTS.md staleness audit (7 fixes)</li>
+</ul>
+
+<p><strong>Related artifacts elsewhere in the repo:</strong></p>
+<ul class="file-list">
+  <li><code>_bmad-output/planning-artifacts/prd-validation-report.md</code> / <code>.html</code> — PRD validation (verdict: Fair)</li>
+  <li><code>_bmad-output/planning-artifacts/epics.md</code> — corrected in 3 places, in-line amendments</li>
+  <li><code>_bmad-output/implementation-artifacts/stories/9-1-*.md</code> … <code>9-4-*.md</code> — full Epic 9 story files with Dev Agent Record + Code Review sections</li>
+  <li><code>_bmad-output/gate-ledger.yaml</code> — skip/decision ledger quoted in full above</li>
+</ul>
+
+</body>
+</html>

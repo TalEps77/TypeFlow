@@ -27,8 +27,13 @@ struct HistoryView: View {
                         HistoryRowView(record: record)
                             .tag(record.id)
                             .contextMenu {
-                                Button("Re-paste") {
-                                    appState.rePaste(record)
+                                // A Command Mode record's text is the spoken
+                                // instruction, never document content — it must
+                                // never be injectable (Story 6.3 AC).
+                                if record.isRePastable {
+                                    Button("Re-paste") {
+                                        appState.rePaste(record)
+                                    }
                                 }
                                 Button("Delete", role: .destructive) {
                                     delete(record)
@@ -209,16 +214,27 @@ struct HistoryDetailView: View {
                 }
 
                 HStack {
-                    Button(action: onRePaste) {
-                        Label("Re-paste", systemImage: "arrow.uturn.forward.circle")
+                    // No Re-paste for a Command Mode record: its text is the
+                    // instruction, and injecting that is what Story 6.3's AC
+                    // rules out.
+                    if record.isRePastable {
+                        Button(action: onRePaste) {
+                            Label("Re-paste", systemImage: "arrow.uturn.forward.circle")
+                        }
+                        .controlSize(.small)
+                        .buttonStyle(.borderedProminent)
                     }
-                    .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
 
                     Button(role: .destructive, action: onDelete) {
                         Label("Delete This Record", systemImage: "trash")
                     }
                     .controlSize(.small)
+                }
+
+                if !record.isRePastable {
+                    Text("Command Mode records can't be re-pasted.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding()

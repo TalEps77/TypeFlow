@@ -30,7 +30,12 @@ final class ProfileManager: ObservableObject, ProfileResolving {
     }
 
     func resolve(bundleIdentifier: String?, profilesEnabled: Bool) -> Profile {
-        guard profilesEnabled, let bundleIdentifier else {
+        // Disabled means Epic 2's behavior, not "the store's Default record":
+        // the user can edit the Default Profile like any other, so returning
+        // the persisted one would leak that prompt override and those toggles
+        // into what is supposed to be a full opt-out (Story 9.4).
+        guard profilesEnabled else { return Profile.makeDefault() }
+        guard let bundleIdentifier else {
             return defaultProfile()
         }
         return store.profiles.first { $0.bundleIdentifiers.contains(bundleIdentifier) } ?? defaultProfile()

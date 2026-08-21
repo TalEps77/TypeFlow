@@ -126,10 +126,14 @@ final class AppStateRecordingTests: XCTestCase {
     }
 
     func testSelectedModelSizeDefault() {
+        // Order-independent: clear any pollution left by other tests writing
+        // to the shared VocaDefaults.store before asserting the real default
+        // (see AppStateModelLoadingTests.setUp()/tearDown() for the same pattern).
+        VocaDefaults.store.removeObject(forKey: "vocamac.selectedModelSize")
         let (appState, _) = AppState.makeTestState()
 
-        XCTAssertEqual(appState.selectedModelSize, ModelSize.tiny.rawValue,
-                      "Default model size should be tiny")
+        XCTAssertEqual(appState.selectedModelSize, ModelSize.largeV3LatestCompact.rawValue,
+                      "Default model size should be largeV3LatestCompact")
     }
 
     func testPreserveClipboardDefault() {

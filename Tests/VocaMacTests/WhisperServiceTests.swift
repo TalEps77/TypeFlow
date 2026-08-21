@@ -67,6 +67,17 @@ final class WhisperServiceModelSizeFromNameTests: XCTestCase {
         XCTAssertEqual(service.modelSizeFromName("openai_whisper-large-v3_turbo"), .largeV3Turbo)
         XCTAssertEqual(service.modelSizeFromName("openai_whisper-large-v3-v20240930_turbo"), .largeV3LatestTurbo)
     }
+
+    /// Regression test for Story 9.3: the shipped default's folder name
+    /// carries a size suffix ("626mb") that must win over the bare
+    /// "v20240930" date-token branch, or the app misreports it as the
+    /// non-compact "Large v3 Latest (Best)" build.
+    func testCompactSizeSuffixWinsOverBareDateToken() {
+        let service = WhisperService()
+        XCTAssertEqual(service.modelSizeFromName("openai_whisper-large-v3-v20240930_626MB"), .largeV3LatestCompact)
+        // No size suffix: the plain date-token branch should still resolve.
+        XCTAssertEqual(service.modelSizeFromName("openai_whisper-large-v3-v20240930"), .largeV3Latest)
+    }
 }
 
 
