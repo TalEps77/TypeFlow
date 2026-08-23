@@ -114,6 +114,8 @@ struct SettingsView: View {
             switch selectedPage ?? .dictation {
             case .dictation:
                 DictationSettingsPage()
+            case .snippets:
+                SnippetsSettingsTab()
             case .speechModel:
                 SpeechModelSettingsPage()
             case .audio:
@@ -409,6 +411,177 @@ struct ApplicationSettingsPage: View {
 struct SpeechModelSettingsPage: View {
     var body: some View {
         ModelSettingsTab(showsLanguageHints: true)
+    }
+}
+
+// MARK: - Snippets Settings
+
+struct SnippetsSettingsTab: View {
+    @EnvironmentObject var appState: AppState
+    @State private var showingAddSnippet = false
+
+    var body: some View {
+        Form {
+            Section("Custom Snippets") {
+                Text("Speak the trigger phrase and VocaMac will replace it with the expansion text. Matching ignores case.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if appState.snippets.isEmpty {
+                    Text("No snippets yet. Use Add Snippet… to create one.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(appState.snippets) { snippet in
+                        SnippetRow(snippet: snippet)
+                    }
+                }
+
+                Button("Add Snippet…") {
+                    showingAddSnippet = true
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .sheet(isPresented: $showingAddSnippet) {
+            AddSnippetView(isPresented: $showingAddSnippet)
+        }
+    }
+}
+
+struct SnippetRow: View {
+    @EnvironmentObject var appState: AppState
+    let snippet: Snippet
+    @State private var isEditing = false
+    @State private var editedTrigger: String
+    @State private var editedExpansion: String
+
+    init(snippet: Snippet) {
+        self.snippet = snippet
+        _editedTrigger = State(initialValue: snippet.trigger)
+        _editedExpansion = State(initialValue: snippet.expansion)
+    }
+
+    private var isEditValid: Bool {
+        !editedTrigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !editedExpansion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        if isEditing {
+            VStack(alignment: .leading, spacing: 8) {
+                TextField("Trigger", text: $editedTrigger, prompt: Text("e.g. My Mail"))
+                    .textFieldStyle(.roundedBorder)
+                TextField("Expansion", text: $editedExpansion, prompt: Text("e.g. me@example.com"))
+                    .textFieldStyle(.roundedBorder)
+
+                HStack {
+                    Spacer()
+                    Button("Cancel") {
+                        editedTrigger = snippet.trigger
+                        editedExpansion = snippet.expansion
+                        isEditing = false
+                    }
+                    Button("Save") {
+                        updateSnippet()
+                        isEditing = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!isEditValid)
+                }
+            }
+            .padding(.vertical, 4)
+        } else {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(snippet.trigger)
+                    Text(snippet.expansion)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Button {
+                    editedTrigger = snippet.trigger
+                    editedExpansion = snippet.expansion
+                    isEditing = true
+                } label: {
+                    Image(systemName: "pencil")
+                }
+                .buttonStyle(.borderless)
+                .help("Edit Snippet")
+                .accessibilityLabel("Edit Snippet")
+
+                Button(role: .destructive) {
+                    appState.snippets.removeAll { $0.id == snippet.id }
+                } label: {
+                    Image(systemName: "minus.circle.fill")
+                }
+                .buttonStyle(.borderless)
+                .help("Remove Snippet")
+                .accessibilityLabel("Remove Snippet")
+            }
+        }
+    }
+
+    private func updateSnippet() {
+        if let index = appState.snippets.firstIndex(where: { $0.id == snippet.id }) {
+            // Trim the trigger for matching, but keep the expansion as entered —
+            // leading/trailing whitespace can be intentional formatting.
+            appState.snippets[index].trigger = editedTrigger.trimmingCharacters(in: .whitespacesAndNewlines)
+            appState.snippets[index].expansion = editedExpansion
+        }
+    }
+}
+
+struct AddSnippetView: View {
+    @EnvironmentObject var appState: AppState
+    @Binding var isPresented: Bool
+    @State private var trigger = ""
+    @State private var expansion = ""
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Add New Snippet")
+                .font(.headline)
+
+            Form {
+                TextField("Trigger Phrase", text: $trigger, prompt: Text("e.g. My Mail"))
+                TextField("Expansion Text", text: $expansion, prompt: Text("e.g. me@example.com"))
+            }
+            .formStyle(.grouped)
+            .frame(height: 120)
+
+            Text("VocaMac will listen for the trigger phrase and replace it with the expansion text.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+
+            HStack {
+                Button("Cancel") {
+                    isPresented = false
+                }
+                .keyboardShortcut(.escape, modifiers: [])
+
+                Spacer()
+
+                Button("Add Snippet") {
+                    // Trim the trigger for matching, but keep the expansion as entered —
+                    // leading/trailing whitespace can be intentional formatting.
+                    let trimmedTrigger = trigger.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let newSnippet = Snippet(trigger: trimmedTrigger, expansion: expansion)
+                    appState.snippets.append(newSnippet)
+                    isPresented = false
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(trigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || expansion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding()
+        .frame(width: 400)
     }
 }
 
