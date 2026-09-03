@@ -63,6 +63,37 @@ final class DictionaryStore: ObservableObject {
         }
     }
 
+    /// Adds `incoming` entries that do not collide with what is already here,
+    /// for the built-in term packs. An entry is skipped when its canonical form
+    /// is already present (case-insensitively) or any of its triggers is
+    /// already claimed by an existing entry — the user's own spelling of a
+    /// term always wins over the pack's. Returns how many were added and how
+    /// many skipped so the UI can say so.
+    @discardableResult
+    func merge(_ incoming: [DictionaryEntry]) -> (added: Int, skipped: Int) {
+        var canonicals = Set(entries.map { $0.canonicalForm.lowercased() })
+        var triggers = Set(entries.flatMap { $0.triggers }.map { HebrewNormalizer.normalize($0).lowercased() })
+        var added: [DictionaryEntry] = []
+        var skipped = 0
+        for entry in incoming {
+            let canonical = entry.canonicalForm.lowercased()
+            let normalizedTriggers = entry.triggers.map { HebrewNormalizer.normalize($0).lowercased() }
+            guard !canonicals.contains(canonical),
+                  !normalizedTriggers.contains(where: { triggers.contains($0) })
+            else {
+                skipped += 1
+                continue
+            }
+            canonicals.insert(canonical)
+            triggers.formUnion(normalizedTriggers)
+            added.append(DictionaryEntry(canonicalForm: entry.canonicalForm, triggers: entry.triggers))
+        }
+        guard !added.isEmpty else { return (0, skipped) }
+        entries.append(contentsOf: added)
+        persist()
+        return (added.count, skipped)
+    }
+
     /// Used by import (Story 5.3 AC): replaces the whole set.
     func replaceAll(with newEntries: [DictionaryEntry]) {
         entries = newEntries

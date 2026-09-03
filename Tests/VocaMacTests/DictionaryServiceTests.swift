@@ -26,15 +26,50 @@ final class DictionaryServiceTests: XCTestCase {
     // while asserting the exact opposite — the one test whose name a reader
     // scanning for exact-match coverage would stop at. The real exact-match
     // case is `testExactTriggerAsAWholeWordIsReplaced` below.
-    func testTriggerCarryingABoundPrefixIsNotReplaced() {
+    // The bound-prefix tier (DeveloperTerms) changed this from "never touch a
+    // prefixed word" to "peel the prefix, require an exact remainder, keep the
+    // prefix with a maqaf". The substring guard it used to assert still holds
+    // for anything that is not exactly prefix + trigger — see
+    // testPrefixedWordWithInexactRemainderIsNotReplaced.
+    func testTriggerCarryingABoundPrefixKeepsThePrefixWithAMaqaf() {
         let service = DictionaryService()
         let entry = DictionaryEntry(canonicalForm: "Kubernetes", triggers: ["קוברנטיס"])
 
         let result = service.replace(in: "אני משתמש בקוברנטיס היום", using: [entry])
 
-        XCTAssertEqual(result.text, "אני משתמש בקוברנטיס היום",
-                        "the trigger is inside the longer word 'בקוברנטיס' and must NOT match as a substring")
+        XCTAssertEqual(result.text, "אני משתמש ב\u{05BE}Kubernetes היום")
+        XCTAssertEqual(result.replacementCount, 1)
+    }
+
+    func testPrefixedWordWithInexactRemainderIsNotReplaced() {
+        let service = DictionaryService()
+        let entry = DictionaryEntry(canonicalForm: "Kubernetes", triggers: ["קוברנטיס"])
+
+        // One letter off after the prefix: the prefix tier is exact-only and the
+        // fuzzy tier's first-character anchor refuses the prefixed form.
+        let result = service.replace(in: "אני משתמש בקוברנטס היום", using: [entry])
+
+        XCTAssertEqual(result.text, "אני משתמש בקוברנטס היום")
         XCTAssertEqual(result.replacementCount, 0)
+    }
+
+    func testTwoLetterPrefixIsPeeledWhole() {
+        let service = DictionaryService()
+        let entry = DictionaryEntry(canonicalForm: "commit", triggers: ["קומיט"])
+
+        let result = service.replace(in: "תבדוק והקומיט יעבור", using: [entry])
+
+        XCTAssertEqual(result.text, "תבדוק וה\u{05BE}commit יעבור")
+    }
+
+    func testShortRemainderIsNotTreatedAsPrefixed() {
+        let service = DictionaryService()
+        // "בית" must not become ב + a two-letter trigger.
+        let entry = DictionaryEntry(canonicalForm: "IT", triggers: ["ית"])
+
+        let result = service.replace(in: "הלכתי הבית", using: [entry])
+
+        XCTAssertEqual(result.text, "הלכתי הבית")
     }
 
     func testExactTriggerAsAWholeWordIsReplaced() {

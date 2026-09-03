@@ -123,6 +123,11 @@ struct DictionaryService: DictionaryProviding, Sendable {
             // Copy whatever sits between the previous match and this one
             // (whitespace, punctuation, unmatched words) through byte-for-byte.
             result += text[cursor..<tokens[tokenIndex].range.lowerBound]
+            if !match.prefix.isEmpty {
+                // Hebrew joins a bound prefix to a Latin word with a maqaf:
+                // "אחרי הקומיט" → "אחרי ה־commit", "תפרוס לורסל" → "תפרוס ל־Vercel".
+                result += match.prefix + "\u{05BE}"
+            }
             result += match.trigger.canonicalForm
             replacementCount += 1
 
@@ -149,6 +154,20 @@ struct DictionaryService: DictionaryProviding, Sendable {
     /// match anywhere in the Dictionary always outranks a fuzzier one; within a
     /// tier, a longer token run outranks a shorter one, so "node.js" is never
     /// left half-matched by a "node" trigger.
+    /// Hebrew's bound prefixes — conjunction, article, prepositions and the
+    /// relative ש — longest first so "והקומיט" is read as וה + קומיט rather
+    /// than ו + הקומיט. Two-letter combinations only where Hebrew actually
+    /// stacks them.
+    static let boundPrefixes: [String] = [
+        "וה", "וב", "ול", "ומ", "וש", "וכ", "שה", "שב", "כש", "מה",
+        "ו", "ה", "ב", "ל", "מ", "ש", "כ",
+    ]
+
+    /// A remainder shorter than this never counts as a prefixed trigger, so a
+    /// two-letter trigger cannot turn an ordinary three-letter word into
+    /// prefix + term.
+    private static let minimumPrefixedRemainder = 3
+
     private static func match(
         at index: Int,
         normalizedWords: [String],
@@ -156,7 +175,7 @@ struct DictionaryService: DictionaryProviding, Sendable {
         prepared: [PreparedTrigger],
         longestTrigger: Int,
         similarityThreshold: Double
-    ) -> (trigger: PreparedTrigger, length: Int)? {
+    ) -> (trigger: PreparedTrigger, length: Int, prefix: String)? {
         guard !normalizedWords[index].isEmpty else { return nil }
         let maximumRun = min(longestTrigger, normalizedWords.count - index)
         guard maximumRun > 0 else { return nil }
@@ -165,8 +184,26 @@ struct DictionaryService: DictionaryProviding, Sendable {
         for length in stride(from: maximumRun, through: 1, by: -1) {
             for trigger in prepared where trigger.phrase.words.count == length {
                 if WordTokenizer.matches(trigger.phrase, words: normalizedWords, gaps: gaps, at: index) {
-                    return (trigger, length)
+                    return (trigger, length, "")
                 }
+            }
+        }
+
+        // Bound-prefix tier: exact only. Hebrew glues ה/ל/ב/ו/מ/ש/כ onto the
+        // next word, so a dictation about a commit says "הקומיט" far more often
+        // than "קומיט", and the fuzzy tier below refuses that on purpose (its
+        // first-character anchor exists precisely to keep prefixed real words
+        // out). Here the prefix is peeled off and the remainder must equal a
+        // single-word trigger exactly — no edit distance — which keeps the
+        // conservative bias (SM-C2) while letting the term pack fire on the
+        // forms people actually say. The prefix survives, joined with a maqaf.
+        let word = normalizedWords[index]
+        for prefix in boundPrefixes where word.hasPrefix(prefix) && word.count - prefix.count >= minimumPrefixedRemainder {
+            let remainder = String(word.dropFirst(prefix.count))
+            // A trigger with a trailing geresh (ברנץ׳) is fine here: the match
+            // below consumes the text's copy of it exactly as the exact tier does.
+            for trigger in prepared where trigger.phrase.words.count == 1 && trigger.phrase.words[0] == remainder {
+                return (trigger, 1, prefix)
             }
         }
 
@@ -195,7 +232,7 @@ struct DictionaryService: DictionaryProviding, Sendable {
                 let distance = levenshteinDistance(candidate, normalizedTrigger)
                 let similarity = 1.0 - Double(distance) / Double(maxLength)
                 if similarity > similarityThreshold {
-                    return (trigger, length)
+                    return (trigger, length, "")
                 }
             }
         }

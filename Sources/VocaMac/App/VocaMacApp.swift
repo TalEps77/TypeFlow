@@ -268,6 +268,10 @@ struct VocaMacApp: App {
             }
         }
 
+        // A fresh install starts with the developer term pack in its Dictionary
+        // (once — never re-added after the user prunes it).
+        DeveloperTerms.seedIfFresh(into: appState.dictionaryStore)
+
         // Docs screenshots — inert unless TYPEFLOW_CAPTURE_DIR is set.
         DebugCapture.startIfRequested(appState: appState, settings: settingsManager, history: historyManager)
     }

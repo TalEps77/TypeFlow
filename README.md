@@ -26,7 +26,7 @@ No cloud, no account, no subscription, no telemetry. The audio never leaves the 
 ---
 
 <p align="center">
-  <img src="docs/screenshots/settings-models.png" alt="TypeFlow Settings → Models: Active model ivrit.ai Hebrew (Large v3 Turbo)" width="760">
+  <img src="docs/screenshots/popover.png" alt="TypeFlow menu bar: ivrit.ai Hebrew model active, עב / EN / Auto language toggle, Hold Right Option" width="380">
 </p>
 
 ## Why this fork exists
@@ -51,6 +51,7 @@ privacy policy.
 | 🗂️ **Profiles** | Different behaviour per app. Force English in Slack while the menu bar stays on Hebrew. |
 | ✂️ **Snippets** | Say a cue, get a block of text — verbatim, never rewritten. |
 | 🗣️ **Command Mode** | Select text, hold a second key, say *"make this shorter"* — the selection is rewritten in place. |
+| 🧰 **Developer vocabulary, built in** | 360 tech terms said with a Hebrew accent — קומיט, פוש, פול ריקווסט, קלוד אמדי — written as code writes them: `commit`, `push`, `pull request`, `CLAUDE.md`. Prefixes survive: הקומיט → ה־commit. |
 | 📖 **Personal dictionary** | Names and jargon the recognizer keeps getting wrong, fixed deterministically after the fact. |
 | 🕘 **History + undo** | Every dictation kept locally, searchable, re-pastable. One click undoes the last injection. |
 | ⚡ **Apple Silicon native** | CoreML + Neural Engine via [WhisperKit](https://github.com/argmaxinc/WhisperKit). |
@@ -125,6 +126,10 @@ on Hugging Face (about 1.5 GB, 29 files; resumable), verifies the required compo
 and places them where TypeFlow looks. Relaunch TypeFlow, open **Settings → Models**, and select
 **ivrit.ai Hebrew (Large v3 Turbo)**.
 
+<p align="center">
+  <img src="docs/screenshots/settings-models.png" alt="Settings → Models: Active model ivrit.ai Hebrew (Large v3 Turbo)" width="760">
+</p>
+
 Prefer to do it by hand? The files go in
 `~/Library/Application Support/VocaMac/models/models/argmaxinc/whisperkit-coreml/ivrit-ai_whisper-large-v3-turbo/`
 — the same path Settings → Models shows next to the *Not Installed* label.
@@ -181,6 +186,17 @@ switching mid-flow costs one click. Profiles can pin a language per app.
 folds final forms (ך/ם/ן/ף/ץ), decomposes Yiddish ligatures, and canonicalizes geresh/gershayim —
 only after a Hebrew letter, so `don't` in English survives untouched. Acronyms like מנכ״ל and צה״ל
 are matched as single tokens. This drives Snippets, the Dictionary, and correction learning.
+
+**English tech terms, spelled the way code spells them.** Say *"תפתח פול ריקווסט אחרי הקומיט
+ותפרוס לורסל"* and get *"תפתח pull request אחרי ה־commit ותפרוס ל־Vercel"*. A built-in pack of
+**360 developer terms** — git verbs, tools, cloud services, AI tooling (Claude Code, `CLAUDE.md`,
+MCP), languages, frameworks, agile vocabulary — is applied deterministically after transcription,
+no language model involved. Hebrew's bound prefixes (ה/ל/ב/ו/מ/ש/כ) are peeled off and re-joined
+with a maqaf, the way Hebrew typography attaches them to Latin words. Fresh installs get the pack
+automatically; it's one button in **Settings → Vocabulary** otherwise, and every term is an ordinary
+Dictionary entry you can edit or delete. Words with an accepted Hebrew spelling (אובייקט, פונקציה)
+and transliterations that collide with real Hebrew words (פול, פורק) are deliberately left out —
+a wrong replacement costs more than a missed one.
 
 **Mixed Hebrew–English dictation.** Cleanup picks its prompt from the *script of what you actually
 said*, not from the toggle — dictate Hebrew while set to English and you still get the Hebrew
@@ -240,7 +256,7 @@ persisted, and a reply that merely echoes your document is rejected.
 the cleanup model so it can never reword them. Works with cleanup off.
 
 **Dictionary** — deterministic post-recognition fixes for names and jargon, with Hebrew-aware fuzzy
-matching. Optional **correction learning** notices a single-word edit you make right after
+matching. Ships with the 360-term developer pack described [above](#hebrew); add your own on top. Optional **correction learning** notices a single-word edit you make right after
 dictating and *offers* to remember it — off by default; dismissals are stored as one-way hashes.
 
 ---
@@ -271,8 +287,8 @@ TypeFlow is in daily use by its author and is **beta**. Where it stands, plainly
 - Some Hebrew fuzzy-matching edge cases are known and accepted (bound prefixes such as
   בדיקה/בבדיקה can over-match).
 
-**796 tests** cover the models, pipeline, matching and stores; 793 pass in a headless runner — the
-three that don't need a real microphone and speaker. SwiftUI view wiring is largely manual-tested.
+**800+ tests** cover the models, pipeline, matching and stores; all pass in a headless runner except
+three that need a real microphone and speaker. SwiftUI view wiring is largely manual-tested.
 
 ---
 

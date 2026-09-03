@@ -140,6 +140,22 @@ struct VocabularySettingsTab: View {
                 .controlSize(.small)
             }
 
+            Section("Built-in Terms") {
+                Button {
+                    let outcome = appState.dictionaryStore.merge(DeveloperTerms.hebrewToEnglish)
+                    importSummaryMessage = outcome.added == 0
+                        ? "All \(DeveloperTerms.hebrewToEnglish.count) developer terms are already in your Dictionary."
+                        : "Added \(outcome.added) developer terms" + (outcome.skipped > 0 ? " (\(outcome.skipped) already present, left as they were)." : ".")
+                } label: {
+                    Label("Add Developer Terms (Hebrew → English)", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+                .controlSize(.small)
+
+                Text("\(DeveloperTerms.hebrewToEnglish.count) tech terms said with a Hebrew accent inside Hebrew sentences — קומיט, פוש, פול ריקווסט, קלוד אמדי — written the way they appear in code: commit, push, pull request, CLAUDE.md. A bound prefix survives with a maqaf, so הקומיט becomes ה־commit. Entries you already have are never overwritten; everything added is an ordinary Dictionary Entry you can edit or delete. New installs get this pack automatically.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Backup") {
                 HStack(spacing: 12) {
                     Button("Export…") { exportEntries() }
