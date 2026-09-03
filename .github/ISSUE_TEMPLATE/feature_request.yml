@@ -1,0 +1,27 @@
+name: Feature request
+description: Something TypeFlow should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that is awkward or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+    validations:
+      required: true
+  - type: dropdown
+    id: privacy
+    attributes:
+      label: Does this need anything to leave the Mac?
+      description: TypeFlow is local-only by design; cloud features are out of scope (see CONTRIBUTING.md)
+      options:
+        - "No — fully local"
+        - "Yes"
+    validations:
+      required: true

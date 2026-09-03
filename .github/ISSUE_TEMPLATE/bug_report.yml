@@ -1,0 +1,83 @@
+name: Bug report
+description: Something transcribed, typed, or behaved wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. The more literal the report, the faster the fix — for dictation bugs, paste **exactly what you said** and **exactly what came out**.
+  - type: input
+    id: version
+    attributes:
+      label: TypeFlow version
+      description: Settings → About
+      placeholder: "1.0.0-beta.1"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac model
+      placeholder: "macOS 15.6, MacBook Pro M3 Pro 36 GB"
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Dictation language at the time
+      options:
+        - Hebrew (עב)
+        - English (EN)
+        - Auto-detect
+        - Other (say which below)
+        - Not relevant
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Whisper model in use
+      description: Settings → Models
+      placeholder: "ivrit.ai Hebrew (Large v3 Turbo)"
+  - type: dropdown
+    id: cleanup
+    attributes:
+      label: Local cleanup (Settings → Cleanup)
+      options:
+        - "Off"
+        - "On — LM Studio"
+        - "On — other server (say which below)"
+  - type: input
+    id: target-app
+    attributes:
+      label: App you were typing into
+      description: Text injection and hotkeys behave differently per app
+      placeholder: "Slack 4.41, Safari, VS Code…"
+  - type: textarea
+    id: said
+    attributes:
+      label: What you said
+      description: Verbatim, in the language you spoke
+    validations:
+      required: false
+  - type: textarea
+    id: got
+    attributes:
+      label: What TypeFlow typed
+      description: Paste it exactly — including wrong punctuation sides or word order
+    validations:
+      required: false
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Set language to עב
+        2. Hold Right Option, say "…"
+        3. Release

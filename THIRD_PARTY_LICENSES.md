@@ -31,9 +31,19 @@ Face:
 |---|---|---|
 | OpenAI Whisper (model weights and original implementation) | MIT | https://github.com/openai/whisper |
 | whisperkit-coreml (CoreML conversions of the above) | MIT | https://huggingface.co/argmaxinc/whisperkit-coreml |
+| ivrit.ai Whisper Large v3 Turbo (Hebrew fine-tune) | Apache-2.0 | https://huggingface.co/ivrit-ai/whisper-large-v3-turbo |
+| CoreML conversion of the ivrit.ai model, by Eran Shir | MIT | https://huggingface.co/eranshir/ivrit-ai-whisper-large-v3-turbo-coreml |
 
-Models are downloaded on demand at runtime and are **not** redistributed as part
-of this repository.
+Models are downloaded on demand at runtime (`scripts/install-hebrew-model.sh`
+for the Hebrew one) and are **not** redistributed as part of this repository.
+
+## Optional local cleanup model
+
+The cleanup feature talks to any OpenAI-compatible server on localhost. The
+documented default is [LM Studio](https://lmstudio.ai) (proprietary, free for
+personal use — its own terms apply) serving **Qwen3-4B-Instruct-2507**
+(Apache-2.0, https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507). Neither is
+bundled with, or required by, TypeFlow.
 
 ## Upstream project
 

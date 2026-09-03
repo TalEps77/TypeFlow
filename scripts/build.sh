@@ -29,7 +29,7 @@ CONFIG="${1:-release}"
 # the single shared definition — see scripts/app-name.sh for why the internal
 # executable name and the user-visible display name differ.
 . "$SCRIPT_DIR/app-name.sh"
-APP_VERSION="${APP_VERSION:-0.7.0}"
+APP_VERSION="${APP_VERSION:-1.0.0-beta.1}"
 
 # Resolve signing identity:
 # 1. Use CODE_SIGN_IDENTITY env var if set
