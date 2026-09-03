@@ -49,3 +49,7 @@ bitbucket-pipelines.yml
 .claude/
 TypeFlow.app.bak/
 VocaMac.app.bak/
+
+# BMAD planning/verification artifacts — kept locally, not part of the public tree
+_bmad/
+_bmad-output/
