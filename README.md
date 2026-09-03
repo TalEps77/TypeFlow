@@ -25,6 +25,10 @@ No cloud, no account, no subscription, no telemetry. The audio never leaves the 
 
 ---
 
+<p align="center">
+  <img src="docs/screenshots/settings-models.png" alt="TypeFlow Settings → Models: Active model ivrit.ai Hebrew (Large v3 Turbo)" width="760">
+</p>
+
 ## Why this fork exists
 
 TypeFlow is a fork of [VocaMac](https://github.com/jatinkrmalik/vocamac) by Jatin Kumar Malik,
@@ -149,6 +153,10 @@ The setup TypeFlow was tuned against is [LM Studio](https://lmstudio.ai) serving
 Any other OpenAI-compatible server on localhost works the same way (Ollama, llama.cpp, mlx-lm…);
 only the address and model name change.
 
+<p align="center">
+  <img src="docs/screenshots/settings-cleanup.png" alt="Settings → Cleanup: local LLM at http://localhost:1234, Test Connection, editable system prompt" width="760">
+</p>
+
 **This is not a privacy loophole.** The endpoint is checked against loopback before every request
 and HTTP redirects are refused outright, so cleanup cannot be pointed at a cloud API even
 deliberately. There is no API-key field, because there is nowhere to send a key. If the server is
@@ -200,11 +208,19 @@ a numbered list. Said as prose (*"שמתי נקודה בסוף המשפט"*) it 
 | **Select text, hold Right Command, speak an instruction** | Command Mode rewrites the selection in place |
 | **Menu bar → Undo Last Injection** | Remove what was just typed |
 
+<p align="center">
+  <img src="docs/screenshots/settings-general.png" alt="Settings → General: activation mode, hotkey, Command Mode" width="760">
+</p>
+
 **Command Mode ships off** — enabling it reserves Right Command system-wide while TypeFlow runs.
 By design, *every* Command Mode failure leaves your text untouched: it will never paste your spoken
 instruction over your paragraph.
 
 ### Profiles
+
+<p align="center">
+  <img src="docs/screenshots/settings-profiles.png" alt="Settings → Profiles: per-app profiles, Cursor Context off by default" width="760">
+</p>
 
 A Profile binds settings to the app you are typing into: its own cleanup prompt, its own language,
 cleanup on or off. Three starters ship — Chat (Slack/Messages), Mail, Code Editor (VS Code/Xcode).
@@ -215,6 +231,10 @@ thing in the app, so it is **off by default, needs two separate toggles**, is ne
 persisted, and a reply that merely echoes your document is rejected.
 
 ### Snippets and dictionary
+
+<p align="center">
+  <img src="docs/screenshots/settings-vocabulary.png" alt="Settings → Vocabulary: Dictionary and Correction Learning" width="760">
+</p>
 
 **Snippets** — say a cue, get a block of text: expanded verbatim, line breaks intact, shielded from
 the cleanup model so it can never reword them. Works with cleanup off.

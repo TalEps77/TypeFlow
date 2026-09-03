@@ -267,6 +267,9 @@ struct VocaMacApp: App {
                 self.onboardingManager.open(appState: self.appState)
             }
         }
+
+        // Docs screenshots — inert unless TYPEFLOW_CAPTURE_DIR is set.
+        DebugCapture.startIfRequested(appState: appState, settings: settingsManager, history: historyManager)
     }
 
     /// Terminate any other running instances of VocaMac

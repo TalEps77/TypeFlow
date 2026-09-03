@@ -40,6 +40,21 @@ The way to stay sane while developing: grant Microphone, Accessibility and Input
 Monitoring to your terminal app once, and use `make run` — the permissions are
 inherited from the terminal and never reset.
 
+### Regenerating the README screenshots
+
+The app can photograph itself — no Screen Recording permission needed:
+
+```bash
+make install
+osascript -e 'tell application "TypeFlow" to quit'
+TYPEFLOW_CAPTURE_DIR=/tmp/typeflow-shots open -a TypeFlow --env TYPEFLOW_CAPTURE_DIR=/tmp/typeflow-shots
+```
+
+It writes `settings-<section>.png` for every Settings section and `history.png`,
+then keeps listening: posting the distributed notification `il.typeflow.capture`
+dumps every visible window. See `Sources/VocaMac/App/DebugCapture.swift`; it is
+inert unless the environment variable is set.
+
 ## Pull requests
 
 * Keep the diff focused; one concern per PR.
