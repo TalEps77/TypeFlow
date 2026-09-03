@@ -4,544 +4,262 @@
 
 <h1 align="center">TypeFlow</h1>
 
-<p align="center"><strong>Your voice, your Mac, your privacy. Open-source dictation powered by AI.</strong></p>
-
-<p align="center"><em>TypeFlow is a fork of <a href="https://github.com/jatinkrmalik/vocamac">VocaMac</a> by jatinkrmalik, licensed under AGPL-3.0.</em></p>
+<p align="center"><strong>Hebrew and English dictation for macOS that never leaves your Mac.</strong></p>
 
 <div align="center">
-  
-[![Build & Test](https://github.com/jatinkrmalik/vocamac/actions/workflows/ci.yml/badge.svg)](https://github.com/jatinkrmalik/vocamac/actions/workflows/ci.yml)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Platform: macOS](https://img.shields.io/badge/Platform-macOS%2013%2B-lightgrey.svg)](https://github.com/jatinkrmalik/vocamac)
+
+[![Build & Test](https://github.com/TalEps77/TypeFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/TalEps77/TypeFlow/actions/workflows/ci.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Platform: macOS 13+](https://img.shields.io/badge/Platform-macOS%2013%2B-lightgrey.svg)](#requirements)
+[![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-required-black.svg?logo=apple&logoColor=white)](#requirements)
 [![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-orange.svg)](https://swift.org)
-[![Release](https://img.shields.io/github/v/release/jatinkrmalik/vocamac?include_prereleases&label=Release)](https://github.com/jatinkrmalik/vocamac/releases)
-[![Nightly](https://img.shields.io/badge/Nightly-download-blueviolet)](https://github.com/jatinkrmalik/vocamac/releases/tag/nightly)
-
-[![Powered by WhisperKit](https://img.shields.io/badge/Powered%20by-WhisperKit-blueviolet.svg)](https://github.com/argmaxinc/WhisperKit)
-[![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-Optimized-black.svg?logo=apple&logoColor=white)](https://github.com/jatinkrmalik/vocamac)
-[![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local-brightgreen.svg)](https://github.com/jatinkrmalik/vocamac)
-[![Works Offline](https://img.shields.io/badge/Works-Offline-success.svg)](https://github.com/jatinkrmalik/vocamac)
-
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/jatinkrmalik/vocamac/pulls)
-[![GitHub Issues](https://img.shields.io/github/issues/jatinkrmalik/vocamac)](https://github.com/jatinkrmalik/vocamac/issues)
-[![GitHub Stars](https://img.shields.io/github/stars/jatinkrmalik/vocamac?style=social)](https://github.com/jatinkrmalik/vocamac/stargazers)
-[![Twitter Follow](https://img.shields.io/twitter/follow/jatinkrmalik?style=social)](https://x.com/intent/user?screen_name=jatinkrmalik)
+[![Privacy: 100% local](https://img.shields.io/badge/Privacy-100%25%20local-brightgreen.svg)](#privacy)
+[![עברית](https://img.shields.io/badge/%D7%A2%D7%91%D7%A8%D7%99%D7%AA-supported-blue.svg)](#hebrew)
 
 </div>
 
-<p align="center">Speak. It types. 100% offline, open-source voice-to-text for macOS - powered by WhisperKit. No cloud, no subscriptions, no data leaves your device. Just hold a hotkey, speak, and your words appear wherever your cursor is.</p>
-
----
-
-## ✨ Features
-
-- **🔒 100% Local** - All audio processing happens on your machine. No internet required — the Tiny model ships bundled and works out of the box offline.
-- **⌨️ System-Wide Text Injection** - Transcribed text is typed wherever your cursor is: browsers, Slack, VS Code, spreadsheets, terminals - everywhere.
-- **🎯 Push-to-Talk** - Hold a hotkey (default: Right Option) to record. Release to transcribe.
-- **👆 Double-Tap Toggle** - Double-tap the hotkey to start/stop recording.
-- **🧠 Smart Model Selection** - Auto-detects your Apple Silicon chip and RAM, then recommends the best whisper model via WhisperKit.
-- **⚡ Native Apple Acceleration** - CoreML + Metal + Neural Engine acceleration on Apple Silicon. No manual setup.
-- **📊 Visual Feedback** - Menu bar icon changes color during recording and processing. Audio level indicator shows input.
-- **🔄 Updates** - Rebuild from source with `git pull && make install`. The inherited in-app update checker is deliberately switched off: it pointed at upstream VocaMac's releases, so an "update" would have replaced this build with one missing every feature below. See `UpdateChecker.updatesEnabled`.
-- **⚙️ Configurable** - Choose hotkey presets or record a custom activation key reserved by TypeFlow while it runs, models, languages, silence detection thresholds, and more.
-
----
-
-## 📸 Screenshots
-
 <p align="center">
-  <img src="docs/screenshots/popover-panel.png" alt="TypeFlow Popover" width="400">
-  <br>
-  <em>Menu bar popover with status and controls</em>
+Hold a key. Speak. Your words appear at the cursor — in any app.<br>
+No cloud, no account, no subscription, no telemetry. The audio never leaves the machine.
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/menu-bar-idle.png" alt="Menu Bar - Idle" width="250">
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/menu-bar-recording.png" alt="Menu Bar - Recording" width="250">
-  <br>
-  <em>Menu bar icon: idle (left) and recording (right)</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/settings-general.png" alt="Settings - General" width="400">
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/settings-models.png" alt="Settings - Models" width="400">
-  <br>
-  <em>Settings: General tab (left) and Models tab with resource monitoring (right)</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/settings-audio.png" alt="Settings - Audio" width="400">
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/settings-about.png" alt="Settings - About" width="400">
-  <br>
-  <em>Settings: Audio tab (left) and About tab (right)</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/cursor-indicator.png" alt="Cursor Indicator" width="400">
-  <br>
-  <em>Floating mic indicator near text cursor during recording</em>
+  <img src="docs/screenshots/popover-panel.png" alt="TypeFlow menu bar popover" width="420">
 </p>
 
 ---
 
-## 🏛️ Why WhisperKit?
+## Why this fork exists
 
-TypeFlow uses [WhisperKit](https://github.com/argmaxinc/WhisperKit) instead of raw whisper.cpp because:
+TypeFlow is a fork of [VocaMac](https://github.com/jatinkrmalik/vocamac) by Jatin Kumar Malik,
+rebuilt around one question upstream doesn't answer: **what does dictation look like when
+Hebrew is a first-class language rather than entry number 34 in a dropdown?**
 
-| | WhisperKit | whisper.cpp |
-|---|-----------|-------------|
-| **Language** | Pure Swift (native) | C++ (requires bridging) |
-| **Apple Silicon** | CoreML + Neural Engine | Metal only |
-| **SPM Integration** | One-line dependency | Complex vendoring |
-| **Model Format** | CoreML (optimized per device) | GGML (generic) |
-| **Streaming** | First-class async/await | Manual threading |
-| **Quality** | Same OpenAI Whisper models | Same OpenAI Whisper models |
-| **Maintenance** | Argmax Inc. (commercial) | Community |
-
-Same accuracy, dramatically better Apple platform integration.
+Everything below the "Dictation" line is new here: a Hebrew-tuned recognizer, a Hebrew text
+normalizer, per-app Profiles, Snippets, spoken editing commands, and an optional cleanup pass
+that runs on a model on *your* machine.
 
 ---
 
-## 📋 Requirements
+## Features
 
-- **macOS 13 (Ventura)** or later
-- **Apple Silicon Mac** (M1/M2/M3/M4) — **Intel Macs are not supported.** TypeFlow is built for `arm64` only.
-- **Xcode 15+** or Swift 5.9+ (only for building from source)
-
-### Permissions
-
-TypeFlow requires three macOS permissions:
-
-| Permission | Why |
+| | |
 |---|---|
-| **Microphone** | Capture your voice for transcription |
-| **Accessibility** | Global hotkeys and text injection into apps |
-| **Input Monitoring** | Detect hotkey presses system-wide |
+| 🇮🇱 **Hebrew, properly** | A dedicated Hebrew recognizer, Hebrew-aware text matching, and hand-tuned Hebrew cleanup. [Details ↓](#hebrew) |
+| 🔒 **Nothing leaves the Mac** | Transcription is on-device. The optional cleanup step is *refused* if you point it anywhere but localhost — enforced in code, not just documented. |
+| ⌨️ **Types anywhere** | Slack, VS Code, Mail, browsers, terminals — text is injected at the cursor. |
+| 🎤 **Push-to-talk or toggle** | Hold Right Option and speak, or double-tap to toggle hands-free. |
+| 🗂️ **Profiles** | Different behaviour per app. Force English in Slack while the menu bar stays on Hebrew. |
+| ✂️ **Snippets** | Say a cue, get a block of text — verbatim, never rewritten. |
+| 🗣️ **Command Mode** | Select text, hold a second key, say *"make this shorter"* — the selection is rewritten in place. |
+| 📖 **Personal dictionary** | Names and jargon the recognizer keeps getting wrong, fixed deterministically after the fact. |
+| 🕘 **History + undo** | Every dictation kept locally, searchable, re-pastable. One click undoes the last injection. |
+| ⚡ **Apple Silicon native** | CoreML + Neural Engine via [WhisperKit](https://github.com/argmaxinc/WhisperKit). |
 
-> **Note:** After granting Input Monitoring, a restart of TypeFlow is required for it to take effect.
+<a id="hebrew"></a>
+
+## Hebrew — what "supported" actually means here
+
+Most dictation tools list Hebrew and stop there. Concretely, TypeFlow adds:
+
+**A Hebrew-specific recognizer.** Alongside the standard Whisper models, TypeFlow can run the
+[ivrit.ai](https://www.ivrit.ai) Hebrew fine-tune of Whisper Large v3 Turbo. It is **side-loaded,
+not downloaded** — see [Hebrew setup](#hebrew-setup).
+
+**Hebrew is the default language,** and the menu bar carries a one-click **עב / EN / Auto**
+toggle so switching mid-flow costs nothing.
+
+**Text matching that understands Hebrew.** A dedicated normalizer strips niqqud and cantillation,
+folds final forms (ך/ם/ן/ף/ץ), decomposes Yiddish ligatures, and canonicalizes geresh/gershayim —
+but only after a Hebrew letter, so `don't` in English survives untouched. Acronyms like מנכ״ל and
+צה״ל are matched as single tokens.
+
+**Mixed Hebrew–English dictation.** Cleanup picks its prompt from the *script of what you actually
+said*, not from the toggle — dictate Hebrew while set to English and you still get the Hebrew
+prompt. The recognizer glossary is deliberately withheld on Auto-detect and English, because a
+Hebrew glossary skewed language detection toward Hebrew.
+
+**Spoken punctuation and numbering, in Hebrew.** *נקודה* → `.` · *פסיק* → `,` · *נקודתיים* → `:` ·
+*סימן שאלה* → `?` · *סימן קריאה* → `!` · *שורה חדשה* → line break · *מספר אחת / שתיים / שלוש* →
+a numbered list. Said as prose (*"שמתי נקודה בסוף המשפט"*) it stays prose.
+
+> **Two honest caveats.** Spoken punctuation is implemented as instructions to the cleanup model,
+> so it **only works with [cleanup](#optional-local-cleanup) enabled** and is best-effort, not
+> deterministic. And the app has **no RTL/bidi handling of its own** — injected text is plain
+> Unicode, so how mixed Hebrew/Latin lines render is up to the app you type into.
 
 ---
 
-## 🚀 Quick Start
+## Requirements
 
-> **⚠️ TypeFlow has no published releases.** It is a fork, and every download
-> route below — the Releases page, the DMGs, the Homebrew casks, the nightlies —
-> serves **upstream VocaMac**, not TypeFlow. Installing one of those gets you
-> the upstream app: no Profiles, no Snippets, no Command Mode, no bilingual
-> dictation, no LLM cleanup pipeline. It also shares TypeFlow's bundle id, so
-> it will read and write the same preferences and history.
->
-> **To get TypeFlow, build from source (Option 1).** For the same reason,
-> TypeFlow's in-app update check is switched off — see
-> `UpdateChecker.updatesEnabled`.
+| | |
+|---|---|
+| **macOS** | 13 (Ventura) or later |
+| **Hardware** | **Apple Silicon only** (M1–M4). Intel Macs are not supported. |
+| **Build tools** | Xcode 15+ / Swift 5.9+ (building from source is currently the only install route) |
+| **Disk** | ~0.4 GB for the bundled Tiny model; ~1.5 GB for the Hebrew model |
+| **RAM** | 8 GB is fine for English. Hebrew model + local cleanup together target a 24 GB machine. |
 
-### Option 1: Build from Source (the only way to get TypeFlow)
+TypeFlow needs three macOS permissions: **Microphone** (capture), **Accessibility** (hotkeys and
+text injection) and **Input Monitoring** (system-wide key detection). After granting Input
+Monitoring, restart the app.
+
+---
+
+## Install
+
+> **There are no published releases yet.** Build from source — it takes one command.
+> Any VocaMac DMG, Homebrew cask or nightly you find online is **upstream**, not TypeFlow.
 
 ```bash
-git clone https://github.com/jatinkrmalik/vocamac.git   # or your fork's remote
-cd vocamac
+git clone https://github.com/TalEps77/TypeFlow.git
+cd TypeFlow
 make install
 ```
 
-This builds `TypeFlow.app`, installs it to `/Applications/TypeFlow.app`, and
-launches it. Permissions are granted directly to TypeFlow.
+That builds `TypeFlow.app`, installs it to `/Applications`, and launches it. It appears in the
+menu bar — there is no Dock icon.
 
-The bundle folder is named after the display name (`TypeFlow.app`) while the
-executable inside it stays `VocaMac` — the bundle id, entitlements, and the
-single-instance check are all keyed to that name, so it deliberately did not
-change. `scripts/app-name.sh` is the single definition both come from.
+**First run:** grant the three permissions, let WhisperKit fetch the model recommended for your
+Mac, then hold **Right Option**, speak, and release.
 
-> **Upgrading from a pre-rename build?** Accessibility and Input Monitoring
-> grants are keyed to the bundle's *path*, so the VocaMac.app → TypeFlow.app
-> rename invalidated the old ones. In **System Settings → Privacy & Security**,
-> remove the stale `VocaMac` row from **both** Accessibility and Input
-> Monitoring, then add TypeFlow and toggle it on. `make install` removes a
-> leftover `/Applications/VocaMac.app` for you and reminds you to do this.
+To update: `git pull && make install`. The in-app update check is deliberately switched off — it
+pointed at upstream's release feed, so an "update" would have replaced TypeFlow with VocaMac.
 
-### Option 2: CLI Commands (For Developers)
+<a id="hebrew-setup"></a>
+
+### Hebrew setup (optional but recommended)
+
+The ivrit.ai Hebrew model is **not downloadable from inside the app** — it is side-loaded. Place
+the WhisperKit/CoreML model files, together with the tokenizer assets, at:
+
+```
+~/Library/Application Support/VocaMac/models/models/argmaxinc/whisperkit-coreml/ivrit-ai_whisper-large-v3-turbo/
+```
+
+Until the files are there, **Settings → Models** shows the entry as *Not Installed* along with the
+exact path it expects. Once present, it is selectable like any other model; the app will never try
+to download or delete it.
+
+Hebrew dictation also works on the standard multilingual Whisper models — the ivrit.ai fine-tune is
+an accuracy upgrade, not a prerequisite.
+
+<a id="optional-local-cleanup"></a>
+
+### Optional: local cleanup
+
+Raw speech-to-text keeps your *אה*, *אמ*, *כאילו*, "um", false starts and missing punctuation.
+TypeFlow can pass each transcript through a language model **running on your own machine** to
+clean it up — remove fillers, punctuate, split run-ons, apply self-corrections, format spoken
+lists, and resolve spoken punctuation.
+
+It is **off by default**. To enable it, run any OpenAI-compatible server locally — the defaults
+target [LM Studio](https://lmstudio.ai) on `http://localhost:1234` with `qwen3-4b-instruct-2507-mlx` —
+then turn it on in **Settings → Cleanup**.
+
+**This is not a privacy loophole.** The endpoint is checked against loopback before every request
+and redirects are refused outright, so it cannot be pointed at a cloud API even deliberately. There
+is no API-key field, because there is nowhere to send a key. If the server is unreachable, slow, or
+returns something suspicious, the pipeline silently returns your original transcript — cleanup can
+never eat your words.
+
+---
+
+## Using it
+
+| Action | Result |
+|---|---|
+| **Hold Right Option**, speak, release | Transcribe and type at the cursor |
+| **Double-tap Right Option** | Start/stop hands-free (switch modes in Settings → General) |
+| **עב / EN / Auto** in the menu bar | Change dictation language |
+| **Select text, hold Right Command, speak an instruction** | Command Mode rewrites the selection in place |
+| **Menu bar → Undo Last Injection** | Remove what was just typed |
+
+**Command Mode ships off** — enabling it reserves Right Command system-wide while TypeFlow runs.
+By design, *every* Command Mode failure leaves your text untouched: it will never paste your
+spoken instruction over your paragraph.
+
+### Profiles
+
+A Profile binds settings to the app you are typing into: its own cleanup prompt, its own language,
+cleanup on or off. Three starters ship — Chat (Slack/Messages), Mail, Code Editor (VS Code/Xcode).
+Drag to set precedence; export and import as JSON to share them.
+
+Profiles can optionally read the text around your cursor to match tone. That is the most invasive
+thing in the app, so it is **off by default, needs two separate toggles to switch on**, is never
+logged or persisted, and a reply that merely echoes your document is rejected.
+
+### Snippets and dictionary
+
+**Snippets**: say a cue, get a block of text — expanded verbatim, line breaks intact, protected
+from the cleanup model so it can never reword them. Works with cleanup off.
+
+**Dictionary**: deterministic post-recognition fixes for names and jargon, with Hebrew-aware fuzzy
+matching. Optional **correction learning** watches for a single-word edit you make right after
+dictating and *offers* to remember it — off by default, and dismissals are stored as one-way hashes.
+
+---
+
+## Privacy
+
+- Audio is captured, transcribed and discarded **on your Mac**. No servers, no accounts, no telemetry.
+- Cleanup, when enabled, is enforced loopback-only in code.
+- History, snippets, dictionary and profiles are plain files under `~/Library/Application Support/VocaMac/`.
+- Uninstall removes all of it: `./scripts/uninstall.sh`.
+
+The one network call TypeFlow makes on its own is downloading a Whisper model from Hugging Face the
+first time you select one.
+
+---
+
+## Status
+
+TypeFlow is used daily by its author and is **beta**. Being straight about where it stands:
+
+- **The Hebrew accuracy claim is unmeasured.** The ivrit.ai fine-tune is expected to beat the
+  general Whisper models on Hebrew, but no held-out benchmark has been run in this project. Treat
+  it as a reasonable default, not a proven number.
+- No signed release build exists yet, so building from source is the only route, and ad-hoc signing
+  means macOS resets Accessibility/Input Monitoring on every rebuild. See
+  [CONTRIBUTING.md](CONTRIBUTING.md) for the way around that.
+- No RTL/bidi handling; mixed-direction rendering is the target app's business.
+- Recordings longer than 30 seconds can lose roughly the last second to chunking.
+- Some Hebrew fuzzy-matching edge cases are known and accepted (bound prefixes such as
+  בדיקה/בבדיקה can over-match).
+
+797 tests cover the model, pipeline, matching and store layers. SwiftUI view wiring is largely
+manual-tested.
+
+---
+
+## Development
 
 ```bash
-git clone https://github.com/jatinkrmalik/vocamac.git
-cd vocamac
-make install-cli
+make build   # build TypeFlow.app into the repo root
+make test    # swift test
+make run     # launch the local build (inherits your terminal's permissions)
+make dmg     # package a DMG into dist/
+make help    # every target
 ```
 
-This installs two commands to `~/.local/bin`:
-- `vocamac &`: Launch the app in background
-- `vocamac-build`: Rebuild from source after pulling updates
-
-The command names follow the executable, not the display name, so they keep
-working across the rename.
-
-> **Permissions note:** In CLI mode, macOS assigns permissions to your
-> **terminal app** (Terminal, iTerm2, etc.) rather than to the app itself.
-> Grant Microphone, Accessibility, and Input Monitoring to your terminal app
-> instead.
-
-### Option 3: Upstream VocaMac via Homebrew
-
-This installs **upstream VocaMac**, not TypeFlow. Read the warning above first.
-
-```bash
-brew tap jatinkrmalik/vocamac
-brew trust jatinkrmalik/vocamac
-brew install --cask vocamac
-```
-
-See [`docs/HOMEBREW.md`](docs/HOMEBREW.md) for the full Homebrew guide.
-
-### Option 4: Upstream VocaMac via DMG
-
-Also **upstream VocaMac**, not TypeFlow.
-
-1. **Download** the latest `VocaMac-x.x.x-arm64.dmg` from the [Releases page](https://github.com/jatinkrmalik/vocamac/releases)
-2. **Open** the DMG and drag VocaMac to Applications
-3. **Grant permissions**: Microphone, Accessibility, and Input Monitoring when prompted
-
-> Upstream releases are **Developer ID signed and notarized** by Apple — macOS
-> will open them without security warnings. A locally built TypeFlow is signed
-> with whatever Developer ID is in your keychain, or ad-hoc if you have none
-> (in which case permissions reset on every rebuild).
-
-### First Launch
-
-1. **TypeFlow appears in your menu bar** (microphone icon, no Dock icon)
-2. **Grant permissions**: Microphone, Accessibility, and Input Monitoring (see [Permissions](#permissions) above)
-3. **First model download**: WhisperKit automatically downloads the recommended model for your device (~40–500 MB depending on hardware)
-4. **Start dictating**: Hold the **Right Option** key, speak, and release. Your words appear at the cursor!
+Architecture notes live in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and
+[`docs/DATA_MODEL.md`](docs/DATA_MODEL.md); the fork's own design decisions are in
+[`AGENTS.md`](AGENTS.md). Contributions: [CONTRIBUTING.md](CONTRIBUTING.md). Bugs that matter most
+are Hebrew and RTL ones — include the text you spoke and the text you got.
 
 ---
 
-## 🌙 Nightly Builds
-
-> **These are upstream VocaMac nightlies, not TypeFlow.** The workflow in
-> `.github/workflows/nightly.yml` would publish TypeFlow nightlies if this fork
-> had a repo of its own to publish them to; the tap and the download links below
-> resolve to upstream. See the warning under [Quick Start](#-quick-start).
-
-Nightly builds are automated builds from the latest `main` branch, published every day at midnight UTC when there are new commits. They let you try the latest features, fixes, and improvements before they land in a stable release.
-
-**Why use a nightly build?**
-
-- **Early access** — Test new features days or weeks before the next stable release
-- **Help improve the project** — Your feedback on nightly builds catches bugs before they reach everyone
-- **Fully signed & notarized** — Nightly builds are Developer ID signed and notarized by Apple, just like stable releases. No Gatekeeper warnings, no right-click workarounds
-
-**How to install:**
-
-**Via Homebrew (recommended):**
-```bash
-brew tap jatinkrmalik/vocamac
-brew trust jatinkrmalik/vocamac
-brew install --cask vocamac-nightly
-```
-
-**Or via DMG:**
-1. Download the latest `VocaMac-nightly-*.dmg` from the [Nightly Release](https://github.com/jatinkrmalik/vocamac/releases/tag/nightly)
-2. Open the DMG and drag it to Applications
-3. Grant permissions when prompted (same as a stable release)
-
-**How to identify your build:**
-
-Nightly builds embed the date and commit SHA in the version string. Open **Settings → About** to see something like:
-
-```
-Version 0.5.0-nightly.20260414+abc1234 (Nightly)
-```
-
-This helps us pinpoint the exact code you're running if you report an issue.
-
-**Cadence & stability:**
-
-| | Stable Release | Nightly Build |
-|---|---|---|
-| **Frequency** | When ready (manual tag) | Daily at midnight UTC |
-| **Source** | Tagged commit | Latest `main` branch |
-| **Signed & notarized** | ✅ Yes | ✅ Yes |
-| **Stability** | Production-ready | May contain incomplete features or bugs |
-| **Best for** | Daily use | Testing & early feedback |
-
-> ⚠️ **Nightly builds may be unstable.** If you encounter issues, please [open a bug report](https://github.com/jatinkrmalik/vocamac/issues/new) — your feedback helps us ship better stable releases!
-
----
-
-## 🎮 Usage
-
-### Push-to-Talk (Default)
-
-| Action | What Happens |
-|--------|-------------|
-| **Hold Right Option** | Recording starts (menu bar icon turns red) |
-| **Speak** | Audio is captured locally |
-| **Release Right Option** | Recording stops → transcription → text injected at cursor |
-
-### Double-Tap Toggle
-
-| Action | What Happens |
-|--------|-------------|
-| **Double-tap Right Option** | Recording starts |
-| **Speak** | Audio is captured |
-| **Double-tap Right Option again** | Recording stops → transcription → text injection |
-
-Switch between modes in **Settings → General → Activation**.
-
----
-
-## 🧠 Whisper Models
-
-TypeFlow uses OpenAI Whisper models via WhisperKit's CoreML format. The app auto-detects your hardware and recommends the best model:
-
-| Model | Parameters | Size | Speed | Quality | Best For |
-|-------|-----------|------|-------|---------|----------|
-| **Tiny** | 39M | ~0.4 GB | ⚡⚡⚡⚡⚡ | Good | Quick notes, older Macs |
-| **Base** | 74M | ~0.8 GB | ⚡⚡⚡⚡ | Better | Daily use on 8GB Macs |
-| **Small** | 244M | ~1.5 GB | ⚡⚡⚡ | Great | 16GB+ Apple Silicon |
-| **Medium** | 769M | ~2.5 GB | ⚡⚡ | Excellent | 24GB+ for high accuracy |
-| **Large v3** | 1550M | ~4.8 GB | ⚡ | Best | Maximum accuracy |
-
-Models are downloaded automatically from [HuggingFace](https://huggingface.co/argmaxinc/whisperkit-coreml) on first use and cached locally. Download additional models from **Settings → Models**.
-
----
-
-## ⚙️ Configuration
-
-Open Settings from the menu bar popover or with **⌘,**
-
-### General
-- **Activation mode** - Push-to-Talk or Double-Tap Toggle
-- **Hotkey** - Choose from common presets or record a custom activation key directly from your keyboard. The selected key is consumed by TypeFlow while the app is running.
-- **Language** - Auto-detect or specify (English, Spanish, French, German, Chinese, Japanese, and more)
-- **Launch at login**
-
-### Audio
-- **Max recording duration** - 30s, 60s, 120s, or 300s
-- **Silence detection** - Auto-stop recording after configurable silence
-- **Sound effects** - Toggle audio feedback for recording start/stop
-- **Input device** - Select which microphone to use
-
-### Models
-- View system info and WhisperKit's hardware recommendation
-- Download, load, and switch between models
-- See which models are supported on your device
-
----
-
-## 🏗️ Architecture
-
-TypeFlow is built with a clean, modular architecture using native Swift and SwiftUI:
-
-```
-VocaMacApp (SwiftUI MenuBarExtra)
-├── AppState          - Central observable state
-├── HotKeyManager     - CGEventTap global hotkey listener
-├── AudioEngine       - AVAudioEngine mic capture (16kHz, mono, Float32)
-├── WhisperService    - WhisperKit async transcription wrapper
-│   └── ModelManager  - Model download, storage, device recommendations
-│       └── SystemInfo - Hardware detection & model recommendation
-├── SoundManager      - Audio feedback (start/stop recording cues)
-├── TextInjector      - Clipboard + Cmd+V text injection
-├── MenuBarView       - Status popover UI
-└── SettingsView      - Configuration tabs (General, Models, Audio, Debug, About)
-```
-
-For detailed documentation, see:
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - Technical Architecture
-- [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) - Data Model & Entity Relationships
-
----
-
-## 🔧 Development
-
-### Prerequisites
-
-- **Xcode 15+** or Swift 5.9+ toolchain
-- **macOS 13+**
-
-### Project Structure
-
-```
-VocaMac/
-├── Package.swift                   # SPM config (WhisperKit dependency)
-├── Sources/
-│   └── VocaMac/
-│       ├── App/
-│       │   └── VocaMacApp.swift    # Entry point, MenuBarExtra
-│       ├── Views/
-│       │   ├── MenuBarView.swift   # Menu bar popover
-│       │   └── SettingsView.swift  # Settings window (5 tabs)
-│       ├── Services/
-│       │   ├── AudioEngine.swift   # AVAudioEngine mic capture
-│       │   ├── HotKeyManager.swift # CGEventTap global hotkeys
-│       │   ├── WhisperService.swift# WhisperKit transcription wrapper
-│       │   ├── ModelManager.swift  # Model download & management
-│       │   ├── SoundManager.swift  # Audio feedback for recording
-│       │   ├── TextInjector.swift  # Clipboard-based text injection
-│       │   └── SystemInfo.swift    # Hardware detection
-│       ├── Models/
-│       │   ├── AppState.swift      # Central observable state
-│       │   ├── TranscriptionResult.swift  # VocaTranscription type
-│       │   └── WhisperModel.swift  # ModelSize enum, WhisperModelInfo
-│       └── Resources/
-├── Tests/
-│   └── VocaMacTests/
-├── Makefile                        # make build, install, test, clean
-├── scripts/
-│   ├── build.sh                    # Build .app bundle (dev)
-│   ├── install.sh                  # Install to /Applications or CLI
-│   └── uninstall.sh                # Full uninstall & cleanup
-├── web/                            # Marketing website (vocamac.com)
-├── docs/
-│   ├── ARCHITECTURE.md             # Technical Architecture
-│   └── DATA_MODEL.md               # Data Model & Entity Relationships
-├── LICENSE                         # AGPL-3.0 License
-└── .gitignore
-```
-
-### Build Commands
-
-```bash
-make install        # Build + install to /Applications (recommended)
-make install-cli    # Install CLI commands to ~/.local/bin
-make build          # Build .app bundle in repo root (dev iteration)
-make test           # Run tests
-make run            # Launch the locally built .app
-make clean          # Remove build artifacts
-make help           # Show all commands
-```
-
-### Uninstall
-
-To completely remove TypeFlow and all its data (downloaded models, preferences, caches):
-
-```bash
-./scripts/uninstall.sh
-```
-
-Use `--keep-build` to preserve build artifacts:
-
-```bash
-./scripts/uninstall.sh --keep-build
-```
-
-### Troubleshooting
-
-**Reset onboarding:** To re-trigger the first-launch onboarding wizard (e.g., after an upgrade or for testing), reset the onboarding flag:
-
-```bash
-defaults delete com.vocamac.app vocamac.hasCompletedOnboarding
-```
-
-Then relaunch TypeFlow. This only clears the onboarding state; all other preferences (hotkey, language, model) are preserved.
-
-**Reset all preferences:** To start completely fresh:
-
-```bash
-defaults delete com.vocamac.app
-```
-
-**Permissions stuck after the VocaMac.app → TypeFlow.app rename:** Accessibility
-and Input Monitoring grants are keyed to the bundle's path, so the rename
-invalidated every existing grant and left a `VocaMac` row behind in System
-Settings. That row keeps its toggle **on** while granting nothing, which makes
-the list look correct while the hotkey does nothing. In **System Settings →
-Privacy & Security**, remove the `VocaMac` row from **both** Accessibility and
-Input Monitoring, then add TypeFlow and toggle it on. Settings → Debug shows this
-same advice once a permission has read denied for 30 seconds.
-
-**Reset permissions (troubleshooting):** If permissions still appear stuck, reset
-them from **Settings → Debug → Reset All Permissions**, or manually via Terminal:
-
-```bash
-tccutil reset All com.vocamac.app
-```
-
-The bundle id is still `com.vocamac.app` — deliberately, so preferences, models,
-and history survive the rename. This clears all permission entries (Microphone,
-Accessibility, Input Monitoring); on next launch, macOS will prompt you to
-re-grant them. Note that `tccutil` is **unreliable for Accessibility
-specifically** — it often reports success while the row and its grant survive, so
-removing the row by hand is the fix that actually works.
-
-**Update checks are switched off.** TypeFlow does not check for updates, and
-Settings → About has no "Check for Updates…" button. The endpoint the checker
-was pointed at is upstream's, so a "TypeFlow update" would have downloaded
-upstream VocaMac and replaced this build with one that has none of its features.
-See `UpdateChecker.updatesEnabled` for the full reasoning and for what has to be
-restored alongside it. Rebuild from source to update:
-
-```bash
-git pull && make install
-```
-
----
-
-
-## 🌐 Cross-Platform
-
-VocaMac is the macOS member of the Voca family:
-
-| Platform | Project | Status |
-|----------|---------|--------|
-|  Linux | [VocaLinux](https://github.com/jatinkrmalik/vocalinux) | ✅ Available |
-|  macOS | [VocaMac](https://github.com/jatinkrmalik/vocamac) | 🚀 Beta |
-| 🪟 Windows | [VocaWin](https://vocawin.com) | 📋 Planned |
-
-Each platform uses native technologies for the best possible integration, while sharing the same UX patterns and Whisper model family.
-
----
-
-## 🤝 Related Projects
-
-- [WhisperKit](https://github.com/argmaxinc/WhisperKit) - Swift native on-device speech recognition
-- [VocaLinux](https://github.com/jatinkrmalik/vocalinux) - Voice-to-text for Linux
-- [OpenAI Whisper](https://github.com/openai/whisper) - Original Whisper model
-
----
-
-## ⚠️ Known Limitations
-
-- **Larger models require a one-time download**: TypeFlow ships with the Whisper Tiny model bundled — you can dictate immediately with no internet connection. Switching to a larger model (Small, Medium, Large) requires a one-time download; all subsequent launches work fully offline.
-- **macOS only**: Requires macOS 13 (Ventura) or later.
-- **Permissions reset on rebuild (build-from-source only)**: When building from source without a Developer ID certificate, macOS resets Accessibility and Input Monitoring permissions on every rebuild due to ad-hoc signing. Release builds are Developer ID signed so permissions persist across updates.
-
-### Permissions and Code Signing
-
-Upstream release builds are **Developer ID signed and notarized** by Apple. Accessibility and Input Monitoring permissions persist across updates — no manual re-granting required.
-
-**For developers building from source:** If you don't have a Developer ID certificate, `build.sh` falls back to ad-hoc signing. With ad-hoc signing, macOS resets Accessibility and Input Monitoring permissions on every rebuild because the CDHash changes. This is standard macOS security behavior — all open-source apps with Accessibility (Rectangle, Maccy, AltTab, etc.) have the same limitation when ad-hoc signed.
-
-**Workarounds for ad-hoc builds:**
-
-| Approach | How | Permissions Persist |
-|---|---|---|
-| **Run from Terminal** | Grant permissions to Terminal.app once, then run `make run` | ✅ Always |
-| **Re-grant manually** | System Settings → Privacy & Security after each rebuild | Per rebuild |
-
-> **💡 Developer tip:** Add your Terminal app (Terminal.app or iTerm2) to both Accessibility and Input Monitoring in System Settings. Then run the built binary directly from Terminal. Permissions are inherited and never reset.
-
----
-
-## 📄 License
-
-AGPL-3.0 License - see [LICENSE](LICENSE) for details.
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=jatinkrmalik%2Fvocamac&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=jatinkrmalik/vocamac&type=date&theme=dark&legend=top-left&sealed_token=otfG_PjqVtfSDqjuVxBihRMsoeuZwc0ZnUdPqNX9TypLSfyjI0QHWwkE-IVtel80QH3TtIRZzDSNYISJ_tYCHQjqN5fWBUY028tmOiUPvH_MIJroI3Kidg" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=jatinkrmalik/vocamac&type=date&legend=top-left&sealed_token=otfG_PjqVtfSDqjuVxBihRMsoeuZwc0ZnUdPqNX9TypLSfyjI0QHWwkE-IVtel80QH3TtIRZzDSNYISJ_tYCHQjqN5fWBUY028tmOiUPvH_MIJroI3Kidg" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=jatinkrmalik/vocamac&type=date&legend=top-left&sealed_token=otfG_PjqVtfSDqjuVxBihRMsoeuZwc0ZnUdPqNX9TypLSfyjI0QHWwkE-IVtel80QH3TtIRZzDSNYISJ_tYCHQjqN5fWBUY028tmOiUPvH_MIJroI3Kidg" />
- </picture>
-</a>
-
----
-
-<div align="center">
-  
-Made with ❤️ for the macOS community!
-
-</div>
+## Credits and license
+
+TypeFlow is a fork of **[VocaMac](https://github.com/jatinkrmalik/vocamac)** by
+[@jatinkrmalik](https://github.com/jatinkrmalik) — the foundation this is built on. Transcription is
+[WhisperKit](https://github.com/argmaxinc/WhisperKit) by Argmax, running
+[OpenAI Whisper](https://github.com/openai/whisper) models. Hebrew recognition uses the
+[ivrit.ai](https://www.ivrit.ai) fine-tune.
+
+Licensed under **AGPL-3.0-or-later** — see [LICENSE](LICENSE), with attribution and the record of
+modifications in [NOTICE](NOTICE) and dependency licenses in
+[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). Bug reports about TypeFlow belong here, not
+upstream.
+
+<div align="center"><sub>Built for people who think faster than they type — in either direction.</sub></div>

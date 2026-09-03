@@ -1,0 +1,41 @@
+TypeFlow
+Copyright (C) 2026 Tal Epstein
+
+This product is a modified version of VocaMac
+(https://github.com/jatinkrmalik/vocamac)
+Copyright (C) 2026 Jatin Kumar Malik
+
+TypeFlow is free software licensed under the GNU Affero General Public
+License, version 3 or later (AGPL-3.0-or-later). See the LICENSE file for
+the full license text.
+
+--------------------------------------------------------------------------
+Notice of modifications (AGPL-3.0 section 5a)
+--------------------------------------------------------------------------
+
+The following changes were made to the original VocaMac source by
+Tal Epstein in 2026. They are carried in the Git history of
+https://github.com/TalEps77/TypeFlow, where each change is attributable to
+an individual commit.
+
+  * Hebrew and bilingual dictation, including Hebrew spoken punctuation and
+    numbering commands.
+  * Dictation Profiles.
+  * Snippets.
+  * Command Mode for spoken editing commands.
+  * An optional transcript cleanup pipeline.
+  * A custom Vocabulary of user-supplied terms.
+  * Renamed the application to TypeFlow and disabled the inherited in-app
+    update checker, which pointed at upstream VocaMac's release feed.
+
+Upstream VocaMac remains the work of its authors and is not responsible for
+this fork. Bug reports about TypeFlow belong in this repository's issue
+tracker, not upstream's.
+
+--------------------------------------------------------------------------
+Third-party components
+--------------------------------------------------------------------------
+
+TypeFlow depends on third-party open-source components that are licensed
+separately from TypeFlow itself. See THIRD_PARTY_LICENSES.md for the list
+and the license each one carries.
